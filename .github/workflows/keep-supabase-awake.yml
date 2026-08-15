@@ -1,0 +1,28 @@
+# Keep the free-tier Supabase project awake.
+# Supabase pauses projects after ~1 week of zero API activity.
+# This scheduled ping prevents that during development.
+#
+# Replace SUPABASE_PROJECT_URL below with your project REST URL
+# (e.g. https://abcdefgh.supabase.co/rest/v1/) and set SUPABASE_ANON_KEY
+# as a GitHub Actions secret. Works for any 2-minute+ schedule.
+
+name: Keep Supabase awake
+
+on:
+  schedule:
+    - cron: "0 */3 * * *" # every 3 hours
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase project
+        env:
+          SUPABASE_PROJECT_URL: ${{ secrets.SUPABASE_PROJECT_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          curl -sf "$SUPABASE_PROJECT_URL" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" > /dev/null \
+          && echo "Supabase is awake."
