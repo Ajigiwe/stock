@@ -166,3 +166,48 @@ export function EmptyState({ children }: { children: ReactNode }) {
     </div>
   );
 }
+
+export function Modal({
+  open,
+  onClose,
+  title,
+  subtitle,
+  children,
+  size = "lg",
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: ReactNode;
+  subtitle?: ReactNode;
+  children: ReactNode;
+  size?: "md" | "lg" | "xl";
+}) {
+  if (!open) return null;
+  const widths: Record<string, string> = {
+    md: "max-w-md",
+    lg: "max-w-lg",
+    xl: "max-w-2xl",
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+      <div className="absolute inset-0 bg-zinc-900/50" onClick={onClose} aria-hidden="true" />
+      <div className={`relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-2xl ${widths[size]}`}>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-zinc-900">{title}</h2>
+            {subtitle && <p className="mt-0.5 text-sm text-zinc-500">{subtitle}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600"
+          >
+            ✕
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}

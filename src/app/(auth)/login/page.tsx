@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { LoginForm } from "@/components/auth-forms";
 
 export default async function LoginPage({
@@ -19,10 +18,8 @@ export default async function LoginPage({
           <LoginForm next={next} />
         </div>
         <p className="mt-4 text-center text-sm text-zinc-500">
-          No account?{" "}
-          <Link href="/signup" className="font-medium text-zinc-900 underline">
-            Create one
-          </Link>
+          Accounts are created by the owner. If you need access, ask the owner
+          to add you in <span className="font-medium">Settings</span>.
         </p>
       </div>
     </div>

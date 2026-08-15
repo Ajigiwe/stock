@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import {
   getSession,
   getShops,
@@ -39,6 +40,16 @@ export default async function ReportsPage({
   });
 
   const revenue = txs.reduce((a, t) => a + (t.amount ?? 0), 0);
+  const cogs = txs.reduce(
+    (a, t) =>
+      a +
+      t.items
+        .filter((i) => i.direction === "out")
+        .reduce((s, i) => s + i.qty * (i.cost_price ?? 0), 0),
+    0,
+  );
+  const profit = revenue - cogs;
+  const margin = revenue > 0 ? Math.round((profit / revenue) * 100) : 0;
   const byType = (type: string) => txs.filter((t) => t.type === type);
   const paymentBreakdown = txs.reduce<Record<string, number>>((acc, t) => {
     acc[t.payment_method] = (acc[t.payment_method] ?? 0) + (t.amount ?? 0);
@@ -114,7 +125,7 @@ export default async function ReportsPage({
           <div className="sm:col-span-5">
             <button
               type="submit"
-              className="inline-flex h-10 items-center rounded-lg bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700"
+              className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700 sm:w-auto"
             >
               Apply
             </button>
@@ -122,11 +133,20 @@ export default async function ReportsPage({
         </form>
       </Card>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={`grid gap-3 sm:grid-cols-2 ${isOwner ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
         <Card>
           <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">Revenue</div>
           <div className="mt-1 text-xl font-bold text-zinc-900">{formatMoney(revenue)}</div>
         </Card>
+        {isOwner && (
+          <Card>
+            <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">Est. profit</div>
+            <div className={`mt-1 text-xl font-bold ${profit >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+              {formatMoney(profit)}
+            </div>
+            <div className="mt-0.5 text-xs text-zinc-400">{margin}% margin</div>
+          </Card>
+        )}
         <Card>
           <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">Sales</div>
           <div className="mt-1 text-xl font-bold text-zinc-900">{byType("sale").length}</div>
@@ -158,26 +178,64 @@ export default async function ReportsPage({
         {txs.length === 0 ? (
           <EmptyState>No transactions match these filters.</EmptyState>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-400">
-                  <th className="py-2 pr-4 font-medium">Date</th>
-                  {isOwner && <th className="py-2 pr-4 font-medium">Shop</th>}
-                  <th className="py-2 pr-4 font-medium">Staff</th>
-                  <th className="py-2 pr-4 font-medium">Type</th>
-                  <th className="py-2 pr-4 font-medium">Items</th>
-                  <th className="py-2 pr-4 font-medium">Payment</th>
-                  <th className="py-2 text-right font-medium">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {txs.map((t) => (
-                  <ReportRow key={t.id} t={t} isOwner={isOwner} />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <div className="hidden overflow-x-auto sm:block">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-400">
+                    <th className="py-2 pr-4 font-medium">Date</th>
+                    {isOwner && <th className="py-2 pr-4 font-medium">Shop</th>}
+                    <th className="py-2 pr-4 font-medium">Staff</th>
+                    <th className="py-2 pr-4 font-medium">Type</th>
+                    <th className="py-2 pr-4 font-medium">Items</th>
+                    <th className="py-2 pr-4 font-medium">Payment</th>
+                    <th className="py-2 pr-4 text-right font-medium">Amount</th>
+                    <th className="py-2 font-medium"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {txs.map((t) => (
+                    <ReportRow key={t.id} t={t} isOwner={isOwner} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ul className="space-y-2 sm:hidden">
+              {txs.map((t) => (
+                <li key={t.id} className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone={t.type === "sale" ? "green" : t.type === "swap" ? "blue" : "gray"}>
+                          {t.type}
+                        </Badge>
+                        {isOwner && t.shop_name && (
+                          <span className="text-xs text-zinc-500">{t.shop_name}</span>
+                        )}
+                      </div>
+                      <div className="mt-1 text-sm font-medium text-zinc-900">
+                        {t.items.map((i) => (i.direction === "out" ? "−" : "+") + i.model_name).join(", ") ||
+                          "—"}
+                      </div>
+                      <div className="mt-0.5 text-xs text-zinc-500">
+                        {formatDateTime(t.date)} · {t.staff_name ?? "—"} ·{" "}
+                        {PAYMENT_LABELS[t.payment_method] ?? t.payment_method}
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="text-sm font-semibold text-zinc-900">{formatMoney(t.amount)}</div>
+                      <Link
+                        href={`/transactions/${t.id}`}
+                        className="text-xs font-medium text-zinc-500 underline hover:text-zinc-800"
+                      >
+                        Receipt
+                      </Link>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </Card>
     </div>
@@ -199,7 +257,15 @@ function ReportRow({ t, isOwner }: { t: TransactionWithDetails; isOwner: boolean
         {t.items.map((i) => (i.direction === "out" ? "−" : "+") + i.model_name).join(", ") || "—"}
       </td>
       <td className="py-2 pr-4 text-zinc-500">{PAYMENT_LABELS[t.payment_method] ?? t.payment_method}</td>
-      <td className="py-2 text-right font-semibold text-zinc-900">{formatMoney(t.amount)}</td>
+      <td className="py-2 pr-4 text-right font-semibold text-zinc-900">{formatMoney(t.amount)}</td>
+      <td className="py-2 text-right">
+        <Link
+          href={`/transactions/${t.id}`}
+          className="text-xs font-medium text-zinc-500 underline hover:text-zinc-800"
+        >
+          Receipt
+        </Link>
+      </td>
     </tr>
   );
 }

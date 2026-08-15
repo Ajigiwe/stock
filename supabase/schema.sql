@@ -3,6 +3,24 @@
 -- Run this in the Supabase SQL editor (Dashboard > SQL > New query), or via
 -- `supabase db push` if you have the CLI linked.
 --
+-- SAFE TO RE-RUN: the header below drops any previous version first.
+-- ============================================================================
+
+drop trigger if exists on_auth_user_created on auth.users;
+drop table if exists public.stock_adjustments cascade;
+drop table if exists public.transaction_items cascade;
+drop table if exists public.transactions cascade;
+drop table if exists public.phone_models cascade;
+drop table if exists public.users cascade;
+drop table if exists public.shops cascade;
+drop type if exists public.user_profile_t cascade;
+drop type if exists public.adjustment_type cascade;
+drop type if exists public.item_direction cascade;
+drop type if exists public.payment_method cascade;
+drop type if exists public.tx_type cascade;
+drop type if exists public.phone_condition cascade;
+drop type if exists public.user_role cascade;
+
 -- DESIGN DECISIONS (resolves open items in design.md):
 --   * Repairs are SERVICE-ONLY: the customer's phone comes in and goes back
 --     out with the customer; no stock movement. Only the transaction record
@@ -25,6 +43,9 @@ create type tx_type            as enum ('sale', 'swap', 'repair');
 create type payment_method     as enum ('cash', 'mobile_money', 'card', 'bank_transfer', 'other');
 create type item_direction     as enum ('out', 'in');
 create type adjustment_type    as enum ('restock', 'correction');
+
+-- composite returned by current_user_profile() (scalar — usable in RLS policies)
+create type user_profile_t as (id uuid, role user_role, shop_id uuid);
 
 -- ---------------------------------------------------------------------------
 -- shops
@@ -249,32 +270,6 @@ create trigger stock_adjustment_change
   for each row execute function public.apply_stock_adjustment();
 
 -- ---------------------------------------------------------------------------
--- Helper: claim the owner role (run once after your first signup)
--- ---------------------------------------------------------------------------
--- Usage: after signing up your personal account in the app, run:
---     select public.claim_owner();
--- Only works while no owner exists yet (prevents accidental re-claiming).
-create or replace function public.claim_owner()
-returns void
-language plpgsql security definer set search_path = public
-as $$
-declare
-  existing uuid;
-begin
-  select id into existing from public.users where role = 'owner' limit 1;
-  if existing is not null then
-    raise exception 'An owner already exists' using errcode = 'P0001';
-  end if;
-  update public.users set role = 'owner' where id = auth.uid();
-  if not found then
-    raise exception 'No user profile found for the current session' using errcode = 'P0001';
-  end if;
-end;
-$$;
-
-grant execute on function public.claim_owner() to authenticated;
-
--- ---------------------------------------------------------------------------
 -- RPC: record_transaction
 -- Atomic recording of a sale/swap/repair, including all stock side-effects.
 -- p_out_items: jsonb array of {"phone_model_id", "qty"}
@@ -374,6 +369,8 @@ grant execute on function public.record_transaction(uuid, text, text, public.tx_
 
 -- ---------------------------------------------------------------------------
 -- RPC: adjust_stock  (restock / manual correction)
+-- OWNER ONLY since 2026-08-15: attendants must request stock changes and the
+-- owner approves them via approve_stock_request.
 -- ---------------------------------------------------------------------------
 create or replace function public.adjust_stock(
   p_shop_id uuid,
@@ -397,9 +394,7 @@ begin
   end if;
 
   if v_role <> 'owner' then
-    if p_shop_id <> (select shop_id from public.users where id = v_staff_id) then
-      raise exception 'Not allowed to adjust stock for this shop' using errcode = 'P0001';
-    end if;
+    raise exception 'Only owners can adjust stock directly' using errcode = 'P0001';
   end if;
 
   if not exists (select 1 from public.phone_models where id = p_phone_model_id and shop_id = p_shop_id) then
@@ -436,6 +431,288 @@ $$;
 
 grant execute on function public.delete_transaction(uuid) to authenticated;
 
+-- ---------------------------------------------------------------------------
+-- RPC: restore_backup  (owner only — full data restore from a backup file)
+-- Replaces ALL data with the contents of the backup. Stock triggers are
+-- disabled while loading so the saved `available` values are preserved (they
+-- are authoritative). Runs as a single transaction — a bad file rolls back
+-- completely.
+-- p_data: jsonb shaped like the backup file produced by the /settings/backup
+-- route: { shops[], users[], phone_models[], transactions[],
+--         transaction_items[], stock_adjustments[] }
+-- ---------------------------------------------------------------------------
+create or replace function public.restore_backup(p_data jsonb)
+returns jsonb
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_rec  jsonb;
+  v_rows bigint;
+begin
+  if (select role from public.users where id = auth.uid()) <> 'owner' then
+    raise exception 'Only owners can restore backups' using errcode = 'P0001';
+  end if;
+
+  if p_data is null or not p_data ? 'shops' then
+    raise exception 'Invalid backup file' using errcode = 'P0001';
+  end if;
+
+  alter table public.transaction_items disable trigger item_stock_change;
+  alter table public.stock_adjustments disable trigger stock_adjustment_change;
+
+  -- WHERE true keeps Supabase's "safe delete" guard happy (DELETE without a
+  -- WHERE clause is rejected by the platform).
+  delete from public.transaction_items where true;
+  delete from public.transactions where true;
+  delete from public.stock_adjustments where true;
+  delete from public.phone_models where true;
+  delete from public.users where true;
+  delete from public.shops where true;
+
+  for v_rec in select * from jsonb_array_elements(coalesce(p_data -> 'shops', '[]'::jsonb)) loop
+    insert into public.shops (id, name, location, phone, created_at)
+    values ((v_rec ->> 'id')::uuid, v_rec ->> 'name', v_rec ->> 'location', v_rec ->> 'phone',
+            coalesce((v_rec ->> 'created_at')::timestamptz, now()));
+  end loop;
+
+  -- Only restore profiles whose auth account still exists (same project).
+  for v_rec in select * from jsonb_array_elements(coalesce(p_data -> 'users', '[]'::jsonb)) loop
+    if exists (select 1 from auth.users where id = (v_rec ->> 'id')::uuid) then
+      insert into public.users (id, name, role, shop_id, created_at)
+      values ((v_rec ->> 'id')::uuid,
+              coalesce(v_rec ->> 'name', ''),
+              coalesce((v_rec ->> 'role')::public.user_role, 'attendant'),
+              nullif(v_rec ->> 'shop_id', '')::uuid,
+              coalesce((v_rec ->> 'created_at')::timestamptz, now()));
+    end if;
+  end loop;
+
+  for v_rec in select * from jsonb_array_elements(coalesce(p_data -> 'phone_models', '[]'::jsonb)) loop
+    insert into public.phone_models
+      (id, shop_id, model_name, condition, cost_price, sale_price,
+       opening_stock, bought_in, available, low_stock_threshold, created_at)
+    values ((v_rec ->> 'id')::uuid,
+            (v_rec ->> 'shop_id')::uuid,
+            v_rec ->> 'model_name',
+            coalesce((v_rec ->> 'condition')::public.phone_condition, 'new'),
+            (v_rec ->> 'cost_price')::numeric,
+            (v_rec ->> 'sale_price')::numeric,
+            coalesce((v_rec ->> 'opening_stock')::int, 0),
+            coalesce((v_rec ->> 'bought_in')::int, 0),
+            coalesce((v_rec ->> 'available')::int, 0),
+            coalesce((v_rec ->> 'low_stock_threshold')::int, 5),
+            coalesce((v_rec ->> 'created_at')::timestamptz, now()));
+  end loop;
+
+  for v_rec in select * from jsonb_array_elements(coalesce(p_data -> 'transactions', '[]'::jsonb)) loop
+    insert into public.transactions
+      (id, shop_id, staff_id, customer_name, customer_phone, type,
+       payment_method, amount, date, created_at)
+    values ((v_rec ->> 'id')::uuid,
+            (v_rec ->> 'shop_id')::uuid,
+            coalesce(nullif(v_rec ->> 'staff_id', '')::uuid,
+                     (select id from public.users where role = 'owner' limit 1)),
+            v_rec ->> 'customer_name',
+            v_rec ->> 'customer_phone',
+            coalesce((v_rec ->> 'type')::public.tx_type, 'sale'),
+            coalesce((v_rec ->> 'payment_method')::public.payment_method, 'cash'),
+            coalesce((v_rec ->> 'amount')::numeric, 0),
+            coalesce((v_rec ->> 'date')::timestamptz, now()),
+            coalesce((v_rec ->> 'created_at')::timestamptz, now()));
+  end loop;
+
+  for v_rec in select * from jsonb_array_elements(coalesce(p_data -> 'transaction_items', '[]'::jsonb)) loop
+    insert into public.transaction_items (id, transaction_id, phone_model_id, direction, qty)
+    values ((v_rec ->> 'id')::uuid,
+            (v_rec ->> 'transaction_id')::uuid,
+            (v_rec ->> 'phone_model_id')::uuid,
+            (v_rec ->> 'direction')::public.item_direction,
+            coalesce((v_rec ->> 'qty')::int, 1));
+  end loop;
+
+  for v_rec in select * from jsonb_array_elements(coalesce(p_data -> 'stock_adjustments', '[]'::jsonb)) loop
+    insert into public.stock_adjustments
+      (id, shop_id, phone_model_id, staff_id, type, delta, reason, date)
+    values ((v_rec ->> 'id')::uuid,
+            (v_rec ->> 'shop_id')::uuid,
+            (v_rec ->> 'phone_model_id')::uuid,
+            coalesce(nullif(v_rec ->> 'staff_id', '')::uuid,
+                     (select id from public.users where role = 'owner' limit 1)),
+            coalesce((v_rec ->> 'type')::public.adjustment_type, 'restock'),
+            coalesce((v_rec ->> 'delta')::int, 0),
+            v_rec ->> 'reason',
+            coalesce((v_rec ->> 'date')::timestamptz, now()));
+  end loop;
+
+  alter table public.transaction_items enable trigger item_stock_change;
+  alter table public.stock_adjustments enable trigger stock_adjustment_change;
+
+  select count(*) into v_rows from public.transactions;
+  return jsonb_build_object('restored', true, 'transactions', v_rows);
+end;
+$$;
+
+grant execute on function public.restore_backup(jsonb) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- stock_requests  (attendant stock-change approvals)
+-- Attendant stock changes (new models + restocks/corrections) are recorded
+-- here as PENDING; only the owner can approve/reject them. Approved changes
+-- are applied by approve_stock_request.
+-- ---------------------------------------------------------------------------
+create table public.stock_requests (
+  id                  uuid primary key default gen_random_uuid(),
+  shop_id             uuid not null references public.shops (id) on delete cascade,
+  staff_id            uuid not null references public.users (id),
+  type                text not null check (type in ('create_model', 'adjust_stock')),
+  status              text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  -- create_model payload
+  model_name          text,
+  condition           public.phone_condition,
+  cost_price          numeric(12,2),
+  sale_price          numeric(12,2),
+  low_stock_threshold int,
+  opening_stock       int,
+  -- adjust_stock payload
+  phone_model_id      uuid references public.phone_models (id) on delete cascade,
+  delta               int,
+  reason              text,
+  created_at          timestamptz not null default now(),
+  decided_at          timestamptz,
+  decided_by          uuid references public.users (id),
+  error_note          text
+);
+
+create index stock_requests_shop_status_idx on public.stock_requests (shop_id, status);
+create index stock_requests_status_idx on public.stock_requests (status);
+
+-- Owner-only: apply a pending request (creates the model or moves stock).
+create or replace function public.approve_stock_request(p_request_id uuid)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_rec public.stock_requests%rowtype;
+begin
+  if (select role from public.users where id = auth.uid()) <> 'owner' then
+    raise exception 'Only owners can approve stock changes' using errcode = 'P0001';
+  end if;
+
+  select * into v_rec from public.stock_requests where id = p_request_id and status = 'pending';
+  if v_rec.id is null then
+    raise exception 'Pending stock request not found' using errcode = 'P0001';
+  end if;
+
+  if v_rec.type = 'create_model' then
+    if exists (
+      select 1 from public.phone_models
+      where shop_id = v_rec.shop_id
+        and model_name = v_rec.model_name
+        and condition = v_rec.condition
+    ) then
+      raise exception 'A model with this name and condition already exists' using errcode = 'P0001';
+    end if;
+    insert into public.phone_models
+      (shop_id, model_name, condition, cost_price, sale_price, opening_stock, bought_in, available, low_stock_threshold)
+    values (v_rec.shop_id, v_rec.model_name, v_rec.condition, v_rec.cost_price, v_rec.sale_price,
+            v_rec.opening_stock, 0, v_rec.opening_stock, coalesce(v_rec.low_stock_threshold, 5));
+  elsif v_rec.type = 'adjust_stock' then
+    insert into public.stock_adjustments (shop_id, phone_model_id, staff_id, type, delta, reason)
+    values (v_rec.shop_id, v_rec.phone_model_id, v_rec.staff_id,
+            case when v_rec.delta > 0 then 'restock'::public.adjustment_type else 'correction'::public.adjustment_type end,
+            v_rec.delta, v_rec.reason);
+  end if;
+
+  update public.stock_requests
+     set status = 'approved', decided_at = now(), decided_by = auth.uid(), error_note = null
+   where id = p_request_id;
+end;
+$$;
+
+grant execute on function public.approve_stock_request(uuid) to authenticated;
+
+-- Owner-only: reject a pending request (no stock change).
+create or replace function public.reject_stock_request(p_request_id uuid)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if (select role from public.users where id = auth.uid()) <> 'owner' then
+    raise exception 'Only owners can reject stock changes' using errcode = 'P0001';
+  end if;
+
+  update public.stock_requests
+     set status = 'rejected', decided_at = now(), decided_by = auth.uid(), error_note = null
+   where id = p_request_id and status = 'pending';
+  if not found then
+    raise exception 'Pending stock request not found' using errcode = 'P0001';
+  end if;
+end;
+$$;
+
+grant execute on function public.reject_stock_request(uuid) to authenticated;
+
+-- Owner-only: approve every pending request at once (optionally for one shop).
+-- Requests that fail to apply (e.g. duplicate model, insufficient stock) stay
+-- pending and record why in error_note.
+create or replace function public.approve_all_stock_requests(p_shop_id uuid default null)
+returns table (approved bigint, failed bigint)
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_rec      public.stock_requests%rowtype;
+  v_approved bigint := 0;
+  v_failed   bigint := 0;
+begin
+  if (select role from public.users where id = auth.uid()) <> 'owner' then
+    raise exception 'Only owners can approve stock changes' using errcode = 'P0001';
+  end if;
+
+  for v_rec in
+    select * from public.stock_requests
+     where status = 'pending'
+       and (p_shop_id is null or shop_id = p_shop_id)
+     order by created_at
+  loop
+    begin
+      if v_rec.type = 'create_model' then
+        if exists (
+          select 1 from public.phone_models
+          where shop_id = v_rec.shop_id
+            and model_name = v_rec.model_name
+            and condition = v_rec.condition
+        ) then
+          raise exception 'A model with this name and condition already exists';
+        end if;
+        insert into public.phone_models
+          (shop_id, model_name, condition, cost_price, sale_price, opening_stock, bought_in, available, low_stock_threshold)
+        values (v_rec.shop_id, v_rec.model_name, v_rec.condition, v_rec.cost_price, v_rec.sale_price,
+                v_rec.opening_stock, 0, v_rec.opening_stock, coalesce(v_rec.low_stock_threshold, 5));
+      elsif v_rec.type = 'adjust_stock' then
+        insert into public.stock_adjustments (shop_id, phone_model_id, staff_id, type, delta, reason)
+        values (v_rec.shop_id, v_rec.phone_model_id, v_rec.staff_id,
+                case when v_rec.delta > 0 then 'restock'::public.adjustment_type else 'correction'::public.adjustment_type end,
+                v_rec.delta, v_rec.reason);
+      end if;
+
+      update public.stock_requests
+         set status = 'approved', decided_at = now(), decided_by = auth.uid(), error_note = null
+       where id = v_rec.id;
+      v_approved := v_approved + 1;
+    exception when others then
+      v_failed := v_failed + 1;
+      update public.stock_requests
+         set error_note = left(sqlerrm, 300)
+       where id = v_rec.id;
+    end;
+  end loop;
+
+  return query select v_approved, v_failed;
+end;
+$$;
+
+grant execute on function public.approve_all_stock_requests(uuid) to authenticated;
+
 -- ============================================================================
 -- Row Level Security
 -- ============================================================================
@@ -445,10 +722,11 @@ alter table public.phone_models     enable row level security;
 alter table public.transactions     enable row level security;
 alter table public.transaction_items enable row level security;
 alter table public.stock_adjustments enable row level security;
+alter table public.stock_requests   enable row level security;
 
 -- helper used by policies below: current user's profile
 create or replace function public.current_user_profile()
-returns table (id uuid, role user_role, shop_id uuid)
+returns public.user_profile_t
 language sql stable security definer set search_path = public
 as $$
   select id, role, shop_id from public.users where id = auth.uid()
@@ -458,78 +736,92 @@ grant execute on function public.current_user_profile() to authenticated;
 
 -- ---------- shops ----------
 create policy "shops: owner full access" on public.shops
-  for all using (public.current_user_profile().role = 'owner')
-  with check (public.current_user_profile().role = 'owner');
+  for all using ((public.current_user_profile()).role = 'owner')
+  with check ((public.current_user_profile()).role = 'owner');
 
 create policy "shops: attendant sees own shop" on public.shops
-  for select using (public.current_user_profile().shop_id = id);
+  for select using ((public.current_user_profile()).shop_id = id);
 
 -- ---------- users ----------
 create policy "users: owner full access" on public.users
-  for all using (public.current_user_profile().role = 'owner')
-  with check (public.current_user_profile().role = 'owner');
+  for all using ((public.current_user_profile()).role = 'owner')
+  with check ((public.current_user_profile()).role = 'owner');
 
 create policy "users: read own row" on public.users
   for select using (auth.uid() = id);
 
 create policy "users: attendant reads staff in own shop" on public.users
-  for select using (public.current_user_profile().shop_id = shop_id);
+  for select using ((public.current_user_profile()).shop_id = shop_id);
 
 -- ---------- phone_models ----------
 create policy "phone_models: owner full access" on public.phone_models
-  for all using (public.current_user_profile().role = 'owner')
-  with check (public.current_user_profile().role = 'owner');
+  for all using ((public.current_user_profile()).role = 'owner')
+  with check ((public.current_user_profile()).role = 'owner');
 
 create policy "phone_models: attendant manages own shop" on public.phone_models
-  for all using (public.current_user_profile().shop_id = shop_id)
-  with check (public.current_user_profile().shop_id = shop_id);
+  for all using ((public.current_user_profile()).shop_id = shop_id)
+  with check ((public.current_user_profile()).shop_id = shop_id);
 
 -- ---------- transactions ----------
 create policy "transactions: owner full access" on public.transactions
-  for all using (public.current_user_profile().role = 'owner')
-  with check (public.current_user_profile().role = 'owner');
+  for all using ((public.current_user_profile()).role = 'owner')
+  with check ((public.current_user_profile()).role = 'owner');
 
 -- attendant: can only insert into own shop; never update/delete
 create policy "transactions: attendant inserts own shop" on public.transactions
   for insert with check (
-    public.current_user_profile().shop_id = shop_id
-    and public.current_user_profile().role = 'attendant'
+    (public.current_user_profile()).shop_id = shop_id
+    and (public.current_user_profile()).role = 'attendant'
   );
 
 create policy "transactions: attendant reads own shop" on public.transactions
-  for select using (public.current_user_profile().shop_id = shop_id);
+  for select using ((public.current_user_profile()).shop_id = shop_id);
 
 -- ---------- transaction_items ----------
 create policy "transaction_items: owner full access" on public.transaction_items
   for all using (
-    public.current_user_profile().role = 'owner'
+    (public.current_user_profile()).role = 'owner'
     or exists (
       select 1 from public.transactions t
-      where t.id = transaction_id and t.shop_id = public.current_user_profile().shop_id
+      where t.id = transaction_id and t.shop_id = (public.current_user_profile()).shop_id
     )
   )
   with check (
-    public.current_user_profile().role = 'owner'
+    (public.current_user_profile()).role = 'owner'
     or exists (
       select 1 from public.transactions t
-      where t.id = transaction_id and t.shop_id = public.current_user_profile().shop_id
+      where t.id = transaction_id and t.shop_id = (public.current_user_profile()).shop_id
     )
   );
 
 -- ---------- stock_adjustments ----------
 create policy "stock_adjustments: owner full access" on public.stock_adjustments
-  for all using (public.current_user_profile().role = 'owner')
-  with check (public.current_user_profile().role = 'owner');
+  for all using ((public.current_user_profile()).role = 'owner')
+  with check ((public.current_user_profile()).role = 'owner');
 
 -- attendant: insert + read own shop; no update/delete
 create policy "stock_adjustments: attendant insert own shop" on public.stock_adjustments
   for insert with check (
-    public.current_user_profile().shop_id = shop_id
-    and public.current_user_profile().role = 'attendant'
+    (public.current_user_profile()).shop_id = shop_id
+    and (public.current_user_profile()).role = 'attendant'
   );
 
 create policy "stock_adjustments: attendant reads own shop" on public.stock_adjustments
-  for select using (public.current_user_profile().shop_id = shop_id);
+  for select using ((public.current_user_profile()).shop_id = shop_id);
+
+-- ---------- stock_requests ----------
+create policy "stock_requests: owner full access" on public.stock_requests
+  for all using ((public.current_user_profile()).role = 'owner')
+  with check ((public.current_user_profile()).role = 'owner');
+
+create policy "stock_requests: attendant insert own shop" on public.stock_requests
+  for insert with check (
+    (public.current_user_profile()).role = 'attendant'
+    and (public.current_user_profile()).shop_id = shop_id
+  );
+
+create policy "stock_requests: attendant reads own shop" on public.stock_requests
+  for select using ((public.current_user_profile()).shop_id = shop_id);
 
 -- ---------------------------------------------------------------------------
 -- Realtime

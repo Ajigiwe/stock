@@ -5,9 +5,12 @@ import { useRouter } from "next/navigation";
 import { createShop, deleteShop } from "@/lib/actions";
 import type { Shop } from "@/lib/data";
 import { Button, ButtonDanger, ButtonSecondary, ErrorNote, Field, Input } from "@/components/ui";
+import { useConfirm, useToast } from "@/components/feedback";
 
 export function ShopManager({ shops }: { shops: Shop[] }) {
   const router = useRouter();
+  const confirm = useConfirm();
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
@@ -20,12 +23,29 @@ export function ShopManager({ shops }: { shops: Shop[] }) {
       setError(null);
       const res = await createShop({ name, location, phone });
       if (!res.ok) return setError(res.error ?? "Failed.");
+      toast.success(`Shop "${name}" added.`);
       setName("");
       setLocation("");
       setPhone("");
       setOpen(false);
       router.refresh();
     });
+
+  const onDelete = async (s: Shop) => {
+    const ok = await confirm({
+      title: `Delete "${s.name}"?`,
+      message: "All its stock and history will be removed. This cannot be undone.",
+      confirmLabel: "Delete shop",
+      danger: true,
+    });
+    if (!ok) return;
+    startTransition(async () => {
+      const res = await deleteShop(s.id);
+      if (!res.ok) return toast.error(res.error ?? "Could not delete shop.");
+      toast.success(`Shop "${s.name}" deleted.`);
+      router.refresh();
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -67,13 +87,7 @@ export function ShopManager({ shops }: { shops: Shop[] }) {
             </div>
             <ButtonDanger
               className="h-8 px-2 text-xs"
-              onClick={() =>
-                startTransition(async () => {
-                  if (!confirm(`Delete shop "${s.name}"? All its stock will be removed.`)) return;
-                  await deleteShop(s.id);
-                  router.refresh();
-                })
-              }
+              onClick={() => onDelete(s)}
             >
               Delete
             </ButtonDanger>

@@ -1,0 +1,54 @@
+model_name,condition,cost_price,sale_price,opening_stock,low_stock_threshold
+iPhone X 64GB,used,1000,1400,0,2
+iPhone XS 64GB,used,1150,1600,0,2
+iPhone XS Max 64GB,used,1300,1800,0,2
+iPhone XR 64GB,used,1050,1450,0,2
+iPhone 11 64GB,used,1400,1900,0,2
+iPhone 11 Pro 64GB,used,1700,2300,0,2
+iPhone 11 Pro Max 64GB,used,1850,2500,0,2
+iPhone 12 128GB,used,2000,2700,0,2
+iPhone 12 mini 128GB,used,1700,2300,0,2
+iPhone 12 Pro 128GB,used,2500,3300,0,2
+iPhone 12 Pro Max 128GB,used,2750,3600,0,2
+iPhone 13 128GB,used,2650,3500,0,2
+iPhone 13 mini 128GB,used,2300,3000,0,2
+iPhone 13 Pro 128GB,used,3300,4300,0,2
+iPhone 13 Pro Max 128GB,used,3600,4700,0,2
+iPhone 13 128GB,new,5300,6300,0,2
+iPhone 13 mini 128GB,new,4700,5600,0,2
+iPhone 13 Pro 128GB,new,6500,7700,0,2
+iPhone 13 Pro Max 128GB,new,7200,8500,0,2
+iPhone 14 128GB,used,3400,4400,0,2
+iPhone 14 Plus 128GB,used,3700,4800,0,2
+iPhone 14 Pro 128GB,used,4200,5500,0,2
+iPhone 14 Pro Max 128GB,used,4700,6100,0,2
+iPhone 14 128GB,new,6000,7200,0,2
+iPhone 14 Plus 128GB,new,6600,8000,0,2
+iPhone 14 Pro 128GB,new,8000,9600,0,2
+iPhone 14 Pro Max 128GB,new,8800,10500,0,2
+iPhone 15 128GB,used,4500,5800,0,2
+iPhone 15 Plus 128GB,used,4900,6300,0,2
+iPhone 15 Pro 128GB,used,5700,7400,0,2
+iPhone 15 Pro Max 256GB,used,6400,8300,0,2
+iPhone 15 128GB,new,7400,8800,0,2
+iPhone 15 Plus 128GB,new,8200,9800,0,2
+iPhone 15 Pro 128GB,new,9700,11500,0,2
+iPhone 15 Pro Max 256GB,new,11800,14000,0,2
+iPhone 16 128GB,used,5900,7600,0,2
+iPhone 16 Plus 128GB,used,6400,8300,0,2
+iPhone 16 Pro 128GB,used,7600,9800,0,2
+iPhone 16 Pro Max 256GB,used,8500,10900,0,2
+iPhone 16e 128GB,used,4700,6100,0,2
+iPhone 16 128GB,new,10000,11800,0,2
+iPhone 16 Plus 128GB,new,11000,13000,0,2
+iPhone 16 Pro 128GB,new,12500,14700,0,2
+iPhone 16 Pro Max 256GB,new,15000,17500,0,2
+iPhone 16e 128GB,new,8000,9500,0,2
+iPhone 17 128GB,used,7700,9900,0,2
+iPhone 17 Pro 128GB,used,9600,12400,0,2
+iPhone 17 Pro Max 256GB,used,10600,13700,0,2
+iPhone 17 Air 128GB,used,9200,11800,0,2
+iPhone 17 128GB,new,11000,13000,0,2
+iPhone 17 Pro 128GB,new,13600,16000,0,2
+iPhone 17 Pro Max 256GB,new,16200,19000,0,2
+iPhone 17 Air 128GB,new,12300,14500,0,2

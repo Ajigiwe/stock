@@ -5,9 +5,12 @@ import { useRouter } from "next/navigation";
 import { createStaff, removeStaff } from "@/lib/actions";
 import type { Shop, UserProfile } from "@/lib/data";
 import { Button, ButtonDanger, ButtonSecondary, ErrorNote, Field, Input, Select } from "@/components/ui";
+import { useConfirm, useToast } from "@/components/feedback";
 
 export function StaffManager({ shops, staff }: { shops: Shop[]; staff: UserProfile[] }) {
   const router = useRouter();
+  const confirm = useConfirm();
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -21,12 +24,29 @@ export function StaffManager({ shops, staff }: { shops: Shop[]; staff: UserProfi
       setError(null);
       const res = await createStaff({ name, email, password, shopId });
       if (!res.ok) return setError(res.error ?? "Failed.");
+      toast.success(`Staff account for ${name} created.`);
       setName("");
       setEmail("");
       setPassword("");
       setOpen(false);
       router.refresh();
     });
+
+  const onRemove = async (s: UserProfile) => {
+    const ok = await confirm({
+      title: `Remove ${s.name}?`,
+      message: "Their login account will be permanently deleted.",
+      confirmLabel: "Remove staff",
+      danger: true,
+    });
+    if (!ok) return;
+    startTransition(async () => {
+      const res = await removeStaff(s.id);
+      if (!res.ok) return toast.error(res.error ?? "Could not remove staff.");
+      toast.success(`${s.name} removed.`);
+      router.refresh();
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -83,13 +103,7 @@ export function StaffManager({ shops, staff }: { shops: Shop[]; staff: UserProfi
               </div>
               <ButtonDanger
                 className="h-8 px-2 text-xs"
-                onClick={() =>
-                  startTransition(async () => {
-                    if (!confirm(`Remove staff "${s.name}"? Their account will be deleted.`)) return;
-                    await removeStaff(s.id);
-                    router.refresh();
-                  })
-                }
+                onClick={() => onRemove(s)}
               >
                 Remove
               </ButtonDanger>

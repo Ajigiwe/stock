@@ -32,8 +32,16 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Public routes: /login and /signup
-  const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/signup");
+  // /signup no longer exists: accounts are created by the owner only.
+  if (pathname.startsWith("/signup")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
+  // Public routes: /login and /setup (one-time owner bootstrap).
+  const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/setup");
 
   if (!user && !isAuthPage) {
     const url = request.nextUrl.clone();
@@ -55,8 +63,9 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Run on everything except static files, images, and favicon.
+     * Run on everything except static files, images, the web manifest,
+     * and favicon.
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|webmanifest)$).*)",
   ],
 };

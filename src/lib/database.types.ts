@@ -270,13 +270,94 @@ export type Database = {
           },
         ];
       };
+      stock_requests: {
+        Row: {
+          id: string;
+          shop_id: string;
+          staff_id: string;
+          type: "create_model" | "adjust_stock";
+          status: "pending" | "approved" | "rejected";
+          model_name: string | null;
+          condition: PhoneCondition | null;
+          cost_price: number | null;
+          sale_price: number | null;
+          low_stock_threshold: number | null;
+          opening_stock: number | null;
+          phone_model_id: string | null;
+          delta: number | null;
+          reason: string | null;
+          created_at: string;
+          decided_at: string | null;
+          decided_by: string | null;
+          error_note: string | null;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          staff_id: string;
+          type: "create_model" | "adjust_stock";
+          status?: "pending" | "approved" | "rejected";
+          model_name?: string | null;
+          condition?: PhoneCondition | null;
+          cost_price?: number | null;
+          sale_price?: number | null;
+          low_stock_threshold?: number | null;
+          opening_stock?: number | null;
+          phone_model_id?: string | null;
+          delta?: number | null;
+          reason?: string | null;
+          created_at?: string;
+          decided_at?: string | null;
+          decided_by?: string | null;
+          error_note?: string | null;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          staff_id?: string;
+          type?: "create_model" | "adjust_stock";
+          status?: "pending" | "approved" | "rejected";
+          model_name?: string | null;
+          condition?: PhoneCondition | null;
+          cost_price?: number | null;
+          sale_price?: number | null;
+          low_stock_threshold?: number | null;
+          opening_stock?: number | null;
+          phone_model_id?: string | null;
+          delta?: number | null;
+          reason?: string | null;
+          created_at?: string;
+          decided_at?: string | null;
+          decided_by?: string | null;
+          error_note?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "stock_requests_shop_id_fkey";
+            columns: ["shop_id"];
+            isOneToOne: false;
+            referencedRelation: "shops";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "stock_requests_staff_id_fkey";
+            columns: ["staff_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "stock_requests_phone_model_id_fkey";
+            columns: ["phone_model_id"];
+            isOneToOne: false;
+            referencedRelation: "phone_models";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {
-      claim_owner: {
-        Args: Record<PropertyKey, never>;
-        Returns: undefined;
-      };
       record_transaction: {
         Args: {
           p_shop_id: string;
@@ -286,8 +367,8 @@ export type Database = {
           p_payment_method: PaymentMethod;
           p_amount: number;
           p_date?: string;
-          p_out_items?: string;
-          p_in_items?: string;
+          p_out_items?: { phone_model_id: string; qty: number }[];
+          p_in_items?: Record<string, unknown>[];
         };
         Returns: string;
       };
@@ -312,6 +393,22 @@ export type Database = {
           role: UserRole;
           shop_id: string | null;
         }[];
+      };
+      restore_backup: {
+        Args: { p_data: unknown };
+        Returns: { restored?: boolean; transactions?: number } | null;
+      };
+      approve_stock_request: {
+        Args: { p_request_id: string };
+        Returns: undefined;
+      };
+      reject_stock_request: {
+        Args: { p_request_id: string };
+        Returns: undefined;
+      };
+      approve_all_stock_requests: {
+        Args: { p_shop_id?: string | null };
+        Returns: { approved: number; failed: number }[];
       };
     };
     Enums: {

@@ -17,3 +17,16 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  body {
+    background: #fff;
+  }
+}

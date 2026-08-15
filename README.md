@@ -16,6 +16,8 @@ Built with [Next.js](https://nextjs.org) (App Router, React 19) and [Supabase](h
 - **Daily closing report** — units out per model, broken down by sale vs swap, per shop.
 - **Role-based access** — owners see and manage everything; shop attendants are scoped to their own shop and cannot edit or delete past transactions.
 - **Reports** — filterable by shop, date range, payment method, and type; exportable.
+- **Bulk device import** — add many phone models to a shop at once by pasting CSV rows or uploading a file (Settings → Bulk add devices). Duplicates in the shop are skipped automatically.
+- **Backup & restore** — download a full JSON backup of all shops, devices, transactions, and adjustments, and restore it later (Settings → Backup & restore). Restore is atomic: a bad file rolls back completely, and stock counts are preserved exactly.
 
 ## Stock integrity (enforced by the database)
 
@@ -50,7 +52,7 @@ available = opening_stock + bought_in + Σ(swap-ins) − Σ(sales + swap-outs)
 
 Open the Supabase Dashboard → **SQL Editor** → **New query**, then paste and run the contents of `supabase/schema.sql`.
 
-This creates the tables, RLS policies, triggers, and helper RPCs (`record_transaction`, `adjust_stock`, `claim_owner`, etc.).
+This creates the tables, RLS policies, triggers, and helper RPCs (`record_transaction`, `adjust_stock`, `delete_transaction`, etc.).
 
 ### 2. Configure environment variables
 
@@ -61,6 +63,7 @@ Copy `.env.local.example` to `.env.local` and fill in:
 | `NEXT_PUBLIC_SUPABASE_URL` | Your project URL (Project Settings → API) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Your anon/public key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only key, used to create staff accounts from Settings |
+| `OWNER_SETUP_SECRET` | A secret phrase that guards the one-time owner setup at `/setup` |
 
 > Never expose `SUPABASE_SERVICE_ROLE_KEY` to the client. It is only used in server-side code.
 
@@ -71,7 +74,13 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000), sign up, then activate the owner role by running `select public.claim_owner();` in the Supabase SQL editor — or click the **"Claim owner role"** button on the home page after signing in.
+### 4. Create the owner account
+
+There is no public sign-up — the owner account is created once, by you:
+
+1. Set `OWNER_SETUP_SECRET` in `.env.local` to any passphrase.
+2. Open [http://localhost:3000/setup](http://localhost:3000/setup) and enter the passphrase plus the owner's name, email, and password.
+3. Sign in, then add shops and staff from **Settings** (staff accounts are created by the owner and cannot sign up on their own).
 
 ### Scripts
 
@@ -98,7 +107,7 @@ npm run lint    # Lint with ESLint
 src/
   app/
     (app)/            # Authenticated pages (dashboard, shops, reports, settings)
-    (auth)/           # Login & signup
+    (auth)/           # Login & one-time owner setup
     reports/export/   # CSV export route
   components/         # UI components & forms
   lib/

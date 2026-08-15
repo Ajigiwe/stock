@@ -247,8 +247,9 @@ in `supabase/schema.sql` — treat that as source of truth.
    clear error — acceptable for now.
 8. **Attendant restocking is allowed without owner approval** (per design
    default). Staff can add stock/corrections for their own shop only.
-9. **Owner bootstrap**: first signup creates an `attendant` profile with no
-   shop. The owner then runs `select public.claim_owner();` (or clicks the
-   dashboard button) to activate the owner role. Staff accounts are created by
-   the owner in Settings using the server-side service role key.
+9. **Owner bootstrap (no public signup)**: the owner account is created once
+   by the operator via `/setup`, guarded by the `OWNER_SETUP_SECRET` env var.
+   The setup handler refuses to run if an owner already exists. Staff accounts
+   are created by the owner in Settings using the server-side service role key
+   and cannot sign up on their own; `/signup` redirects to `/login`.
 
