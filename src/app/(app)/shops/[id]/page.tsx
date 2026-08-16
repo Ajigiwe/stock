@@ -7,6 +7,7 @@ import {
   getDailySummary,
   getAdjustments,
   getStockRequests,
+  getSwappedPhones,
 } from "@/lib/data";
 import { formatMoney, formatDateTime, todayISO, addDays } from "@/lib/format";
 import { Badge, Button, Card, EmptyState } from "@/components/ui";
@@ -16,6 +17,7 @@ import { BulkStockModal } from "@/components/bulk-stock-modal";
 import { StockRequestsPanel } from "@/components/stock-requests-panel";
 import { StockTable } from "@/components/stock-table";
 import { ShareSummaryButton } from "@/components/share-summary-button";
+import { SwappedPhonesList } from "@/components/swapped-phones-list";
 
 export default async function ShopPage({
   params,
@@ -43,13 +45,14 @@ export default async function ShopPage({
     ? "Today"
     : new Date(date + "T00:00:00").toDateString();
 
-  const [summary, stock, transactions, adjustments, pendingRequests] =
+  const [summary, stock, transactions, adjustments, pendingRequests, swappedPhones] =
     await Promise.all([
       getDailySummary(id, date),
       getStock(id),
       getTransactions({ shopId: id, from: date, to: date }),
       getAdjustments(id, 200),
       getStockRequests({ shopId: id, status: "pending" }),
+      getSwappedPhones({ shopId: id }),
     ]);
 
   const isOwner = session.profile?.role === "owner";
@@ -110,7 +113,7 @@ export default async function ShopPage({
           </form>
           <Link
             href={`/transactions/new?shop=${id}`}
-            className="inline-flex h-10 items-center rounded-lg bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700"
+            className="inline-flex h-10 items-center rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-500"
           >
             Record transaction
           </Link>
@@ -234,6 +237,17 @@ export default async function ShopPage({
           isOwner={isOwner}
           adjustments={adjustments}
         />
+      </Card>
+
+      <Card
+        title="Swapped phones"
+        subtitle={
+          swappedPhones.length === 0
+            ? "Trade-ins taken during swaps"
+            : `${swappedPhones.length} trade-in${swappedPhones.length === 1 ? "" : "s"} received`
+        }
+      >
+        <SwappedPhonesList phones={swappedPhones} isOwner={isOwner} />
       </Card>
 
       <Card

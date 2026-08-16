@@ -50,7 +50,7 @@ export default async function HomePage({
         </p>
         <Link
           href="/settings"
-          className="mt-4 inline-block rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white"
+          className="mt-4 inline-block rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
         >
           Add a shop
         </Link>

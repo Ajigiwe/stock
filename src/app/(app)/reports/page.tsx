@@ -125,7 +125,7 @@ export default async function ReportsPage({
           <div className="sm:col-span-5">
             <button
               type="submit"
-              className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700 sm:w-auto"
+              className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-500 sm:w-auto"
             >
               Apply
             </button>

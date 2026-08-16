@@ -22,7 +22,7 @@ function PeriodToggle({ period }: { period: DashboardPeriod }) {
           href={p === "today" ? "/" : `/?period=${p}`}
           className={`h-8 rounded-md px-3 text-xs font-medium leading-8 transition-colors ${
             period === p
-              ? "bg-zinc-900 text-white"
+              ? "bg-indigo-600 text-white"
               : "text-zinc-500 hover:text-zinc-800"
           }`}
         >
@@ -55,7 +55,7 @@ export function Dashboard({ data }: { data: DashboardData }) {
         </div>
         <Link
           href="/transactions/new"
-          className="inline-flex h-10 items-center rounded-lg bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700"
+          className="inline-flex h-10 items-center rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-500"
         >
           Record transaction
         </Link>
@@ -111,31 +111,38 @@ function StatCards({
 }) {
   const revenueLabel = period === "today" ? "Revenue today" : "Revenue";
   const items = [
-    { label: revenueLabel, value: formatMoney(totals.revenue), tone: "text-zinc-900" },
+    {
+      label: revenueLabel,
+      value: formatMoney(totals.revenue),
+      tone: "text-zinc-900",
+      accent: "border-l-emerald-400",
+    },
     ...(isOwner
       ? [
           {
             label: "Est. profit",
             value: formatMoney(totals.profit),
             tone: totals.profit >= 0 ? "text-emerald-700" : "text-red-600",
+            accent: "border-l-emerald-500",
           },
         ]
       : []),
-    { label: "Sales", value: String(totals.sales), tone: "text-zinc-900" },
-    { label: "Swaps", value: String(totals.swaps), tone: "text-zinc-900" },
-    { label: "Repairs", value: String(totals.repairs), tone: "text-zinc-900" },
-    { label: "Units out", value: String(totals.units_out), tone: "text-zinc-900" },
+    { label: "Sales", value: String(totals.sales), tone: "text-zinc-900", accent: "border-l-sky-400" },
+    { label: "Swaps", value: String(totals.swaps), tone: "text-zinc-900", accent: "border-l-violet-400" },
+    { label: "Repairs", value: String(totals.repairs), tone: "text-zinc-900", accent: "border-l-amber-400" },
+    { label: "Units out", value: String(totals.units_out), tone: "text-zinc-900", accent: "border-l-zinc-300" },
     {
       label: "Low stock",
       value: String(totals.low_stock),
       tone: totals.low_stock > 0 ? "text-red-600" : "text-zinc-900",
+      accent: totals.low_stock > 0 ? "border-l-red-400" : "border-l-zinc-300",
     },
   ];
   const cols = isOwner ? "lg:grid-cols-7" : "lg:grid-cols-6";
   return (
     <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${cols}`}>
       {items.map((it) => (
-        <Card key={it.label}>
+        <Card key={it.label} className={`border-l-4 ${it.accent}`}>
           <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">
             {it.label}
           </div>

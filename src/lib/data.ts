@@ -11,6 +11,7 @@ type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
 type TransactionItem = Database["public"]["Tables"]["transaction_items"]["Row"];
 type StockAdjustment = Database["public"]["Tables"]["stock_adjustments"]["Row"];
 type StockRequest = Database["public"]["Tables"]["stock_requests"]["Row"];
+type SwappedPhone = Database["public"]["Tables"]["swapped_phones"]["Row"];
 
 export type {
   Shop,
@@ -20,6 +21,7 @@ export type {
   TransactionItem,
   StockAdjustment,
   StockRequest,
+  SwappedPhone,
 };
 
 export type SessionUser = {
@@ -214,15 +216,23 @@ export async function getShopSummary(
   shopId: string,
   from: string,
   to: string,
+  known?: Shop,
 ): Promise<ShopDailySummary> {
   const supabase = await createClient();
-  const [shopRes, stock, txs] = await Promise.all([
-    supabase.from("shops").select("*").eq("id", shopId).maybeSingle(),
+  const [stock, txs, fetchedShop] = await Promise.all([
     getStock(shopId),
     getTransactions({ shopId, from, to }),
+    known
+      ? Promise.resolve(known)
+      : supabase
+          .from("shops")
+          .select("*")
+          .eq("id", shopId)
+          .maybeSingle()
+          .then((r) => r.data as Shop | null),
   ]);
 
-  const shop = shopRes.data;
+  const shop = known ?? fetchedShop;
   if (!shop) throw new Error("Shop not found");
 
   const map = new Map<string, DailyRow>();
@@ -273,6 +283,26 @@ export async function getAdjustments(shopId?: string, limit = 50): Promise<Stock
   const supabase = await createClient();
   let q = supabase.from("stock_adjustments").select("*").order("date", { ascending: false }).limit(limit);
   if (shopId) q = q.eq("shop_id", shopId);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+export async function getSwappedPhones(opts: {
+  shopId?: string;
+  transactionId?: string;
+  status?: "in_stock" | "sold" | "returned";
+  limit?: number;
+} = {}): Promise<SwappedPhone[]> {
+  const supabase = await createClient();
+  let q = supabase
+    .from("swapped_phones")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(opts.limit ?? 200);
+  if (opts.shopId) q = q.eq("shop_id", opts.shopId);
+  if (opts.transactionId) q = q.eq("transaction_id", opts.transactionId);
+  if (opts.status) q = q.eq("status", opts.status);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   return data ?? [];
@@ -427,10 +457,8 @@ export async function getDashboardData(
 
   if (role === "owner") {
     const shops = await getShops();
-    const summaries = await Promise.all(
-      shops.map((s) => getShopSummary(s.id, from, to)),
-    );
-    const [recent, pending, rangeTxs] = await Promise.all([
+    const [summaries, recent, pending, rangeTxs] = await Promise.all([
+      Promise.all(shops.map((s) => getShopSummary(s.id, from, to, s))),
       getTransactions({ limit: 10 }),
       getStockRequests({ status: "pending" }),
       getTransactions({ from, to }),
@@ -453,14 +481,22 @@ export async function getDashboardData(
   const shopId = session.profile?.shop_id ?? undefined;
   let summaries: ShopDailySummary[] = [];
   let shop: Shop | null = null;
+  let recent: TransactionWithDetails[] = [];
+  let pending: StockRequestWithDetails[] = [];
+  let rangeTxs: TransactionWithDetails[] = [];
   if (shopId) {
-    const summary = await getShopSummary(shopId, from, to);
+    const [summary, r, p, rt] = await Promise.all([
+      getShopSummary(shopId, from, to),
+      getTransactions({ shopId, limit: 10 }),
+      getStockRequests({ shopId, status: "pending" }),
+      getTransactions({ shopId, from, to }),
+    ]);
     summaries = [summary];
     shop = summary.shop;
+    recent = r;
+    pending = p;
+    rangeTxs = rt;
   }
-  const recent = shopId ? await getTransactions({ shopId, limit: 10 }) : [];
-  const pending = shopId ? await getStockRequests({ shopId, status: "pending" }) : [];
-  const rangeTxs = shopId ? await getTransactions({ shopId, from, to }) : [];
   return {
     role,
     scope: "shop",

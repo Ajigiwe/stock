@@ -23,6 +23,14 @@ export type TxInItem =
       qty: number;
     };
 
+// A swap trade-in: the customer's old phone, captured into the swapped-phones
+// list (NOT added to sellable stock).
+export type SwapInItem = {
+  name: string;
+  condition: "new" | "used";
+  value: string;
+};
+
 export type RecordTransactionInput = {
   shopId: string;
   customerName: string;
@@ -32,7 +40,8 @@ export type RecordTransactionInput = {
   amount: string;
   date: string; // YYYY-MM-DD
   outItems: TxOutItem[];
-  inItems: TxInItem[];
+  inItems?: TxInItem[];
+  swapIn?: SwapInItem[];
 };
 
 // ---------------------------------------------------------------------------
@@ -165,7 +174,7 @@ export async function setupOwner(
 
 export async function recordTransaction(
   input: RecordTransactionInput,
-): Promise<ActionResult & { id?: string }> {
+): Promise<ActionResult & { id?: string; warning?: string }> {
   const session = await requireSession();
   const supabase = await createClient();
 
@@ -185,7 +194,7 @@ export async function recordTransaction(
   }
 
   const inItems: Record<string, unknown>[] = [];
-  for (const it of input.inItems) {
+  for (const it of input.inItems ?? []) {
     if (it.qty <= 0) continue;
     if (it.mode === "existing") {
       if (!it.modelId) continue;
@@ -201,8 +210,11 @@ export async function recordTransaction(
       });
     }
   }
-  if (input.type === "swap" && inItems.length === 0) {
-    return { ok: false, error: "Add at least one phone coming in for the swap." };
+
+  // Swap trade-ins: the customer's old phone(s), logged separately.
+  const swapIn = (input.swapIn ?? []).filter((s) => s.name.trim());
+  if (input.type === "swap" && swapIn.length === 0) {
+    return { ok: false, error: "Add the old phone the customer is trading in." };
   }
 
   // Attendants: force their own shop regardless of what the form sends.
@@ -231,8 +243,33 @@ export async function recordTransaction(
 
   if (error) return { ok: false, error: error.message };
 
+  const newId = typeof data === "string" ? data : undefined;
+
+  // Log the trade-in phone(s) into the swapped-phones list.
+  if (swapIn.length && newId) {
+    const rows = swapIn.map((s) => ({
+      shop_id: shopId,
+      transaction_id: newId,
+      staff_id: session.id,
+      model_name: s.name.trim(),
+      condition: (s.condition === "new" ? "new" : "used") as "new" | "used",
+      estimated_value: s.value ? Number(s.value) : null,
+      customer_name: input.customerName?.trim() || null,
+      customer_phone: input.customerPhone?.trim() || null,
+    }));
+    const { error: swErr } = await supabase.from("swapped_phones").insert(rows);
+    if (swErr) {
+      revalidatePath("/", "layout");
+      return {
+        ok: true,
+        id: newId,
+        warning: `Transaction saved, but the trade-in wasn't logged: ${swErr.message}`,
+      };
+    }
+  }
+
   revalidatePath("/", "layout");
-  return { ok: true, id: typeof data === "string" ? data : undefined };
+  return { ok: true, id: newId };
 }
 
 export async function deleteTransaction(id: string): Promise<ActionResult> {
@@ -240,6 +277,24 @@ export async function deleteTransaction(id: string): Promise<ActionResult> {
   const { error } = await supabase.rpc("delete_transaction", {
     p_transaction_id: id,
   });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function updateSwappedPhoneStatus(
+  id: string,
+  status: "in_stock" | "sold" | "returned",
+): Promise<ActionResult> {
+  const session = await requireSession();
+  if (session.profile?.role !== "owner") {
+    return { ok: false, error: "Only the owner can update swapped phones." };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("swapped_phones")
+    .update({ status })
+    .eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/", "layout");
   return { ok: true };

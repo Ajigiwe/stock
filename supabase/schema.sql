@@ -5,8 +5,9 @@
 --
 -- SAFE TO RE-RUN: the header below drops any previous version first.
 -- ============================================================================
-
 drop trigger if exists on_auth_user_created on auth.users;
+
+drop table if exists public.swapped_phones cascade;
 drop table if exists public.stock_adjustments cascade;
 drop table if exists public.transaction_items cascade;
 drop table if exists public.transactions cascade;
@@ -821,6 +822,43 @@ create policy "stock_requests: attendant insert own shop" on public.stock_reques
   );
 
 create policy "stock_requests: attendant reads own shop" on public.stock_requests
+  for select using ((public.current_user_profile()).shop_id = shop_id);
+
+-- ---------------------------------------------------------------------------
+-- swapped_phones  (old phones taken in during a swap; a separate list, NOT
+-- merged into sellable stock). Populated by the swap flow in the app.
+-- ---------------------------------------------------------------------------
+create table public.swapped_phones (
+  id              uuid primary key default gen_random_uuid(),
+  shop_id         uuid not null references public.shops (id) on delete cascade,
+  transaction_id  uuid references public.transactions (id) on delete set null,
+  staff_id        uuid references public.users (id),
+  model_name      text not null,
+  condition       phone_condition not null default 'used',
+  estimated_value numeric(12,2),
+  customer_name   text,
+  customer_phone  text,
+  status          text not null default 'in_stock' check (status in ('in_stock', 'sold', 'returned')),
+  notes           text,
+  created_at      timestamptz not null default now()
+);
+
+create index swapped_phones_shop_idx on public.swapped_phones (shop_id, created_at desc);
+
+alter table public.swapped_phones enable row level security;
+grant select, insert, update, delete on public.swapped_phones to authenticated;
+
+create policy "swapped_phones: owner full access" on public.swapped_phones
+  for all using ((public.current_user_profile()).role = 'owner')
+  with check ((public.current_user_profile()).role = 'owner');
+
+create policy "swapped_phones: attendant insert own shop" on public.swapped_phones
+  for insert with check (
+    (public.current_user_profile()).role = 'attendant'
+    and (public.current_user_profile()).shop_id = shop_id
+  );
+
+create policy "swapped_phones: attendant reads own shop" on public.swapped_phones
   for select using ((public.current_user_profile()).shop_id = shop_id);
 
 -- ---------------------------------------------------------------------------

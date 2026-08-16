@@ -140,7 +140,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
                   className={`inline-flex h-10 items-center justify-center rounded-lg px-4 text-sm font-medium text-white transition-colors ${
                     confirmState.danger
                       ? "bg-red-600 hover:bg-red-500"
-                      : "bg-zinc-900 hover:bg-zinc-700"
+                      : "bg-indigo-600 hover:bg-indigo-500"
                   }`}
                 >
                   {confirmState.confirmLabel ?? "Confirm"}

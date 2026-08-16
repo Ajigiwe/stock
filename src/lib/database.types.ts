@@ -270,6 +270,73 @@ export type Database = {
           },
         ];
       };
+      swapped_phones: {
+        Row: {
+          id: string;
+          shop_id: string;
+          transaction_id: string | null;
+          staff_id: string | null;
+          model_name: string;
+          condition: PhoneCondition;
+          estimated_value: number | null;
+          customer_name: string | null;
+          customer_phone: string | null;
+          status: "in_stock" | "sold" | "returned";
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          transaction_id?: string | null;
+          staff_id?: string | null;
+          model_name: string;
+          condition?: PhoneCondition;
+          estimated_value?: number | null;
+          customer_name?: string | null;
+          customer_phone?: string | null;
+          status?: "in_stock" | "sold" | "returned";
+          notes?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          transaction_id?: string | null;
+          staff_id?: string | null;
+          model_name?: string;
+          condition?: PhoneCondition;
+          estimated_value?: number | null;
+          customer_name?: string | null;
+          customer_phone?: string | null;
+          status?: "in_stock" | "sold" | "returned";
+          notes?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "swapped_phones_shop_id_fkey";
+            columns: ["shop_id"];
+            isOneToOne: false;
+            referencedRelation: "shops";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "swapped_phones_transaction_id_fkey";
+            columns: ["transaction_id"];
+            isOneToOne: false;
+            referencedRelation: "transactions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "swapped_phones_staff_id_fkey";
+            columns: ["staff_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       stock_requests: {
         Row: {
           id: string;

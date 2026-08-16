@@ -12,7 +12,7 @@ export function Button({
 }: ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
-      className={`inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+      className={`inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
       {...props}
     />
   );

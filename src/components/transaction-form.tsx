@@ -34,14 +34,11 @@ const PAYMENTS = [
 ] as const;
 
 type OutLine = { key: number; modelId: string; qty: string };
-type InLine = {
+type SwapLine = {
   key: number;
-  mode: "existing" | "new";
-  modelId: string;
   name: string;
-  costPrice: string;
-  salePrice: string;
-  qty: string;
+  condition: "new" | "used";
+  value: string;
 };
 
 let nextKey = 1;
@@ -74,8 +71,8 @@ export function TransactionForm({
   const [outLines, setOutLines] = useState<OutLine[]>([
     { key: nextKey++, modelId: "", qty: "1" },
   ]);
-  const [inLines, setInLines] = useState<InLine[]>([
-    { key: nextKey++, mode: "new", modelId: "", name: "", costPrice: "", salePrice: "", qty: "1" },
+  const [swapLines, setSwapLines] = useState<SwapLine[]>([
+    { key: nextKey++, name: "", condition: "used", value: "" },
   ]);
 
   const shopModels = useMemo(
@@ -83,16 +80,9 @@ export function TransactionForm({
     [stock, shopId],
   );
 
-  const validOut = outLines.filter(
-    (l) => l.modelId && Number(l.qty) > 0,
-  );
-  const validIn = inLines.filter((l) =>
-    l.mode === "existing"
-      ? l.modelId && Number(l.qty) > 0
-      : l.name.trim() && Number(l.qty) > 0,
-  );
+  const validOut = outLines.filter((l) => l.modelId && Number(l.qty) > 0);
+  const validSwap = swapLines.filter((l) => l.name.trim());
   const unitsOut = validOut.reduce((a, l) => a + Number(l.qty), 0);
-  const unitsIn = validIn.reduce((a, l) => a + Number(l.qty), 0);
 
   const suggested = useMemo(() => {
     if (type !== "sale") return null;
@@ -112,7 +102,7 @@ export function TransactionForm({
   const switchShop = (id: string) => {
     setShopId(id);
     setOutLines([{ key: nextKey++, modelId: "", qty: "1" }]);
-    setInLines([{ key: nextKey++, mode: "new", modelId: "", name: "", costPrice: "", salePrice: "", qty: "1" }]);
+    setSwapLines([{ key: nextKey++, name: "", condition: "used", value: "" }]);
   };
 
   const submit = () => {
@@ -121,8 +111,8 @@ export function TransactionForm({
     if (type !== "repair" && validOut.length === 0) {
       return setError("Add at least one phone going out.");
     }
-    if (type === "swap" && validIn.length === 0) {
-      return setError("Add at least one phone coming in for the swap.");
+    if (type === "swap" && validSwap.length === 0) {
+      return setError("Add the old phone the customer is trading in.");
     }
     if (!Number.isFinite(Number(amount)) || Number(amount) < 0) {
       return setError("Enter a valid amount.");
@@ -132,17 +122,14 @@ export function TransactionForm({
       modelId: l.modelId,
       qty: Number(l.qty),
     }));
-    const inItems = validIn.map((l) =>
-      l.mode === "existing"
-        ? { mode: "existing" as const, modelId: l.modelId, qty: Number(l.qty) }
-        : {
-            mode: "new" as const,
-            name: l.name,
-            costPrice: l.costPrice,
-            salePrice: l.salePrice,
-            qty: Number(l.qty),
-          },
-    );
+    const swapIn =
+      type === "swap"
+        ? validSwap.map((l) => ({
+            name: l.name.trim(),
+            condition: l.condition,
+            value: l.value,
+          }))
+        : [];
 
     startTransition(async () => {
       const res = await recordTransaction({
@@ -154,13 +141,14 @@ export function TransactionForm({
         amount,
         date,
         outItems,
-        inItems,
+        swapIn,
       });
       if (!res.ok) {
         setError(res.error ?? "Failed to record transaction.");
         return;
       }
-      toast.success("Transaction recorded.");
+      if (res.warning) toast.error(res.warning);
+      else toast.success("Transaction recorded.");
       if (res.id) router.push(`/transactions/${res.id}`);
       else router.push(`/shops/${shopId}`);
       router.refresh();
@@ -309,15 +297,15 @@ export function TransactionForm({
 
       {type === "swap" && (
         <Card
-          title="Phones coming in"
-          subtitle="These enter the shop's stock"
+          title="Old phone received (trade-in)"
+          subtitle="Logged to the shop's swapped-phones list — not added to sellable stock"
           actions={
             <Button
               type="button"
               onClick={() =>
-                setInLines((ls) => [
+                setSwapLines((ls) => [
                   ...ls,
-                  { key: nextKey++, mode: "new", modelId: "", name: "", costPrice: "", salePrice: "", qty: "1" },
+                  { key: nextKey++, name: "", condition: "used", value: "" },
                 ])
               }
               className="h-8 px-3 text-xs"
@@ -327,167 +315,68 @@ export function TransactionForm({
           }
         >
           <div className="space-y-3">
-            {inLines.map((line) => (
+            {swapLines.map((line) => (
               <div
                 key={line.key}
                 className="rounded-lg border border-zinc-200 bg-zinc-50 p-3"
               >
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-xs font-medium text-zinc-500">Trade-in phone</span>
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setInLines((ls) =>
+                <Field label="Phone (make & model)">
+                  <Input
+                    value={line.name}
+                    onChange={(e) =>
+                      setSwapLines((ls) =>
+                        ls.map((l) =>
+                          l.key === line.key ? { ...l, name: e.target.value } : l,
+                        ),
+                      )
+                    }
+                    placeholder='e.g. "iPhone 11 64GB"'
+                  />
+                </Field>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <Field label="Condition">
+                    <Select
+                      value={line.condition}
+                      onChange={(e) =>
+                        setSwapLines((ls) =>
                           ls.map((l) =>
-                            l.key === line.key ? { ...l, mode: "new" as const } : l,
+                            l.key === line.key
+                              ? { ...l, condition: e.target.value as "new" | "used" }
+                              : l,
                           ),
                         )
                       }
-                      className={`rounded-md px-2 py-1 text-xs font-medium ${
-                        line.mode === "new"
-                          ? "bg-zinc-900 text-white"
-                          : "bg-zinc-200 text-zinc-700"
-                      }`}
                     >
-                      New model
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setInLines((ls) =>
+                      <option value="used">Used</option>
+                      <option value="new">New</option>
+                    </Select>
+                  </Field>
+                  <Field label="Value credited (GHS)">
+                    <Input
+                      type="number"
+                      min="0"
+                      value={line.value}
+                      onChange={(e) =>
+                        setSwapLines((ls) =>
                           ls.map((l) =>
-                            l.key === line.key ? { ...l, mode: "existing" as const } : l,
+                            l.key === line.key ? { ...l, value: e.target.value } : l,
                           ),
                         )
                       }
-                      className={`rounded-md px-2 py-1 text-xs font-medium ${
-                        line.mode === "existing"
-                          ? "bg-zinc-900 text-white"
-                          : "bg-zinc-200 text-zinc-700"
-                      }`}
-                    >
-                      Already stocked
-                    </button>
-                  </div>
+                      placeholder="what you valued it at"
+                    />
+                  </Field>
                 </div>
-
-                {line.mode === "existing" ? (
-                  <div className="flex items-end gap-2">
-                    <div className="flex-1">
-                      <Field label="Phone model">
-                        <ModelPicker
-                          models={shopModels}
-                          value={line.modelId}
-                          showStock={false}
-                          onChange={(id) =>
-                            setInLines((ls) =>
-                              ls.map((l) =>
-                                l.key === line.key ? { ...l, modelId: id } : l,
-                              ),
-                            )
-                          }
-                        />
-                      </Field>
-                    </div>
-                    <div className="w-20">
-                      <Field label="Qty">
-                        <Input
-                          type="number"
-                          min="1"
-                          value={line.qty}
-                          onChange={(e) =>
-                            setInLines((ls) =>
-                              ls.map((l) =>
-                                l.key === line.key ? { ...l, qty: e.target.value } : l,
-                              ),
-                            )
-                          }
-                        />
-                      </Field>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex items-end gap-2">
-                      <div className="flex-1">
-                        <Field label="Model name">
-                          <Input
-                            value={line.name}
-                            onChange={(e) =>
-                              setInLines((ls) =>
-                                ls.map((l) =>
-                                  l.key === line.key ? { ...l, name: e.target.value } : l,
-                                ),
-                              )
-                            }
-                            placeholder='e.g. "iPhone 11 64GB"'
-                          />
-                        </Field>
-                      </div>
-                      <div className="w-20">
-                        <Field label="Qty">
-                          <Input
-                            type="number"
-                            min="1"
-                            value={line.qty}
-                            onChange={(e) =>
-                              setInLines((ls) =>
-                                ls.map((l) =>
-                                  l.key === line.key ? { ...l, qty: e.target.value } : l,
-                                ),
-                              )
-                            }
-                          />
-                        </Field>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="Trade-in value (GHS)">
-                        <Input
-                          type="number"
-                          value={line.costPrice}
-                          onChange={(e) =>
-                            setInLines((ls) =>
-                              ls.map((l) =>
-                                l.key === line.key
-                                  ? { ...l, costPrice: e.target.value }
-                                  : l,
-                              ),
-                            )
-                          }
-                          placeholder="what you valued it at"
-                        />
-                      </Field>
-                      <Field label="Asking price (GHS)">
-                        <Input
-                          type="number"
-                          value={line.salePrice}
-                          onChange={(e) =>
-                            setInLines((ls) =>
-                              ls.map((l) =>
-                                l.key === line.key
-                                  ? { ...l, salePrice: e.target.value }
-                                  : l,
-                              ),
-                            )
-                          }
-                          placeholder="optional"
-                        />
-                      </Field>
-                    </div>
-                  </div>
-                )}
 
                 <div className="mt-2 flex justify-end">
                   <button
                     type="button"
                     aria-label="Remove phone"
                     onClick={() =>
-                      setInLines((ls) =>
+                      setSwapLines((ls) =>
                         ls.length > 1
                           ? ls.filter((l) => l.key !== line.key)
-                          : [{ key: nextKey++, mode: "new", modelId: "", name: "", costPrice: "", salePrice: "", qty: "1" }],
+                          : [{ key: nextKey++, name: "", condition: "used", value: "" }],
                       )
                     }
                     className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600"
@@ -498,6 +387,12 @@ export function TransactionForm({
               </div>
             ))}
           </div>
+          <p className="mt-3 text-xs text-zinc-500">
+            The new phone the customer takes goes under{" "}
+            <span className="font-medium text-zinc-700">Phones going out</span>{" "}
+            above; the top-up cash goes under{" "}
+            <span className="font-medium text-zinc-700">Payment</span>.
+          </p>
         </Card>
       )}
 
@@ -579,7 +474,10 @@ export function TransactionForm({
           )}
           {type === "swap" && (
             <span>
-              In: <b className="text-zinc-900">{unitsIn}</b>
+              Trade-in:{" "}
+              <b className="text-zinc-900">
+                {validSwap.length} phone{validSwap.length === 1 ? "" : "s"}
+              </b>
             </span>
           )}
           {unitsOut === 0 && type !== "repair" && (

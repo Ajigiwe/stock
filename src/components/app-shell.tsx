@@ -192,8 +192,8 @@ export function AppShell({
               isCollapsed ? "justify-center" : ""
             } ${
               isActive(l.href)
-                ? "bg-zinc-800 text-white"
-                : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+                ? "bg-indigo-600 text-white"
+                : "text-zinc-400 hover:bg-zinc-800 hover:text-white"
             }`}
           >
             <span className="shrink-0">{l.icon}</span>
@@ -220,7 +220,7 @@ export function AppShell({
             isCollapsed ? "justify-center" : ""
           }`}
         >
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-zinc-700 text-xs font-semibold text-white">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white">
             {(userName || "?").charAt(0).toUpperCase()}
           </span>
           {!isCollapsed && (
