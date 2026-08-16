@@ -23,11 +23,10 @@ export type TxInItem =
       qty: number;
     };
 
-// A swap trade-in: the customer's old phone, captured into the swapped-phones
-// list (NOT added to sellable stock). No valuation — it's just recorded.
+// A swap trade-in: the customer's old iPhone, picked from the iPhone list
+// (NOT added to sellable stock). No valuation, no extra details — just the model.
 export type SwapInItem = {
   name: string;
-  condition: "new" | "used";
 };
 
 export type RecordTransactionInput = {
@@ -216,6 +215,28 @@ export async function recordTransaction(
     return { ok: false, error: "Add the old phone the customer is trading in." };
   }
 
+  // Sales: the amount can't be less than the combined sale price of the phones
+  // going out — a phone that costs 11K can't be sold for less than 11K.
+  if (input.type === "sale" && outItems.length > 0) {
+    const modelIds = outItems.map((o) => o.phone_model_id);
+    const { data: models, error: priceError } = await supabase
+      .from("phone_models")
+      .select("id, sale_price")
+      .in("id", modelIds);
+    if (priceError) return { ok: false, error: priceError.message };
+    const required = (models ?? []).reduce(
+      (sum, m) =>
+        sum + (m.sale_price ?? 0) * (outItems.find((o) => o.phone_model_id === m.id)?.qty ?? 0),
+      0,
+    );
+    if (amount < required) {
+      return {
+        ok: false,
+        error: `Amount can't be less than the phone price (${required.toLocaleString()} GHS).`,
+      };
+    }
+  }
+
   // Attendants: force their own shop regardless of what the form sends.
   const shopId =
     session.profile?.role === "owner" ? input.shopId : session.profile?.shop_id;
@@ -251,7 +272,6 @@ export async function recordTransaction(
       transaction_id: newId,
       staff_id: session.id,
       model_name: s.name.trim(),
-      condition: (s.condition === "new" ? "new" : "used") as "new" | "used",
       customer_name: input.customerName?.trim() || null,
       customer_phone: input.customerPhone?.trim() || null,
     }));

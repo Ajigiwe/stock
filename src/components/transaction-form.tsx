@@ -33,11 +33,47 @@ const PAYMENTS = [
   { value: "other", label: "Other" },
 ] as const;
 
+// Trade-ins are iPhones only — picked from this list, not free text.
+const IPHONE_MODELS = [
+  "iPhone 7",
+  "iPhone 7 Plus",
+  "iPhone 8",
+  "iPhone 8 Plus",
+  "iPhone X",
+  "iPhone XR",
+  "iPhone XS",
+  "iPhone XS Max",
+  "iPhone 11",
+  "iPhone 11 Pro",
+  "iPhone 11 Pro Max",
+  "iPhone 12",
+  "iPhone 12 mini",
+  "iPhone 12 Pro",
+  "iPhone 12 Pro Max",
+  "iPhone 13",
+  "iPhone 13 mini",
+  "iPhone 13 Pro",
+  "iPhone 13 Pro Max",
+  "iPhone 14",
+  "iPhone 14 Plus",
+  "iPhone 14 Pro",
+  "iPhone 14 Pro Max",
+  "iPhone 15",
+  "iPhone 15 Plus",
+  "iPhone 15 Pro",
+  "iPhone 15 Pro Max",
+  "iPhone 16",
+  "iPhone 16 Plus",
+  "iPhone 16 Pro",
+  "iPhone 16 Pro Max",
+  "iPhone SE (2nd gen)",
+  "iPhone SE (3rd gen)",
+] as const;
+
 type OutLine = { key: number; modelId: string; qty: string };
 type SwapLine = {
   key: number;
   name: string;
-  condition: "new" | "used";
 };
 
 let nextKey = 1;
@@ -71,7 +107,7 @@ export function TransactionForm({
     { key: nextKey++, modelId: "", qty: "1" },
   ]);
   const [swapLines, setSwapLines] = useState<SwapLine[]>([
-    { key: nextKey++, name: "", condition: "used" },
+    { key: nextKey++, name: "" },
   ]);
 
   const shopModels = useMemo(
@@ -91,6 +127,14 @@ export function TransactionForm({
     }, 0);
   }, [type, validOut, shopModels]);
 
+  // Total sticker value of the phones going out — shown on sales and swaps.
+  const outTotal = useMemo(() => {
+    return validOut.reduce((sum, l) => {
+      const m = shopModels.find((x) => x.id === l.modelId);
+      return sum + (m?.sale_price != null ? m.sale_price * Number(l.qty) : 0);
+    }, 0);
+  }, [validOut, shopModels]);
+
   const amountLabel =
     type === "sale"
       ? "Total sale amount (GHS)"
@@ -101,7 +145,7 @@ export function TransactionForm({
   const switchShop = (id: string) => {
     setShopId(id);
     setOutLines([{ key: nextKey++, modelId: "", qty: "1" }]);
-    setSwapLines([{ key: nextKey++, name: "", condition: "used" }]);
+    setSwapLines([{ key: nextKey++, name: "" }]);
   };
 
   const submit = () => {
@@ -116,6 +160,11 @@ export function TransactionForm({
     if (!Number.isFinite(Number(amount)) || Number(amount) < 0) {
       return setError("Enter a valid amount.");
     }
+    if (type === "sale" && suggested != null && suggested > 0 && Number(amount) < suggested) {
+      return setError(
+        `Sale amount can't be less than the phone price (${suggested.toLocaleString()} GHS).`,
+      );
+    }
 
     const outItems = validOut.map((l) => ({
       modelId: l.modelId,
@@ -124,8 +173,7 @@ export function TransactionForm({
     const swapIn =
       type === "swap"
         ? validSwap.map((l) => ({
-            name: l.name.trim(),
-            condition: l.condition,
+            name: l.name,
           }))
         : [];
 
@@ -290,25 +338,30 @@ export function TransactionForm({
               );
             })}
           </div>
+          {validOut.length > 0 && outTotal > 0 && (
+            <div className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm">
+              <span className="text-zinc-500">Total value going out</span>
+              <span className="font-semibold text-zinc-900">
+                {outTotal.toLocaleString()} GHS
+              </span>
+            </div>
+          )}
         </Card>
       )}
 
-      {type === "swap" && (
+{type === "swap" && (
         <Card
-          title="Old phone received (trade-in)"
-          subtitle="Logged to the shop's swapped-phones list — not added to sellable stock"
+          title="Old iPhone received (trade-in)"
+          subtitle="Pick the model — no need to enter its details"
           actions={
             <Button
               type="button"
               onClick={() =>
-                setSwapLines((ls) => [
-                  ...ls,
-                  { key: nextKey++, name: "", condition: "used" },
-                ])
+                setSwapLines((ls) => [...ls, { key: nextKey++, name: "" }])
               }
               className="h-8 px-3 text-xs"
             >
-              + Add phone
+              + Add iPhone
             </Button>
           }
         >
@@ -318,8 +371,8 @@ export function TransactionForm({
                 key={line.key}
                 className="rounded-lg border border-zinc-200 bg-zinc-50 p-3"
               >
-                <Field label="Phone (make & model)">
-                  <Input
+                <Field label="iPhone model">
+                  <Select
                     value={line.name}
                     onChange={(e) =>
                       setSwapLines((ls) =>
@@ -328,24 +381,13 @@ export function TransactionForm({
                         ),
                       )
                     }
-                    placeholder='e.g. "iPhone 11 64GB"'
-                  />
-                </Field>
-                <Field label="Condition">
-                  <Select
-                    value={line.condition}
-                    onChange={(e) =>
-                      setSwapLines((ls) =>
-                        ls.map((l) =>
-                          l.key === line.key
-                            ? { ...l, condition: e.target.value as "new" | "used" }
-                            : l,
-                        ),
-                      )
-                    }
                   >
-                    <option value="used">Used</option>
-                    <option value="new">New</option>
+                    <option value="">Select iPhone model…</option>
+                    {IPHONE_MODELS.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
                   </Select>
                 </Field>
 
@@ -353,13 +395,13 @@ export function TransactionForm({
                   <button
                     type="button"
                     aria-label="Remove phone"
-onClick={() =>
-                        setSwapLines((ls) =>
-                          ls.length > 1
-                            ? ls.filter((l) => l.key !== line.key)
-                            : [{ key: nextKey++, name: "", condition: "used" }],
-                        )
-                      }
+                    onClick={() =>
+                      setSwapLines((ls) =>
+                        ls.length > 1
+                          ? ls.filter((l) => l.key !== line.key)
+                          : [{ key: nextKey++, name: "" }],
+                      )
+                    }
                     className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600"
                   >
                     ✕ Remove
@@ -369,7 +411,7 @@ onClick={() =>
             ))}
           </div>
           <p className="mt-3 text-xs text-zinc-500">
-            The new phone the customer takes goes under{" "}
+            The new iPhone the customer takes goes under{" "}
             <span className="font-medium text-zinc-700">Phones going out</span>{" "}
             above; the top-up cash goes under{" "}
             <span className="font-medium text-zinc-700">Payment</span>.
