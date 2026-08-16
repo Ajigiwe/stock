@@ -8,7 +8,6 @@ function dm(iso: string) {
 }
 
 export function DashboardCharts({ data }: { data: DashboardData }) {
-  const isOwner = data.role === "owner";
   const series = data.series;
   const showTrend = series.length > 1;
   const maxRev = Math.max(1, ...series.map((p) => p.revenue));
@@ -45,48 +44,20 @@ export function DashboardCharts({ data }: { data: DashboardData }) {
   return (
     <div className="space-y-6">
       {showTrend && (
-        <Card
-          title="Revenue trend"
-          subtitle={isOwner ? "Daily revenue · profit shaded" : "Daily revenue"}
-        >
-          {isOwner && (
-            <div className="mb-3 flex items-center gap-4 text-xs text-zinc-500">
-              <span className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-sm bg-zinc-200" />
-                Revenue
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />
-                Profit
-              </span>
-            </div>
-          )}
+        <Card title="Revenue trend" subtitle="Daily revenue">
           <div className="flex h-40 items-end gap-1">
             {series.map((p) => {
               const revPct = p.revenue > 0 ? Math.max(2, (p.revenue / maxRev) * 100) : 0;
-              const profitPct =
-                p.revenue > 0
-                  ? Math.min(100, Math.max(0, (p.profit / p.revenue) * 100))
-                  : 0;
               return (
                 <div
                   key={p.date}
                   className="flex h-full flex-1 flex-col justify-end"
-                  title={`${dm(p.date)} — ${formatMoney(p.revenue)}${
-                    isOwner ? ` · profit ${formatMoney(p.profit)}` : ""
-                  }`}
+                  title={`${dm(p.date)} — ${formatMoney(p.revenue)}`}
                 >
                   <div
-                    className="relative w-full rounded-t bg-zinc-200"
+                    className="relative w-full rounded-t bg-emerald-500/80"
                     style={{ height: `${revPct}%` }}
-                  >
-                    {isOwner && profitPct > 0 && (
-                      <div
-                        className="absolute inset-x-0 bottom-0 rounded-t bg-emerald-500"
-                        style={{ height: `${profitPct}%` }}
-                      />
-                    )}
-                  </div>
+                  />
                 </div>
               );
             })}

@@ -63,7 +63,7 @@ export function Dashboard({ data }: { data: DashboardData }) {
 
       <PeriodToggle period={data.period} />
 
-      <StatCards totals={data.totals} isOwner={isOwner} period={data.period} />
+      <StatCards totals={data.totals} period={data.period} />
 
       <DashboardCharts data={data} />
 
@@ -102,11 +102,9 @@ export function Dashboard({ data }: { data: DashboardData }) {
 
 function StatCards({
   totals,
-  isOwner,
   period,
 }: {
   totals: DashboardData["totals"];
-  isOwner: boolean;
   period: DashboardPeriod;
 }) {
   const revenueLabel = period === "today" ? "Revenue today" : "Revenue";
@@ -114,40 +112,37 @@ function StatCards({
     {
       label: revenueLabel,
       value: formatMoney(totals.revenue),
-      tone: "text-zinc-900",
-      accent: "border-l-emerald-400",
+      dot: "bg-emerald-500",
+      tone: "text-emerald-700",
     },
-    ...(isOwner
-      ? [
-          {
-            label: "Est. profit",
-            value: formatMoney(totals.profit),
-            tone: totals.profit >= 0 ? "text-emerald-700" : "text-red-600",
-            accent: "border-l-emerald-500",
-          },
-        ]
-      : []),
-    { label: "Sales", value: String(totals.sales), tone: "text-zinc-900", accent: "border-l-sky-400" },
-    { label: "Swaps", value: String(totals.swaps), tone: "text-zinc-900", accent: "border-l-violet-400" },
-    { label: "Repairs", value: String(totals.repairs), tone: "text-zinc-900", accent: "border-l-amber-400" },
-    { label: "Units out", value: String(totals.units_out), tone: "text-zinc-900", accent: "border-l-zinc-300" },
+    { label: "Sales", value: String(totals.sales), dot: "bg-sky-500", tone: "text-sky-700" },
+    { label: "Swaps", value: String(totals.swaps), dot: "bg-violet-500", tone: "text-violet-700" },
+    { label: "Repairs", value: String(totals.repairs), dot: "bg-amber-500", tone: "text-amber-700" },
+    { label: "Units out", value: String(totals.units_out), dot: "bg-zinc-400", tone: "text-zinc-900" },
     {
       label: "Low stock",
       value: String(totals.low_stock),
+      dot: totals.low_stock > 0 ? "bg-red-500" : "bg-zinc-400",
       tone: totals.low_stock > 0 ? "text-red-600" : "text-zinc-900",
-      accent: totals.low_stock > 0 ? "border-l-red-400" : "border-l-zinc-300",
     },
   ];
-  const cols = isOwner ? "lg:grid-cols-7" : "lg:grid-cols-6";
   return (
-    <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${cols}`}>
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
       {items.map((it) => (
-        <Card key={it.label} className={`border-l-4 ${it.accent}`}>
-          <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">
-            {it.label}
+        <div
+          key={it.label}
+          className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm"
+        >
+          <div className="flex items-center gap-1.5">
+            <span className={`h-2 w-2 rounded-full ${it.dot}`} />
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+              {it.label}
+            </span>
           </div>
-          <div className={`mt-1 text-xl font-bold ${it.tone}`}>{it.value}</div>
-        </Card>
+          <div className={`mt-2 text-2xl font-bold tabular-nums ${it.tone}`}>
+            {it.value}
+          </div>
+        </div>
       ))}
     </div>
   );
@@ -264,14 +259,6 @@ function ShopClosingCard({
         <span>
           Revenue: <b>{formatMoney(summary.revenue)}</b>
         </span>
-        {isOwner && (
-          <span>
-            Est. profit:{" "}
-            <b className={summary.profit >= 0 ? "text-emerald-700" : "text-red-600"}>
-              {formatMoney(summary.profit)}
-            </b>
-          </span>
-        )}
       </div>
 
       {summary.rows.length === 0 ? (

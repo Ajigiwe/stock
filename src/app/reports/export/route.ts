@@ -54,16 +54,13 @@ export async function GET(request: Request) {
       : Promise.resolve({ data: [] as TransactionItem[], error: null }),
     supabase.from("shops").select("id, name"),
     supabase.from("users").select("id, name"),
-    supabase.from("phone_models").select("id, model_name, condition, cost_price"),
+    supabase.from("phone_models").select("id, model_name, condition"),
   ]);
 
   const items = itemsRes.data ?? [];
   const shopName = new Map((shopsRes.data ?? []).map((s) => [s.id, s.name]));
   const staffName = new Map((staffRes.data ?? []).map((s) => [s.id, s.name]));
   const modelName = new Map((modelsRes.data ?? []).map((m) => [m.id, `${m.model_name} (${m.condition})`]));
-  const modelCost = new Map(
-    (modelsRes.data ?? []).map((m) => [m.id, m.cost_price ?? 0]),
-  );
 
   const esc = (v: unknown) => {
     const s = String(v ?? "");
@@ -79,7 +76,6 @@ export async function GET(request: Request) {
     "customer_phone",
     "payment_method",
     "amount_ghs",
-    ...(isOwner ? ["cogs_ghs", "est_profit_ghs"] : []),
     "items_out",
     "items_in",
   ];
@@ -95,10 +91,6 @@ export async function GET(request: Request) {
       .filter((i) => i.transaction_id === t.id && i.direction === "in")
       .map((i) => `${i.qty} x ${modelName.get(i.phone_model_id)}`)
       .join("; ");
-    const cogs = outRows.reduce(
-      (s, i) => s + i.qty * (modelCost.get(i.phone_model_id) ?? 0),
-      0,
-    );
     return [
       t.date,
       shopName.get(t.shop_id) ?? "",
@@ -108,9 +100,6 @@ export async function GET(request: Request) {
       t.customer_phone ?? "",
       t.payment_method,
       String(t.amount ?? 0),
-      ...(isOwner
-        ? [String(cogs), String((t.amount ?? 0) - cogs)]
-        : []),
       out,
       inn,
     ]

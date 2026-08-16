@@ -867,7 +867,8 @@ do $$
 begin
   begin
     alter publication supabase_realtime add table public.shops, public.phone_models,
-      public.transactions, public.transaction_items, public.stock_adjustments;
+      public.transactions, public.transaction_items, public.stock_adjustments,
+      public.swapped_phones;
   exception when duplicate_object or undefined_object then
     raise notice 'realtime publication skipped (already subscribed or publication missing)';
   end;

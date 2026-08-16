@@ -61,7 +61,6 @@ export default async function ShopPage({
     `*${summary.shop.name}* — ${dateLabel}`,
     `Sales: ${summary.total_sales} · Swaps: ${summary.total_swaps} · Repairs: ${summary.total_repairs}`,
     `Revenue: ${formatMoney(summary.revenue)}`,
-    isOwner ? `Est. profit: ${formatMoney(summary.profit)}` : null,
     summary.rows.length ? "Units out:" : null,
     ...summary.rows.map(
       (r) => `• ${r.model_name} (${r.condition}): ${r.sold + r.swapped_out}`,
@@ -142,14 +141,6 @@ export default async function ShopPage({
           <span>
             Revenue: <b>{formatMoney(summary.revenue)}</b>
           </span>
-          {isOwner && (
-            <span>
-              Est. profit:{" "}
-              <b className={summary.profit >= 0 ? "text-emerald-700" : "text-red-600"}>
-                {formatMoney(summary.profit)}
-              </b>
-            </span>
-          )}
         </div>
         {summary.rows.length === 0 ? (
           <EmptyState>No units out today yet.</EmptyState>

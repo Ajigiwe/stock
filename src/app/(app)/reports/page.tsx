@@ -40,16 +40,6 @@ export default async function ReportsPage({
   });
 
   const revenue = txs.reduce((a, t) => a + (t.amount ?? 0), 0);
-  const cogs = txs.reduce(
-    (a, t) =>
-      a +
-      t.items
-        .filter((i) => i.direction === "out")
-        .reduce((s, i) => s + i.qty * (i.cost_price ?? 0), 0),
-    0,
-  );
-  const profit = revenue - cogs;
-  const margin = revenue > 0 ? Math.round((profit / revenue) * 100) : 0;
   const byType = (type: string) => txs.filter((t) => t.type === type);
   const paymentBreakdown = txs.reduce<Record<string, number>>((acc, t) => {
     acc[t.payment_method] = (acc[t.payment_method] ?? 0) + (t.amount ?? 0);
@@ -133,20 +123,11 @@ export default async function ReportsPage({
         </form>
       </Card>
 
-      <div className={`grid gap-3 sm:grid-cols-2 ${isOwner ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">Revenue</div>
           <div className="mt-1 text-xl font-bold text-zinc-900">{formatMoney(revenue)}</div>
         </Card>
-        {isOwner && (
-          <Card>
-            <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">Est. profit</div>
-            <div className={`mt-1 text-xl font-bold ${profit >= 0 ? "text-emerald-700" : "text-red-600"}`}>
-              {formatMoney(profit)}
-            </div>
-            <div className="mt-0.5 text-xs text-zinc-400">{margin}% margin</div>
-          </Card>
-        )}
         <Card>
           <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">Sales</div>
           <div className="mt-1 text-xl font-bold text-zinc-900">{byType("sale").length}</div>
