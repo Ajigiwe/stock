@@ -38,7 +38,6 @@ type SwapLine = {
   key: number;
   name: string;
   condition: "new" | "used";
-  value: string;
 };
 
 let nextKey = 1;
@@ -72,7 +71,7 @@ export function TransactionForm({
     { key: nextKey++, modelId: "", qty: "1" },
   ]);
   const [swapLines, setSwapLines] = useState<SwapLine[]>([
-    { key: nextKey++, name: "", condition: "used", value: "" },
+    { key: nextKey++, name: "", condition: "used" },
   ]);
 
   const shopModels = useMemo(
@@ -102,7 +101,7 @@ export function TransactionForm({
   const switchShop = (id: string) => {
     setShopId(id);
     setOutLines([{ key: nextKey++, modelId: "", qty: "1" }]);
-    setSwapLines([{ key: nextKey++, name: "", condition: "used", value: "" }]);
+    setSwapLines([{ key: nextKey++, name: "", condition: "used" }]);
   };
 
   const submit = () => {
@@ -127,7 +126,6 @@ export function TransactionForm({
         ? validSwap.map((l) => ({
             name: l.name.trim(),
             condition: l.condition,
-            value: l.value,
           }))
         : [];
 
@@ -305,7 +303,7 @@ export function TransactionForm({
               onClick={() =>
                 setSwapLines((ls) => [
                   ...ls,
-                  { key: nextKey++, name: "", condition: "used", value: "" },
+                  { key: nextKey++, name: "", condition: "used" },
                 ])
               }
               className="h-8 px-3 text-xs"
@@ -333,52 +331,35 @@ export function TransactionForm({
                     placeholder='e.g. "iPhone 11 64GB"'
                   />
                 </Field>
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  <Field label="Condition">
-                    <Select
-                      value={line.condition}
-                      onChange={(e) =>
-                        setSwapLines((ls) =>
-                          ls.map((l) =>
-                            l.key === line.key
-                              ? { ...l, condition: e.target.value as "new" | "used" }
-                              : l,
-                          ),
-                        )
-                      }
-                    >
-                      <option value="used">Used</option>
-                      <option value="new">New</option>
-                    </Select>
-                  </Field>
-                  <Field label="Value credited (GHS)">
-                    <Input
-                      type="number"
-                      min="0"
-                      value={line.value}
-                      onChange={(e) =>
-                        setSwapLines((ls) =>
-                          ls.map((l) =>
-                            l.key === line.key ? { ...l, value: e.target.value } : l,
-                          ),
-                        )
-                      }
-                      placeholder="what you valued it at"
-                    />
-                  </Field>
-                </div>
+                <Field label="Condition">
+                  <Select
+                    value={line.condition}
+                    onChange={(e) =>
+                      setSwapLines((ls) =>
+                        ls.map((l) =>
+                          l.key === line.key
+                            ? { ...l, condition: e.target.value as "new" | "used" }
+                            : l,
+                        ),
+                      )
+                    }
+                  >
+                    <option value="used">Used</option>
+                    <option value="new">New</option>
+                  </Select>
+                </Field>
 
                 <div className="mt-2 flex justify-end">
                   <button
                     type="button"
                     aria-label="Remove phone"
-                    onClick={() =>
-                      setSwapLines((ls) =>
-                        ls.length > 1
-                          ? ls.filter((l) => l.key !== line.key)
-                          : [{ key: nextKey++, name: "", condition: "used", value: "" }],
-                      )
-                    }
+onClick={() =>
+                        setSwapLines((ls) =>
+                          ls.length > 1
+                            ? ls.filter((l) => l.key !== line.key)
+                            : [{ key: nextKey++, name: "", condition: "used" }],
+                        )
+                      }
                     className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600"
                   >
                     ✕ Remove

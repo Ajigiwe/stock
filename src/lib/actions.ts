@@ -24,11 +24,10 @@ export type TxInItem =
     };
 
 // A swap trade-in: the customer's old phone, captured into the swapped-phones
-// list (NOT added to sellable stock).
+// list (NOT added to sellable stock). No valuation — it's just recorded.
 export type SwapInItem = {
   name: string;
   condition: "new" | "used";
-  value: string;
 };
 
 export type RecordTransactionInput = {
@@ -253,7 +252,6 @@ export async function recordTransaction(
       staff_id: session.id,
       model_name: s.name.trim(),
       condition: (s.condition === "new" ? "new" : "used") as "new" | "used",
-      estimated_value: s.value ? Number(s.value) : null,
       customer_name: input.customerName?.trim() || null,
       customer_phone: input.customerPhone?.trim() || null,
     }));

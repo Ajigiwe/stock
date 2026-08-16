@@ -278,7 +278,6 @@ export type Database = {
           staff_id: string | null;
           model_name: string;
           condition: PhoneCondition;
-          estimated_value: number | null;
           customer_name: string | null;
           customer_phone: string | null;
           status: "in_stock" | "sold" | "returned";
@@ -292,7 +291,6 @@ export type Database = {
           staff_id?: string | null;
           model_name: string;
           condition?: PhoneCondition;
-          estimated_value?: number | null;
           customer_name?: string | null;
           customer_phone?: string | null;
           status?: "in_stock" | "sold" | "returned";
@@ -306,7 +304,6 @@ export type Database = {
           staff_id?: string | null;
           model_name?: string;
           condition?: PhoneCondition;
-          estimated_value?: number | null;
           customer_name?: string | null;
           customer_phone?: string | null;
           status?: "in_stock" | "sold" | "returned";

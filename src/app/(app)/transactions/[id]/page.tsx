@@ -62,12 +62,8 @@ export default async function ReceiptPage({
   // Trade-ins: prefer the swapped-phones list; fall back to legacy "in" items.
   const tradeIns =
     swaps.length > 0
-      ? swaps.map((s) => ({
-          id: s.id,
-          label: s.model_name,
-          note: s.estimated_value != null ? formatMoney(s.estimated_value) : null,
-        }))
-      : inn.map((i) => ({ id: i.id, label: i.model_name, note: `x${i.qty}` }));
+      ? swaps.map((s) => s.model_name)
+      : inn.map((i) => `${i.model_name} (x${i.qty})`);
 
   const shareLines = [
     `*${shop?.name ?? "Mr Jeff Stock"}* — Receipt ${receiptNo}`,
@@ -76,7 +72,7 @@ export default async function ReceiptPage({
     `Type: ${TYPE_LABELS[tx.type] ?? tx.type}`,
     out.length ? `Items: ${out.map(itemLine).join(", ")}` : null,
     tradeIns.length
-      ? `Trade-in: ${tradeIns.map((t) => t.label + (t.note ? ` (${t.note})` : "")).join(", ")}`
+      ? `Trade-in: ${tradeIns.join(", ")}`
       : null,
     `Total: ${formatMoney(tx.amount)} (${PAYMENT_LABELS[tx.payment_method] ?? tx.payment_method})`,
     tx.customer_name ? `Customer: ${tx.customer_name}` : null,
@@ -155,10 +151,9 @@ export default async function ReceiptPage({
               Trade-in received
             </div>
             <ul className="space-y-1 text-sm text-zinc-800">
-              {tradeIns.map((t) => (
-                <li key={t.id} className="flex justify-between gap-2">
-                  <span>{t.label}</span>
-                  {t.note && <span className="text-zinc-500">{t.note}</span>}
+              {tradeIns.map((label) => (
+                <li key={label} className="flex justify-between gap-2">
+                  <span>{label}</span>
                 </li>
               ))}
             </ul>

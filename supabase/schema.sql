@@ -835,7 +835,6 @@ create table public.swapped_phones (
   staff_id        uuid references public.users (id),
   model_name      text not null,
   condition       phone_condition not null default 'used',
-  estimated_value numeric(12,2),
   customer_name   text,
   customer_phone  text,
   status          text not null default 'in_stock' check (status in ('in_stock', 'sold', 'returned')),

@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateSwappedPhoneStatus } from "@/lib/actions";
 import type { SwappedPhone } from "@/lib/data";
-import { formatMoney, formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { Badge, EmptyState } from "@/components/ui";
 import { useToast } from "@/components/feedback";
 
@@ -64,9 +64,6 @@ export function SwappedPhonesList({
                 <Badge tone={meta.tone}>{meta.label}</Badge>
               </div>
               <div className="mt-0.5 text-xs text-zinc-500">
-                {p.estimated_value != null
-                  ? `Value ${formatMoney(p.estimated_value)} · `
-                  : ""}
                 {p.customer_name ? `${p.customer_name} · ` : ""}
                 {formatDateTime(p.created_at)}
               </div>
