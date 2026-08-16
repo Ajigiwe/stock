@@ -85,14 +85,19 @@ export function Label({ children, htmlFor }: { children: ReactNode; htmlFor?: st
 
 export function Field({
   label,
+  required,
   children,
 }: {
   label: string;
+  required?: boolean;
   children: ReactNode;
 }) {
   return (
     <div>
-      <Label>{label}</Label>
+      <Label>
+        {label}
+        {required && <span className="ml-0.5 text-red-500">*</span>}
+      </Label>
       {children}
     </div>
   );

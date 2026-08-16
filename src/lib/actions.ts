@@ -181,6 +181,10 @@ export async function recordTransaction(
     return { ok: false, error: "Enter a valid amount." };
   }
 
+  if (!input.customerName?.trim() || !input.customerPhone?.trim()) {
+    return { ok: false, error: "Customer name and phone are required." };
+  }
+
   const outItems: { phone_model_id: string; qty: number }[] = [];
   for (const it of input.outItems) {
     if (it.modelId && it.qty > 0) {

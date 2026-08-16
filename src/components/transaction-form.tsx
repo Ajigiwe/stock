@@ -160,6 +160,9 @@ export function TransactionForm({
     if (!Number.isFinite(Number(amount)) || Number(amount) < 0) {
       return setError("Enter a valid amount.");
     }
+    if (!customerName.trim() || !customerPhone.trim()) {
+      return setError("Customer name and phone are required.");
+    }
     if (type === "sale" && suggested != null && suggested > 0 && Number(amount) < suggested) {
       return setError(
         `Sale amount can't be less than the phone price (${suggested.toLocaleString()} GHS).`,
@@ -428,18 +431,18 @@ export function TransactionForm({
 
       <Card title="Customer">
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Name">
+          <Field label="Name" required>
             <Input
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
-              placeholder="optional"
+              placeholder="Customer name"
             />
           </Field>
-          <Field label="Phone">
+          <Field label="Phone" required>
             <Input
               value={customerPhone}
               onChange={(e) => setCustomerPhone(e.target.value)}
-              placeholder="optional"
+              placeholder="Customer phone"
             />
           </Field>
         </div>
