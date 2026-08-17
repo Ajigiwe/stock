@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { DeviceRow, Shop } from "@/lib/data";
 import { formatMoney, formatDateTime } from "@/lib/format";
-import { Badge, EmptyState, Input } from "@/components/ui";
+import { Badge, EmptyState, Input, Select } from "@/components/ui";
 
 type CondFilter = "all" | "new" | "used";
 
@@ -67,17 +67,39 @@ export function DevicesTable({
   const [q, setQ] = useState("");
   const [cond, setCond] = useState<CondFilter>("all");
   const [lowOnly, setLowOnly] = useState(false);
+  const [shopId, setShopId] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  // When a shop is selected, narrow totals / sold / sales to that shop only.
+  const scoped = useMemo(() => {
+    if (!shopId) return rows;
+    return rows.map((r) => {
+      const cell = r.perShop.find((c) => c.shopId === shopId);
+      const sales = r.sales.filter((s) => s.shopId === shopId);
+      return {
+        ...r,
+        total: cell?.available ?? 0,
+        low: cell?.low ? 1 : 0,
+        sold: sales.reduce((a, s) => a + s.qty, 0),
+        sales,
+      };
+    });
+  }, [rows, shopId]);
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
-    return rows.filter((r) => {
+    return scoped.filter((r) => {
       if (cond !== "all" && r.condition !== cond) return false;
       if (lowOnly && r.low === 0) return false;
       if (term && !r.model_name.toLowerCase().includes(term)) return false;
       return true;
     });
-  }, [rows, q, cond, lowOnly]);
+  }, [scoped, q, cond, lowOnly]);
+
+  const displayShops = shopId ? shops.filter((s) => s.id === shopId) : shops;
+  const scopeLabel = shopId
+    ? shops.find((s) => s.id === shopId)?.name
+    : `All shops`;
 
   const toggle = (key: string) =>
     setExpanded((cur) => {
@@ -90,7 +112,7 @@ export function DevicesTable({
   const cellClass = (low: boolean) =>
     low ? "text-red-600 font-bold" : "text-zinc-700 font-medium";
 
-  const colSpan = shops.length + 5;
+  const colSpan = displayShops.length + 5;
 
   return (
     <div className="space-y-3">
@@ -116,6 +138,19 @@ export function DevicesTable({
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={shopId}
+            onChange={(e) => setShopId(e.target.value)}
+            aria-label="Filter by shop"
+            className="h-9 w-auto min-w-[9rem] text-xs"
+          >
+            <option value="">All shops</option>
+            {shops.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </Select>
           <div className="inline-flex rounded-lg border border-zinc-200 p-0.5">
             {(["all", "new", "used"] as CondFilter[]).map((c) => (
               <button
@@ -147,8 +182,11 @@ export function DevicesTable({
       </div>
 
       <p className="text-xs text-zinc-500">
-        {filtered.length} of {rows.length} models · totals across {shops.length}{" "}
-        shop{shops.length === 1 ? "" : "s"} · tap a row to see who sold each one
+        {filtered.length} of {rows.length} models ·{" "}
+        {shopId
+          ? `stock, sold units and sales history for ${scopeLabel}`
+          : `totals across ${shops.length} shop${shops.length === 1 ? "" : "s"}`}
+        {" "}· tap a row to see who sold each one
       </p>
 
       {filtered.length === 0 ? (
@@ -163,7 +201,7 @@ export function DevicesTable({
                     Model
                   </th>
                   <th className="py-2 pr-2 font-medium">Condition</th>
-                  {shops.map((s) => (
+                  {displayShops.map((s) => (
                     <th key={s.id} className="py-2 pr-3 text-right font-medium">
                       {s.name}
                     </th>
@@ -182,6 +220,7 @@ export function DevicesTable({
                     expanded={expanded.has(r.key)}
                     cellClass={cellClass}
                     colSpan={colSpan}
+                    shops={displayShops}
                     onToggle={() => toggle(r.key)}
                   />
                 ))}
@@ -225,7 +264,7 @@ export function DevicesTable({
                   </button>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {r.perShop
-                      .filter((c) => c.available > 0)
+                      .filter((c) => c.available > 0 && (!shopId || c.shopId === shopId))
                       .map((c) => {
                         const shop = shops.find((s) => s.id === c.shopId);
                         return (
@@ -266,12 +305,14 @@ function RowGroup({
   expanded,
   cellClass,
   colSpan,
+  shops,
   onToggle,
 }: {
   row: DeviceRow;
   expanded: boolean;
   cellClass: (low: boolean) => string;
   colSpan: number;
+  shops: Shop[];
   onToggle: () => void;
 }) {
   return (
@@ -298,20 +339,23 @@ function RowGroup({
             {row.condition}
           </Badge>
         </td>
-        {row.perShop.map((c) => (
-          <td key={c.shopId} className="py-2 pr-3 text-right">
-            {c.available > 0 ? (
-              <Link
-                href={`/shops/${c.shopId}`}
-                className={`tabular-nums hover:underline ${cellClass(c.low)}`}
-              >
-                {c.available}
-              </Link>
-            ) : (
-              <span className="text-zinc-300">—</span>
-            )}
-          </td>
-        ))}
+        {shops.map((s) => {
+          const c = row.perShop.find((x) => x.shopId === s.id);
+          return (
+            <td key={s.id} className="py-2 pr-3 text-right">
+              {c && c.available > 0 ? (
+                <Link
+                  href={`/shops/${s.id}`}
+                  className={`tabular-nums hover:underline ${cellClass(c.low)}`}
+                >
+                  {c.available}
+                </Link>
+              ) : (
+                <span className="text-zinc-300">—</span>
+              )}
+            </td>
+          );
+        })}
         <td className="py-2 pr-3 text-right font-bold tabular-nums text-zinc-900">
           {row.total}
         </td>
