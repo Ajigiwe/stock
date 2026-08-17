@@ -9,6 +9,8 @@ import {
 import { formatMoney, formatDateTime } from "@/lib/format";
 import { Badge, Card, EmptyState, Input, Label, Select } from "@/components/ui";
 
+export const dynamic = "force-dynamic";
+
 const PAYMENT_LABELS: Record<string, string> = {
   cash: "Cash",
   mobile_money: "Mobile money",

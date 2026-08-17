@@ -4,6 +4,8 @@ import type { Database } from "@/lib/database.types";
 type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
 type TransactionItem = Database["public"]["Tables"]["transaction_items"]["Row"];
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   const supabase = await createClient();
   const {

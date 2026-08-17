@@ -24,6 +24,12 @@ export async function createClient() {
           }
         },
       },
+      // Never let Next.js's Data Cache hold Supabase responses — otherwise the
+      // dashboard serves stale numbers that "revert" to older data.
+      global: {
+        fetch: (input, init) =>
+          fetch(input, { ...init, cache: "no-store" }),
+      },
     },
   );
 }

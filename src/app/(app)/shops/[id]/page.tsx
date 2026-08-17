@@ -19,6 +19,8 @@ import { StockTable } from "@/components/stock-table";
 import { ShareSummaryButton } from "@/components/share-summary-button";
 import { SwappedPhonesList } from "@/components/swapped-phones-list";
 
+export const dynamic = "force-dynamic";
+
 export default async function ShopPage({
   params,
   searchParams,

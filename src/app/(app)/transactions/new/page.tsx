@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getSession, getShops, getStock } from "@/lib/data";
 import { TransactionForm } from "@/components/transaction-form";
 
+export const dynamic = "force-dynamic";
+
 export default async function NewTransactionPage({
   searchParams,
 }: {

@@ -3,6 +3,8 @@ import Link from "next/link";
 import { getSession, getDashboardData, type DashboardPeriod } from "@/lib/data";
 import { Dashboard } from "@/components/dashboard";
 
+export const dynamic = "force-dynamic";
+
 export default async function HomePage({
   searchParams,
 }: {
