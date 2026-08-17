@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string }>;
+  searchParams: Promise<{ period?: string; shop?: string }>;
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -41,7 +41,7 @@ export default async function HomePage({
   const sp = await searchParams;
   const period: DashboardPeriod =
     sp.period === "7d" || sp.period === "30d" ? sp.period : "today";
-  const data = await getDashboardData(period);
+  const data = await getDashboardData(period, sp.shop);
 
   if (profile.role === "owner" && data.summaries.length === 0) {
     return (

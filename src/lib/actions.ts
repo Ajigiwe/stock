@@ -714,6 +714,30 @@ export async function removeStaff(id: string): Promise<ActionResult> {
   return { ok: true };
 }
 
+export async function resetStaffPassword(
+  id: string,
+  password: string,
+): Promise<ActionResult> {
+  const session = await requireSession();
+  if (session.profile?.role !== "owner") {
+    return { ok: false, error: "Only the owner can reset staff passwords." };
+  }
+  if (id === session.id) {
+    return { ok: false, error: "You cannot reset your own password here." };
+  }
+  if (password.length < 6) {
+    return { ok: false, error: "Password must be at least 6 characters." };
+  }
+  try {
+    const admin = getAdminClient();
+    const { error } = await admin.auth.admin.updateUserById(id, { password });
+    if (error) return { ok: false, error: error.message };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+  return { ok: true };
+}
+
 // ---------------------------------------------------------------------------
 // Backup & restore (owner only)
 // ---------------------------------------------------------------------------

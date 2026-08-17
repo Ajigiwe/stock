@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createStaff, removeStaff } from "@/lib/actions";
+import { createStaff, removeStaff, resetStaffPassword } from "@/lib/actions";
 import type { Shop, UserProfile } from "@/lib/data";
 import { Button, ButtonDanger, ButtonSecondary, ErrorNote, Field, Input, Select } from "@/components/ui";
 import { useConfirm, useToast } from "@/components/feedback";
@@ -18,6 +18,9 @@ export function StaffManager({ shops, staff }: { shops: Shop[]; staff: UserProfi
   const [shopId, setShopId] = useState(shops[0]?.id ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [resetFor, setResetFor] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [resetError, setResetError] = useState<string | null>(null);
 
   const submit = () =>
     startTransition(async () => {
@@ -47,6 +50,16 @@ export function StaffManager({ shops, staff }: { shops: Shop[]; staff: UserProfi
       router.refresh();
     });
   };
+
+  const onReset = (s: UserProfile) =>
+    startTransition(async () => {
+      setResetError(null);
+      const res = await resetStaffPassword(s.id, newPassword);
+      if (!res.ok) return setResetError(res.error ?? "Could not reset password.");
+      toast.success(`Password reset for ${s.name}.`);
+      setResetFor(null);
+      setNewPassword("");
+    });
 
   return (
     <div className="space-y-4">
@@ -94,19 +107,64 @@ export function StaffManager({ shops, staff }: { shops: Shop[]; staff: UserProfi
         {staff.map((s) => {
           const shopName = shops.find((x) => x.id === s.shop_id)?.name;
           return (
-            <li key={s.id} className="flex items-center justify-between gap-3 py-2">
-              <div>
-                <div className="text-sm font-medium text-zinc-900">{s.name}</div>
-                <div className="text-xs text-zinc-500">
-                  {shopName ?? "No shop"} · {s.role}
+            <li key={s.id} className="py-2">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-medium text-zinc-900">{s.name}</div>
+                  <div className="text-xs text-zinc-500">
+                    {shopName ?? "No shop"} · {s.role}
+                  </div>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <ButtonSecondary
+                    className="h-8 px-2 text-xs"
+                    onClick={() => {
+                      setResetFor(resetFor === s.id ? null : s.id);
+                      setResetError(null);
+                    }}
+                  >
+                    Reset password
+                  </ButtonSecondary>
+                  <ButtonDanger
+                    className="h-8 px-2 text-xs"
+                    onClick={() => onRemove(s)}
+                  >
+                    Remove
+                  </ButtonDanger>
                 </div>
               </div>
-              <ButtonDanger
-                className="h-8 px-2 text-xs"
-                onClick={() => onRemove(s)}
-              >
-                Remove
-              </ButtonDanger>
+              {resetFor === s.id && (
+                <div className="mt-3 grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4 sm:grid-cols-2">
+                  <Field label={`New password for ${s.name}`}>
+                    <Input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="min 6 characters"
+                      autoComplete="new-password"
+                    />
+                  </Field>
+                  <div className="flex items-end gap-2">
+                    <Button
+                      className="h-8 text-xs"
+                      disabled={pending}
+                      onClick={() => onReset(s)}
+                    >
+                      Save password
+                    </Button>
+                    <ButtonSecondary
+                      className="h-8 text-xs"
+                      onClick={() => {
+                        setResetFor(null);
+                        setNewPassword("");
+                      }}
+                    >
+                      Cancel
+                    </ButtonSecondary>
+                  </div>
+                  <ErrorNote>{resetError}</ErrorNote>
+                </div>
+              )}
             </li>
           );
         })}

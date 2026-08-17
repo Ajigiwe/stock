@@ -5,6 +5,7 @@ import { Badge, Card, EmptyState } from "@/components/ui";
 import { RealtimeRefresher } from "@/components/realtime-refresher";
 import { StockRequestsPanel } from "@/components/stock-requests-panel";
 import { DashboardCharts } from "@/components/dashboard-charts";
+import { ShopFilter } from "@/components/shop-filter";
 
 const PERIOD_LABELS: Record<DashboardPeriod, string> = {
   today: "Today",
@@ -36,6 +37,11 @@ function PeriodToggle({ period }: { period: DashboardPeriod }) {
 export function Dashboard({ data }: { data: DashboardData }) {
   const isOwner = data.role === "owner";
   const periodLabel = PERIOD_LABELS[data.period];
+  const scopeLabel = isOwner
+    ? data.shop
+      ? data.shop.name
+      : `${data.summaries.length} shop${data.summaries.length === 1 ? "" : "s"}`
+    : "your shop";
 
   return (
     <div className="space-y-6">
@@ -47,10 +53,7 @@ export function Dashboard({ data }: { data: DashboardData }) {
             {isOwner ? "Dashboard" : data.shop?.name ?? "Dashboard"}
           </h1>
           <p className="text-sm text-zinc-500">
-            {periodLabel} ·{" "}
-            {isOwner
-              ? `${data.summaries.length} shop${data.summaries.length === 1 ? "" : "s"} · live`
-              : "your shop · live"}
+            {periodLabel} · {scopeLabel} · live
           </p>
         </div>
         <Link
@@ -61,7 +64,16 @@ export function Dashboard({ data }: { data: DashboardData }) {
         </Link>
       </div>
 
-      <PeriodToggle period={data.period} />
+      <div className="flex flex-wrap items-center gap-3">
+        <PeriodToggle period={data.period} />
+        {isOwner && data.shops.length > 1 && (
+          <ShopFilter
+            shops={data.shops}
+            value={data.shop?.id ?? null}
+            period={data.period}
+          />
+        )}
+      </div>
 
       <StatCards totals={data.totals} period={data.period} />
 

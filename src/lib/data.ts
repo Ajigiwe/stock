@@ -450,6 +450,7 @@ function buildSeries(
 
 export async function getDashboardData(
   period: DashboardPeriod = "today",
+  shopFilter?: string,
 ): Promise<DashboardData> {
   const session = await requireSession();
   const role = session.profile?.role ?? null;
@@ -457,17 +458,26 @@ export async function getDashboardData(
 
   if (role === "owner") {
     const shops = await getShops();
+    const shopId =
+      shopFilter && shops.some((s) => s.id === shopFilter) ? shopFilter : undefined;
+
     const [summaries, recent, pending, rangeTxs] = await Promise.all([
-      Promise.all(shops.map((s) => getShopSummary(s.id, from, to, s))),
-      getTransactions({ limit: 10 }),
-      getStockRequests({ status: "pending" }),
-      getTransactions({ from, to }),
+      Promise.all(
+        shops
+          .filter((s) => !shopId || s.id === shopId)
+          .map((s) => getShopSummary(s.id, from, to, s)),
+      ),
+      getTransactions(shopId ? { shopId, limit: 10 } : { limit: 10 }),
+      getStockRequests(
+        shopId ? { shopId, status: "pending" } : { status: "pending" },
+      ),
+      getTransactions(shopId ? { shopId, from, to } : { from, to }),
     ]);
     return {
       role,
-      scope: "all",
+      scope: shopId ? "shop" : "all",
       period,
-      shop: null,
+      shop: shopId ? shops.find((s) => s.id === shopId) ?? null : null,
       shops,
       summaries,
       series: buildSeries(rangeTxs, from, to),
