@@ -4,15 +4,9 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { DeviceRow, Shop } from "@/lib/data";
 import { formatMoney, formatDateTime } from "@/lib/format";
-import { Badge, EmptyState, Input, Modal } from "@/components/ui";
+import { Badge, EmptyState, Input, Modal, Select } from "@/components/ui";
 
 type CondFilter = "all" | "new" | "used";
-
-const chevron = (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M6 9l6 6 6-6" />
-  </svg>
-);
 
 function SalesList({ row }: { row: DeviceRow }) {
   if (row.sales.length === 0) {
@@ -57,6 +51,77 @@ function SalesList({ row }: { row: DeviceRow }) {
   );
 }
 
+function ModelDetail({
+  row,
+  shops,
+  shopId,
+}: {
+  row: DeviceRow;
+  shops: Shop[];
+  shopId: string;
+}) {
+  const scopeLabel = shopId
+    ? shops.find((s) => s.id === shopId)?.name
+    : "all shops";
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone={row.condition === "new" ? "blue" : "gray"}>
+          {row.condition}
+        </Badge>
+        <span className="text-sm text-zinc-500">
+          <span className="font-semibold tabular-nums text-zinc-900">
+            {row.total}
+          </span>{" "}
+          available ·{" "}
+          <span className="font-semibold tabular-nums text-zinc-900">
+            {row.sold}
+          </span>{" "}
+          sold across {scopeLabel}
+        </span>
+      </div>
+
+      <div>
+        <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+          Stock by shop
+        </h3>
+        <div className="flex flex-wrap gap-1.5">
+          {row.perShop.filter((c) => c.available > 0).length === 0 ? (
+            <p className="text-sm text-zinc-400">No stock in this shop.</p>
+          ) : (
+            row.perShop
+              .filter((c) => c.available > 0 && (!shopId || c.shopId === shopId))
+              .map((c) => {
+                const shop = shops.find((s) => s.id === c.shopId);
+                return (
+                  <Link
+                    key={c.shopId}
+                    href={`/shops/${c.shopId}`}
+                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${
+                      c.low
+                        ? "border-red-200 bg-red-50 text-red-700"
+                        : "border-zinc-200 bg-zinc-50 text-zinc-700"
+                    }`}
+                  >
+                    <span className="font-medium">{shop?.name}</span>
+                    <span className="font-bold tabular-nums">{c.available}</span>
+                  </Link>
+                );
+              })
+          )}
+        </div>
+      </div>
+
+      <div>
+        <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+          Sold by / to
+        </h3>
+        <SalesList row={row} />
+      </div>
+    </div>
+  );
+}
+
 export function DevicesTable({
   shops,
   rows,
@@ -68,8 +133,7 @@ export function DevicesTable({
   const [cond, setCond] = useState<CondFilter>("all");
   const [lowOnly, setLowOnly] = useState(false);
   const [shopId, setShopId] = useState("");
-  const [shopOpen, setShopOpen] = useState(false);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<DeviceRow | null>(null);
 
   // When a shop is selected, narrow totals / sold / sales to that shop only.
   const scoped = useMemo(() => {
@@ -100,20 +164,10 @@ export function DevicesTable({
   const displayShops = shopId ? shops.filter((s) => s.id === shopId) : shops;
   const scopeLabel = shopId
     ? shops.find((s) => s.id === shopId)?.name
-    : `All shops`;
-
-  const toggle = (key: string) =>
-    setExpanded((cur) => {
-      const next = new Set(cur);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+    : "All shops";
 
   const cellClass = (low: boolean) =>
     low ? "text-red-600 font-bold" : "text-zinc-700 font-medium";
-
-  const colSpan = displayShops.length + 5;
 
   return (
     <div className="space-y-3">
@@ -139,36 +193,19 @@ export function DevicesTable({
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShopOpen(true)}
+          <Select
+            value={shopId}
+            onChange={(e) => setShopId(e.target.value)}
             aria-label="Filter by shop"
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-zinc-200 px-3 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50"
+            className="h-9 w-auto min-w-[9rem] text-xs"
           >
-            <svg
-              aria-hidden="true"
-              className="h-3.5 w-3.5 text-zinc-400"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M3 9l1.5-4.5A2 2 0 0 1 6.4 3h11.2a2 2 0 0 1 1.9 1.5L21 9" />
-              <path d="M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9" />
-              <path d="M2 9h20" />
-              <path d="M10 13h4" />
-            </svg>
-            {scopeLabel}
-            <span
-              className={`text-zinc-400 transition-transform ${
-                shopOpen ? "rotate-180" : ""
-              }`}
-            >
-              {chevron}
-            </span>
-          </button>
+            <option value="">All shops</option>
+            {shops.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </Select>
           <div className="inline-flex rounded-lg border border-zinc-200 p-0.5">
             {(["all", "new", "used"] as CondFilter[]).map((c) => (
               <button
@@ -200,11 +237,8 @@ export function DevicesTable({
       </div>
 
       <p className="text-xs text-zinc-500">
-        {filtered.length} of {rows.length} models ·{" "}
-        {shopId
-          ? `stock, sold units and sales history for ${scopeLabel}`
-          : `totals across ${shops.length} shop${shops.length === 1 ? "" : "s"}`}
-        {" "}· tap a row to see who sold each one
+        {filtered.length} of {rows.length} models · tap a row to see stock by
+        shop and who sold each one
       </p>
 
       {filtered.length === 0 ? (
@@ -227,231 +261,125 @@ export function DevicesTable({
                   <th className="py-2 pr-3 text-right font-medium">Total</th>
                   <th className="py-2 pr-3 text-right font-medium">Sold</th>
                   <th className="py-2 pr-2 text-center font-medium">Low</th>
-                  <th className="py-2 pr-4 text-right font-medium">Sold by / to</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((r) => (
-                  <RowGroup
+                  <tr
                     key={r.key}
-                    row={r}
-                    expanded={expanded.has(r.key)}
-                    cellClass={cellClass}
-                    colSpan={colSpan}
-                    shops={displayShops}
-                    onToggle={() => toggle(r.key)}
-                  />
+                    className="cursor-pointer border-b border-zinc-50 hover:bg-zinc-50/60"
+                    onClick={() => setSelected(r)}
+                  >
+                    <td className="sticky left-0 bg-white py-2 pl-4 pr-2 font-medium text-zinc-900 hover:text-indigo-600">
+                      {r.model_name}
+                    </td>
+                    <td className="py-2 pr-2">
+                      <Badge tone={r.condition === "new" ? "blue" : "gray"}>
+                        {r.condition}
+                      </Badge>
+                    </td>
+                    {displayShops.map((s) => {
+                      const c = r.perShop.find((x) => x.shopId === s.id);
+                      return (
+                        <td key={s.id} className="py-2 pr-3 text-right">
+                          {c && c.available > 0 ? (
+                            <Link
+                              href={`/shops/${s.id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className={`tabular-nums hover:underline ${cellClass(c.low)}`}
+                            >
+                              {c.available}
+                            </Link>
+                          ) : (
+                            <span className="text-zinc-300">—</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="py-2 pr-3 text-right font-bold tabular-nums text-zinc-900">
+                      {r.total}
+                    </td>
+                    <td className="py-2 pr-3 text-right font-bold tabular-nums text-zinc-900">
+                      {r.sold}
+                    </td>
+                    <td className="py-2 pr-4 text-center">
+                      {r.low > 0 ? (
+                        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-100 px-1.5 text-xs font-semibold text-red-700">
+                          {r.low}
+                        </span>
+                      ) : (
+                        <span className="text-zinc-300">—</span>
+                      )}
+                    </td>
+                  </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
           <ul className="space-y-2 sm:hidden">
-            {filtered.map((r) => {
-              const open = expanded.has(r.key);
-              return (
-                <li
-                  key={r.key}
-                  className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm"
-                >
-                  <button
-                    type="button"
-                    onClick={() => toggle(r.key)}
-                    className="flex w-full items-center justify-between gap-2 text-left"
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-medium text-zinc-900">
-                        {r.model_name}
-                      </span>
-                      <Badge tone={r.condition === "new" ? "blue" : "gray"}>
-                        {r.condition}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold tabular-nums text-zinc-900">
-                        {r.total} avail · {r.sold} sold
-                      </span>
-                      <span
-                        className={`text-zinc-400 transition-transform ${
-                          open ? "rotate-180" : ""
-                        }`}
-                      >
-                        {chevron}
-                      </span>
-                    </div>
-                  </button>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {r.perShop
-                      .filter((c) => c.available > 0 && (!shopId || c.shopId === shopId))
-                      .map((c) => {
-                        const shop = shops.find((s) => s.id === c.shopId);
-                        return (
-                          <Link
-                            key={c.shopId}
-                            href={`/shops/${c.shopId}`}
-                            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${
-                              c.low
-                                ? "border-red-200 bg-red-50 text-red-700"
-                                : "border-zinc-200 bg-zinc-50 text-zinc-700"
-                            }`}
-                          >
-                            <span className="font-medium">{shop?.name}</span>
-                            <span className="font-bold tabular-nums">
-                              {c.available}
-                            </span>
-                          </Link>
-                        );
-                      })}
+            {filtered.map((r) => (
+              <li
+                key={r.key}
+                className="cursor-pointer rounded-xl border border-zinc-200 bg-white p-3 shadow-sm"
+                onClick={() => setSelected(r)}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium text-zinc-900">
+                      {r.model_name}
+                    </span>
+                    <Badge tone={r.condition === "new" ? "blue" : "gray"}>
+                      {r.condition}
+                    </Badge>
                   </div>
-                  {open && (
-                    <div className="mt-3 rounded-lg border border-zinc-100 bg-zinc-50 p-3">
-                      <SalesList row={r} />
-                    </div>
-                  )}
-                </li>
-              );
-            })}
+                  <span className="text-sm font-semibold tabular-nums text-zinc-900">
+                    {r.total} avail · {r.sold} sold
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {r.perShop
+                    .filter((c) => c.available > 0 && (!shopId || c.shopId === shopId))
+                    .map((c) => {
+                      const shop = shops.find((s) => s.id === c.shopId);
+                      return (
+                        <Link
+                          key={c.shopId}
+                          href={`/shops/${c.shopId}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${
+                            c.low
+                              ? "border-red-200 bg-red-50 text-red-700"
+                              : "border-zinc-200 bg-zinc-50 text-zinc-700"
+                          }`}
+                        >
+                          <span className="font-medium">{shop?.name}</span>
+                          <span className="font-bold tabular-nums">
+                            {c.available}
+                          </span>
+                        </Link>
+                      );
+                    })}
+                </div>
+              </li>
+            ))}
           </ul>
         </>
       )}
 
       <Modal
-        open={shopOpen}
-        onClose={() => setShopOpen(false)}
-        title="Filter by shop"
-        subtitle="Show stock, sold units and sales history for one shop."
-        size="md"
+        open={selected !== null}
+        onClose={() => setSelected(null)}
+        title={selected?.model_name}
+        subtitle={
+          selected ? `Details · ${scopeLabel}` : undefined
+        }
+        size="xl"
       >
-        <div className="space-y-1">
-          <button
-            type="button"
-            onClick={() => {
-              setShopId("");
-              setShopOpen(false);
-            }}
-            className={`flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left text-sm transition-colors ${
-              shopId === ""
-                ? "border-indigo-200 bg-indigo-50 text-indigo-700"
-                : "border-zinc-200 text-zinc-700 hover:bg-zinc-50"
-            }`}
-          >
-            <span className="font-medium">All shops</span>
-            {shopId === "" && (
-              <span className="text-indigo-600">✓</span>
-            )}
-          </button>
-          {shops.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => {
-                setShopId(s.id);
-                setShopOpen(false);
-              }}
-              className={`flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left text-sm transition-colors ${
-                shopId === s.id
-                  ? "border-indigo-200 bg-indigo-50 text-indigo-700"
-                  : "border-zinc-200 text-zinc-700 hover:bg-zinc-50"
-              }`}
-            >
-              <span className="font-medium">{s.name}</span>
-              {shopId === s.id && <span className="text-indigo-600">✓</span>}
-            </button>
-          ))}
-        </div>
+        {selected && (
+          <ModelDetail row={selected} shops={shops} shopId={shopId} />
+        )}
       </Modal>
     </div>
-  );
-}
-
-function RowGroup({
-  row,
-  expanded,
-  cellClass,
-  colSpan,
-  shops,
-  onToggle,
-}: {
-  row: DeviceRow;
-  expanded: boolean;
-  cellClass: (low: boolean) => string;
-  colSpan: number;
-  shops: Shop[];
-  onToggle: () => void;
-}) {
-  return (
-    <>
-      <tr className="border-b border-zinc-50 hover:bg-zinc-50/60">
-        <td className="sticky left-0 bg-white py-2 pl-4 pr-2">
-          <button
-            type="button"
-            onClick={onToggle}
-            className="flex items-center gap-1.5 font-medium text-zinc-900 hover:text-indigo-600"
-          >
-            <span
-              className={`text-zinc-400 transition-transform ${
-                expanded ? "rotate-180" : ""
-              }`}
-            >
-              {chevron}
-            </span>
-            <span className="max-w-56 truncate">{row.model_name}</span>
-          </button>
-        </td>
-        <td className="py-2 pr-2">
-          <Badge tone={row.condition === "new" ? "blue" : "gray"}>
-            {row.condition}
-          </Badge>
-        </td>
-        {shops.map((s) => {
-          const c = row.perShop.find((x) => x.shopId === s.id);
-          return (
-            <td key={s.id} className="py-2 pr-3 text-right">
-              {c && c.available > 0 ? (
-                <Link
-                  href={`/shops/${s.id}`}
-                  className={`tabular-nums hover:underline ${cellClass(c.low)}`}
-                >
-                  {c.available}
-                </Link>
-              ) : (
-                <span className="text-zinc-300">—</span>
-              )}
-            </td>
-          );
-        })}
-        <td className="py-2 pr-3 text-right font-bold tabular-nums text-zinc-900">
-          {row.total}
-        </td>
-        <td className="py-2 pr-3 text-right font-bold tabular-nums text-zinc-900">
-          {row.sold}
-        </td>
-        <td className="py-2 pr-2 text-center">
-          {row.low > 0 ? (
-            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-100 px-1.5 text-xs font-semibold text-red-700">
-              {row.low}
-            </span>
-          ) : (
-            <span className="text-zinc-300">—</span>
-          )}
-        </td>
-        <td className="py-2 pr-4">
-          <button
-            type="button"
-            onClick={onToggle}
-            className="text-xs font-medium text-indigo-600 hover:underline"
-          >
-            {row.sales.length} sale{row.sales.length === 1 ? "" : "s"}
-          </button>
-        </td>
-      </tr>
-      {expanded && (
-        <tr className="border-b border-zinc-100 bg-zinc-50">
-          <td colSpan={colSpan} className="px-4 py-3">
-            <SalesList row={row} />
-          </td>
-        </tr>
-      )}
-    </>
   );
 }
