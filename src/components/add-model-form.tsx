@@ -14,7 +14,13 @@ import {
 } from "@/components/ui";
 import { useToast } from "@/components/feedback";
 
-export function AddModelForm({ shopId, isOwner = true }: { shopId: string; isOwner?: boolean }) {
+export function AddModelForm({
+  shopId,
+  canEditStock = true,
+}: {
+  shopId: string;
+  canEditStock?: boolean;
+}) {
   const router = useRouter();
   const toast = useToast();
   const [open, setOpen] = useState(false);
@@ -52,7 +58,7 @@ export function AddModelForm({ shopId, isOwner = true }: { shopId: string; isOwn
       });
       if (!res.ok) return setError(res.error ?? "Failed.");
       toast.success(
-        isOwner
+        canEditStock
           ? `${modelName} added to stock.`
           : "Request sent — awaiting owner approval.",
       );
@@ -71,12 +77,12 @@ export function AddModelForm({ shopId, isOwner = true }: { shopId: string; isOwn
         onClose={() => setOpen(false)}
         title="Add model"
         subtitle={
-          isOwner
+          canEditStock
             ? "Add a new phone model to this shop"
             : "Sent to the owner for approval"
         }
       >
-        {!isOwner && (
+        {!canEditStock && (
           <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
             New models are sent to the owner for approval before they appear in stock.
           </p>
@@ -138,7 +144,7 @@ export function AddModelForm({ shopId, isOwner = true }: { shopId: string; isOwn
 
         <div className="mt-3 flex gap-2">
           <Button disabled={pending} onClick={submit} className="flex-1">
-            {pending ? "Saving…" : isOwner ? "Save model" : "Request approval"}
+            {pending ? "Saving…" : canEditStock ? "Save model" : "Request approval"}
           </Button>
           <ButtonSecondary onClick={() => setOpen(false)}>Cancel</ButtonSecondary>
         </div>

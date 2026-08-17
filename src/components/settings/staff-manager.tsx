@@ -2,7 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createStaff, removeStaff, resetStaffPassword } from "@/lib/actions";
+import {
+  createStaff,
+  removeStaff,
+  resetStaffPassword,
+  setStaffStockPrivilege,
+} from "@/lib/actions";
 import type { Shop, UserProfile } from "@/lib/data";
 import { Button, ButtonDanger, ButtonSecondary, ErrorNote, Field, Input, Select } from "@/components/ui";
 import { useConfirm, useToast } from "@/components/feedback";
@@ -61,6 +66,18 @@ export function StaffManager({ shops, staff }: { shops: Shop[]; staff: UserProfi
       setNewPassword("");
     });
 
+  const onTogglePrivilege = (s: UserProfile) =>
+    startTransition(async () => {
+      const res = await setStaffStockPrivilege(s.id, !s.can_edit_stock);
+      if (!res.ok) return toast.error(res.error ?? "Could not change privilege.");
+      toast.success(
+        s.can_edit_stock
+          ? `Stock-editing removed from ${s.name}.`
+          : `${s.name} can now edit stock.`,
+      );
+      router.refresh();
+    });
+
   return (
     <div className="space-y-4">
       {!open ? (
@@ -114,6 +131,23 @@ export function StaffManager({ shops, staff }: { shops: Shop[]; staff: UserProfi
                   <div className="text-xs text-zinc-500">
                     {shopName ?? "No shop"} · {s.role}
                   </div>
+                  {s.role === "attendant" && (
+                    <label className="mt-1.5 inline-flex cursor-pointer items-center gap-1.5 text-xs text-zinc-600">
+                      <input
+                        type="checkbox"
+                        checked={s.can_edit_stock}
+                        disabled={pending}
+                        onChange={() => onTogglePrivilege(s)}
+                        className="h-3.5 w-3.5 accent-indigo-600"
+                      />
+                      Can edit stock
+                      {s.can_edit_stock && (
+                        <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                          granted
+                        </span>
+                      )}
+                    </label>
+                  )}
                 </div>
                 <div className="flex shrink-0 gap-2">
                   <ButtonSecondary

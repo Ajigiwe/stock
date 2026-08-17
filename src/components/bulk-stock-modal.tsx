@@ -18,11 +18,11 @@ import { useToast } from "@/components/feedback";
 export function BulkStockModal({
   shopId,
   stock,
-  isOwner,
+  canEditStock,
 }: {
   shopId: string;
   stock: PhoneModel[];
-  isOwner: boolean;
+  canEditStock: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -67,7 +67,7 @@ export function BulkStockModal({
       });
       if (!res.ok) return setError(res.error ?? "Failed to apply changes.");
       toast.success(
-        isOwner
+        canEditStock
           ? `${res.changes ?? 0} stock change(s) applied.`
           : `${res.changes ?? 0} change(s) sent — awaiting owner approval.`,
       );
@@ -88,7 +88,7 @@ export function BulkStockModal({
         size="xl"
         title="Bulk stock edit"
         subtitle={
-          isOwner
+          canEditStock
             ? "Set target quantities — applied immediately"
             : "Set target quantities — sent to the owner for approval"
         }
@@ -188,7 +188,7 @@ export function BulkStockModal({
               >
                 {pending
                   ? "Saving…"
-                  : isOwner
+                  : canEditStock
                     ? `Apply ${changes.length} change${changes.length === 1 ? "" : "s"}`
                     : `Request ${changes.length} change${changes.length === 1 ? "" : "s"}`}
               </Button>

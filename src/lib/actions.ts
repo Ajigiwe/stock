@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/data";
 import { getAdminClient } from "@/lib/admin";
@@ -46,6 +47,19 @@ export type RecordTransactionInput = {
 // Auth
 // ---------------------------------------------------------------------------
 
+// Coarse device label from a user-agent string, for the login log.
+function parseDevice(ua: string | null): string | null {
+  if (!ua) return null;
+  const l = ua.toLowerCase();
+  if (l.includes("iphone")) return "iPhone";
+  if (l.includes("ipad")) return "iPad";
+  if (l.includes("android")) return "Android";
+  if (l.includes("windows")) return "Windows";
+  if (l.includes("mac os")) return "Mac";
+  if (l.includes("linux")) return "Linux";
+  return null;
+}
+
 export async function login(
   _prev: ActionResult,
   formData: FormData,
@@ -56,13 +70,17 @@ export async function login(
   const supabase = await createClient();
 
   // Retry once on transient network failures ("fetch failed").
+  let userId: string | null = null;
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      if (!error) break;
+      if (!error) {
+        userId = data.user?.id ?? null;
+        break;
+      }
       if (attempt === 2 || !/fetch failed|network|econn/i.test(error.message)) {
         return { ok: false, error: error.message };
       }
@@ -72,6 +90,31 @@ export async function login(
       }
     }
     await new Promise((r) => setTimeout(r, 1000));
+  }
+
+  // Record who signed in, from where, and when. Never blocks the login.
+  if (userId) {
+    try {
+      const h = await headers();
+      const ip = (h.get("x-forwarded-for") ?? "").split(",")[0]?.trim() || null;
+      const ua = h.get("user-agent") ?? null;
+      const admin = getAdminClient();
+      const { data: profile } = await admin
+        .from("users")
+        .select("name")
+        .eq("id", userId)
+        .maybeSingle();
+      await admin.from("login_logs").insert({
+        user_id: userId,
+        email,
+        name: profile?.name ?? null,
+        ip,
+        user_agent: ua,
+        device: parseDevice(ua),
+      });
+    } catch {
+      // ignore — logging must never block login
+    }
   }
 
   const next = String(formData.get("next") ?? "/");
@@ -326,6 +369,46 @@ export async function updateSwappedPhoneStatus(
 // Stock
 // ---------------------------------------------------------------------------
 
+// Who may edit stock directly: the owner, or a staff member the owner granted
+// stock-editing privileges to. Everyone else goes through the approval flow.
+async function canEditStock(
+  session: Awaited<ReturnType<typeof requireSession>>,
+): Promise<boolean> {
+  return (
+    session.profile?.role === "owner" ||
+    session.profile?.can_edit_stock === true
+  );
+}
+
+type StockLogInput = {
+  shopId: string;
+  staffId: string;
+  action: string;
+  phoneModelId?: string | null;
+  modelName?: string | null;
+  condition?: string | null;
+  details?: Record<string, unknown>;
+};
+
+// Appends a stock_logs row so the owner can see every stock edit. Best-effort:
+// logging failure must never fail the stock change itself.
+async function logStockEdit(input: StockLogInput): Promise<void> {
+  try {
+    const admin = getAdminClient();
+    await admin.from("stock_logs").insert({
+      shop_id: input.shopId,
+      phone_model_id: input.phoneModelId ?? null,
+      staff_id: input.staffId,
+      action: input.action,
+      model_name: input.modelName ?? null,
+      condition: input.condition ?? null,
+      details: input.details ?? null,
+    });
+  } catch (e) {
+    console.error("stock_log insert failed:", e);
+  }
+}
+
 export type CreateModelInput = {
   shopId: string;
   modelName: string;
@@ -352,8 +435,8 @@ export async function createModel(input: CreateModelInput): Promise<ActionResult
     return { ok: false, error: "Opening stock must be 0 or more." };
   }
 
-  if (session.profile?.role === "owner") {
-    // Owner adds models immediately.
+  if (session.profile?.role === "owner" || (await canEditStock(session))) {
+    // Owner / privileged staff add models immediately.
     const { error } = await supabase.from("phone_models").insert({
       shop_id: shopId,
       model_name: modelName,
@@ -366,6 +449,14 @@ export async function createModel(input: CreateModelInput): Promise<ActionResult
       low_stock_threshold: parseInt(input.lowStockThreshold || "5", 10),
     });
     if (error) return { ok: false, error: error.message };
+    await logStockEdit({
+      shopId,
+      staffId: session.id,
+      action: "create_model",
+      modelName,
+      condition: input.condition,
+      details: { opening_stock: openingStock },
+    });
   } else {
     // Attendant: submit for owner approval.
     const { data: dup } = await supabase
@@ -414,8 +505,21 @@ export async function updateModel(input: UpdateModelInput): Promise<ActionResult
     session.profile?.role === "owner" ? input.shopId : session.profile?.shop_id;
   if (!shopId) return { ok: false, error: "No shop selected." };
 
+  if (!(await canEditStock(session))) {
+    return {
+      ok: false,
+      error: "Only the owner or staff with stock privileges can edit products.",
+    };
+  }
+
   const modelName = input.modelName.trim();
   if (!modelName) return { ok: false, error: "Model name is required." };
+
+  const { data: before } = await supabase
+    .from("phone_models")
+    .select("model_name, condition, cost_price, sale_price, low_stock_threshold")
+    .eq("id", input.modelId)
+    .maybeSingle();
 
   // Stock fields (opening_stock / bought_in / available) are intentionally
   // NOT editable here — they move through transactions and stock adjustments
@@ -433,6 +537,32 @@ export async function updateModel(input: UpdateModelInput): Promise<ActionResult
     .eq("shop_id", shopId);
 
   if (error) return { ok: false, error: error.message };
+
+  await logStockEdit({
+    shopId,
+    staffId: session.id,
+    action: "update_model",
+    phoneModelId: input.modelId,
+    modelName,
+    condition: input.condition,
+    details: {
+      before: {
+        model_name: before?.model_name ?? null,
+        condition: before?.condition ?? null,
+        cost_price: before?.cost_price ?? null,
+        sale_price: before?.sale_price ?? null,
+        low_stock_threshold: before?.low_stock_threshold ?? null,
+      },
+      after: {
+        model_name: modelName,
+        condition: input.condition,
+        cost_price: input.costPrice ? Number(input.costPrice) : null,
+        sale_price: input.salePrice ? Number(input.salePrice) : null,
+        low_stock_threshold: parseInt(input.lowStockThreshold || "5", 10),
+      },
+    },
+  });
+
   revalidatePath("/", "layout");
   return { ok: true };
 }
@@ -457,8 +587,14 @@ export async function adjustStock(input: AdjustStockInput): Promise<ActionResult
     session.profile?.role === "owner" ? input.shopId : session.profile?.shop_id;
   if (!shopId) return { ok: false, error: "No shop selected." };
 
-  if (session.profile?.role === "owner") {
-    // Owner adjusts stock immediately.
+  if (session.profile?.role === "owner" || (await canEditStock(session))) {
+    const { data: model } = await supabase
+      .from("phone_models")
+      .select("model_name, condition")
+      .eq("id", input.phoneModelId)
+      .maybeSingle();
+
+    // Owner / privileged staff adjust stock immediately.
     const { error } = await supabase.rpc("adjust_stock", {
       p_shop_id: shopId,
       p_phone_model_id: input.phoneModelId,
@@ -467,6 +603,20 @@ export async function adjustStock(input: AdjustStockInput): Promise<ActionResult
       p_reason: input.reason?.trim() || null,
     });
     if (error) return { ok: false, error: error.message };
+
+    await logStockEdit({
+      shopId,
+      staffId: session.id,
+      action: "adjust_stock",
+      phoneModelId: input.phoneModelId,
+      modelName: model?.model_name ?? null,
+      condition: model?.condition ?? null,
+      details: {
+        delta,
+        type: delta > 0 ? "restock" : "correction",
+        reason: input.reason?.trim() || null,
+      },
+    });
   } else {
     // Attendant: submit for owner approval.
     const { error } = await supabase.from("stock_requests").insert({
@@ -505,12 +655,13 @@ export async function bulkAdjustStock(
 
   const { data: models, error: mErr } = await supabase
     .from("phone_models")
-    .select("id, available, model_name")
+    .select("id, available, model_name, condition")
     .in("id", modelIds)
     .eq("shop_id", shopId);
   if (mErr) return { ok: false, error: mErr.message };
   const avail = new Map((models ?? []).map((m) => [m.id, m.available]));
   const modelName = new Map((models ?? []).map((m) => [m.id, m.model_name]));
+  const modelCond = new Map((models ?? []).map((m) => [m.id, m.condition]));
 
   // Convert each target quantity into a delta against current available.
   const changes: { modelId: string; delta: number }[] = [];
@@ -531,7 +682,7 @@ export async function bulkAdjustStock(
   }
   if (!changes.length) return { ok: true, changes: 0 };
 
-  if (session.profile?.role === "owner") {
+  if (session.profile?.role === "owner" || (await canEditStock(session))) {
     for (const c of changes) {
       const { error } = await supabase.rpc("adjust_stock", {
         p_shop_id: shopId,
@@ -541,6 +692,19 @@ export async function bulkAdjustStock(
         p_reason: input.reason?.trim() || null,
       });
       if (error) return { ok: false, error: error.message };
+      await logStockEdit({
+        shopId,
+        staffId: session.id,
+        action: "adjust_stock",
+        phoneModelId: c.modelId,
+        modelName: modelName.get(c.modelId) ?? null,
+        condition: modelCond.get(c.modelId) ?? null,
+        details: {
+          delta: c.delta,
+          type: c.delta > 0 ? "restock" : "correction",
+          reason: input.reason?.trim() || null,
+        },
+      });
     }
   } else {
     const rows = changes.map((c) => ({
@@ -735,6 +899,27 @@ export async function resetStaffPassword(
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }
+  return { ok: true };
+}
+
+export async function setStaffStockPrivilege(
+  id: string,
+  canEditStock: boolean,
+): Promise<ActionResult> {
+  const session = await requireSession();
+  if (session.profile?.role !== "owner") {
+    return { ok: false, error: "Only the owner can change staff privileges." };
+  }
+  if (id === session.id) {
+    return { ok: false, error: "You cannot change your own privileges." };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("users")
+    .update({ can_edit_stock: canEditStock })
+    .eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 

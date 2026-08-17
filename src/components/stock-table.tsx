@@ -11,12 +11,12 @@ type CondFilter = "all" | "new" | "used";
 export function StockTable({
   stock,
   shopId,
-  isOwner,
+  canEditStock,
   adjustments,
 }: {
   stock: PhoneModel[];
   shopId: string;
-  isOwner: boolean;
+  canEditStock: boolean;
   adjustments: StockAdjustment[];
 }) {
   const [q, setQ] = useState("");
@@ -111,13 +111,13 @@ export function StockTable({
           {filtered.length} of {stock.length} models
         </span>
         <span>{totals.units} units</span>
-        {isOwner && totals.cost > 0 && (
+        {canEditStock && totals.cost > 0 && (
           <span>
             Stock value (cost):{" "}
             <b className="text-zinc-700">{formatMoney(totals.cost)}</b>
           </span>
         )}
-        {isOwner && totals.retail > 0 && (
+        {canEditStock && totals.retail > 0 && (
           <span>
             Retail value:{" "}
             <b className="text-zinc-700">{formatMoney(totals.retail)}</b>
@@ -174,7 +174,7 @@ export function StockTable({
                         <ProductEditModal
                           model={m}
                           shopId={shopId}
-                          isOwner={isOwner}
+                          canEditStock={canEditStock}
                           adjustments={adjustmentsFor(m.id)}
                         />
                       </td>
@@ -204,7 +204,7 @@ export function StockTable({
                     <ProductEditModal
                       model={m}
                       shopId={shopId}
-                      isOwner={isOwner}
+                      canEditStock={canEditStock}
                       adjustments={adjustmentsFor(m.id)}
                     />
                   </div>

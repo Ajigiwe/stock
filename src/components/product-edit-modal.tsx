@@ -21,12 +21,12 @@ export function ProductEditModal({
   model,
   adjustments,
   shopId,
-  isOwner = true,
+  canEditStock = true,
 }: {
   model: PhoneModel;
   adjustments: StockAdjustment[];
   shopId: string;
-  isOwner?: boolean;
+  canEditStock?: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -93,7 +93,7 @@ export function ProductEditModal({
       });
       if (!res.ok) return setError(res.error ?? "Could not adjust stock.");
       toast.success(
-        isOwner
+        canEditStock
           ? "Stock updated."
           : "Stock change sent — awaiting owner approval.",
       );
@@ -167,6 +167,12 @@ export function ProductEditModal({
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
             Product details
           </h3>
+          {!canEditStock && (
+            <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Editing product details requires stock privileges — only the owner
+              can grant them.
+            </p>
+          )}
           <div className="space-y-3">
             <Field label="Model name">
               <Input
@@ -214,14 +220,16 @@ export function ProductEditModal({
                 />
               </Field>
             </div>
-            <Button
-              type="button"
-              disabled={pending}
-              onClick={saveProduct}
-              className="h-9 w-full"
-            >
-              Save product
-            </Button>
+            {canEditStock && (
+              <Button
+                type="button"
+                disabled={pending}
+                onClick={saveProduct}
+                className="h-9 w-full"
+              >
+                Save product
+              </Button>
+            )}
           </div>
         </div>
 
@@ -229,7 +237,7 @@ export function ProductEditModal({
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
             Adjust stock
           </h3>
-          {!isOwner && (
+          {!canEditStock && (
             <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
               Stock changes are sent to the owner for approval.
             </p>
@@ -274,7 +282,7 @@ export function ProductEditModal({
             onClick={applyStock}
             className="mt-3 h-9 w-full"
           >
-            {isOwner ? "Apply stock change" : "Request stock change"}
+            {canEditStock ? "Apply stock change" : "Request stock change"}
           </Button>
         </div>
 

@@ -7,6 +7,8 @@
 -- ============================================================================
 drop trigger if exists on_auth_user_created on auth.users;
 
+drop table if exists public.login_logs cascade;
+drop table if exists public.stock_logs cascade;
 drop table if exists public.swapped_phones cascade;
 drop table if exists public.stock_adjustments cascade;
 drop table if exists public.transaction_items cascade;
@@ -67,6 +69,7 @@ create table public.users (
   name        text not null default '',
   role        user_role not null default 'attendant',
   shop_id     uuid references public.shops (id) on delete set null, -- null for owner
+  can_edit_stock boolean not null default false, -- staff granted direct stock-editing by the owner
   created_at  timestamptz not null default now()
 );
 
@@ -858,6 +861,69 @@ create policy "swapped_phones: attendant insert own shop" on public.swapped_phon
   );
 
 create policy "swapped_phones: attendant reads own shop" on public.swapped_phones
+  for select using ((public.current_user_profile()).shop_id = shop_id);
+
+-- ---------------------------------------------------------------------------
+-- login_logs  (who signed in, from where, when — seen by the owner)
+-- ---------------------------------------------------------------------------
+create table public.login_logs (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.users (id) on delete cascade,
+  email       text,
+  name        text,
+  ip          text,
+  user_agent  text,
+  device      text,
+  created_at  timestamptz not null default now()
+);
+
+create index login_logs_user_idx on public.login_logs (user_id, created_at desc);
+create index login_logs_time_idx on public.login_logs (created_at desc);
+
+alter table public.login_logs enable row level security;
+grant select, insert, update, delete on public.login_logs to authenticated;
+
+create policy "login_logs: owner reads all" on public.login_logs
+  for select using ((public.current_user_profile()).role = 'owner');
+
+create policy "login_logs: read own" on public.login_logs
+  for select using (auth.uid() = user_id);
+
+create policy "login_logs: record own login" on public.login_logs
+  for insert with check (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------------
+-- stock_logs  (every stock edit: who, what, when — seen by the owner)
+-- ---------------------------------------------------------------------------
+create table public.stock_logs (
+  id              uuid primary key default gen_random_uuid(),
+  shop_id         uuid not null references public.shops (id) on delete cascade,
+  phone_model_id  uuid references public.phone_models (id) on delete set null,
+  staff_id        uuid not null references public.users (id) on delete cascade,
+  action          text not null, -- create_model | update_model | adjust_stock | bulk_create
+  model_name      text,
+  condition       text,
+  details         jsonb,         -- before/after, delta, reason
+  created_at      timestamptz not null default now()
+);
+
+create index stock_logs_shop_idx on public.stock_logs (shop_id, created_at desc);
+create index stock_logs_time_idx on public.stock_logs (created_at desc);
+
+alter table public.stock_logs enable row level security;
+grant select, insert, update, delete on public.stock_logs to authenticated;
+
+create policy "stock_logs: owner full access" on public.stock_logs
+  for all using ((public.current_user_profile()).role = 'owner')
+  with check ((public.current_user_profile()).role = 'owner');
+
+create policy "stock_logs: attendant insert own shop" on public.stock_logs
+  for insert with check (
+    (public.current_user_profile()).role = 'attendant'
+    and (public.current_user_profile()).shop_id = shop_id
+  );
+
+create policy "stock_logs: attendant reads own shop" on public.stock_logs
   for select using ((public.current_user_profile()).shop_id = shop_id);
 
 -- ---------------------------------------------------------------------------

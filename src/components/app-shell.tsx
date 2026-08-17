@@ -73,6 +73,12 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M11 18h2" />
     </svg>
   ),
+  logs: (
+    <svg {...svgProps}>
+      <path d="M8 6h13M8 12h13M8 18h13" />
+      <path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01" />
+    </svg>
+  ),
   settings: (
     <svg {...svgProps}>
       <circle cx="12" cy="12" r="3" />
@@ -136,6 +142,7 @@ export function AppShell({
     ...(role === "owner"
       ? [
           { href: "/devices", label: "Devices", icon: ICONS.devices },
+          { href: "/logs", label: "Logs", icon: ICONS.logs },
           { href: "/settings", label: "Settings", icon: ICONS.settings },
         ]
       : []),

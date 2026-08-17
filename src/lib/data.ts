@@ -636,3 +636,61 @@ export async function getDashboardData(
     totals: aggregateTotals(summaries),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Logs (owner)
+// ---------------------------------------------------------------------------
+
+export type LoginLog = Database["public"]["Tables"]["login_logs"]["Row"];
+
+export async function getLoginLogs(limit = 100): Promise<LoginLog[]> {
+  const session = await requireSession();
+  if (session.profile?.role !== "owner") throw new Error("Owner only");
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("login_logs")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+export type StockLogEntry = Database["public"]["Tables"]["stock_logs"]["Row"] & {
+  staff_name: string | null;
+  shop_name: string | null;
+};
+
+export async function getStockLogs(limit = 200): Promise<StockLogEntry[]> {
+  const session = await requireSession();
+  if (session.profile?.role !== "owner") throw new Error("Owner only");
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("stock_logs")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+
+  const logs = data ?? [];
+  const staffIds = new Set(logs.map((l) => l.staff_id));
+  const shopIds = new Set(logs.map((l) => l.shop_id));
+
+  const [staffRes, shopRes] = await Promise.all([
+    staffIds.size
+      ? supabase.from("users").select("id, name").in("id", [...staffIds])
+      : Promise.resolve({ data: [] as { id: string; name: string }[], error: null }),
+    shopIds.size
+      ? supabase.from("shops").select("id, name").in("id", [...shopIds])
+      : Promise.resolve({ data: [] as { id: string; name: string }[], error: null }),
+  ]);
+
+  const staffName = new Map((staffRes.data ?? []).map((u) => [u.id, u.name]));
+  const shopName = new Map((shopRes.data ?? []).map((s) => [s.id, s.name]));
+
+  return logs.map((l) => ({
+    ...l,
+    staff_name: staffName.get(l.staff_id) ?? null,
+    shop_name: shopName.get(l.shop_id) ?? null,
+  }));
+}

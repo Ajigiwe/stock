@@ -58,6 +58,8 @@ export default async function ShopPage({
     ]);
 
   const isOwner = session.profile?.role === "owner";
+  const canEditStock =
+    isOwner || session.profile?.can_edit_stock === true;
 
   const summaryText = [
     `*${summary.shop.name}* — ${dateLabel}`,
@@ -219,15 +221,15 @@ export default async function ShopPage({
         subtitle="Live balance per model"
         actions={
           <div className="flex items-center gap-2">
-            <BulkStockModal shopId={id} stock={stock} isOwner={isOwner} />
-            <AddModelForm shopId={id} isOwner={isOwner} />
+            <BulkStockModal shopId={id} stock={stock} canEditStock={canEditStock} />
+            <AddModelForm shopId={id} canEditStock={canEditStock} />
           </div>
         }
       >
         <StockTable
           stock={stock}
           shopId={id}
-          isOwner={isOwner}
+          canEditStock={canEditStock}
           adjustments={adjustments}
         />
       </Card>

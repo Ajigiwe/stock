@@ -46,6 +46,7 @@ export type Database = {
           name: string;
           role: UserRole;
           shop_id: string | null;
+          can_edit_stock: boolean;
           created_at: string;
         };
         Insert: {
@@ -53,6 +54,7 @@ export type Database = {
           name?: string;
           role?: UserRole;
           shop_id?: string | null;
+          can_edit_stock?: boolean;
           created_at?: string;
         };
         Update: {
@@ -60,6 +62,7 @@ export type Database = {
           name?: string;
           role?: UserRole;
           shop_id?: string | null;
+          can_edit_stock?: boolean;
           created_at?: string;
         };
         Relationships: [
@@ -327,6 +330,105 @@ export type Database = {
           },
           {
             foreignKeyName: "swapped_phones_staff_id_fkey";
+            columns: ["staff_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      login_logs: {
+        Row: {
+          id: string;
+          user_id: string;
+          email: string | null;
+          name: string | null;
+          ip: string | null;
+          user_agent: string | null;
+          device: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          email?: string | null;
+          name?: string | null;
+          ip?: string | null;
+          user_agent?: string | null;
+          device?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          email?: string | null;
+          name?: string | null;
+          ip?: string | null;
+          user_agent?: string | null;
+          device?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "login_logs_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      stock_logs: {
+        Row: {
+          id: string;
+          shop_id: string;
+          phone_model_id: string | null;
+          staff_id: string;
+          action: string;
+          model_name: string | null;
+          condition: string | null;
+          details: Json | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          phone_model_id?: string | null;
+          staff_id: string;
+          action: string;
+          model_name?: string | null;
+          condition?: string | null;
+          details?: Json | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          phone_model_id?: string | null;
+          staff_id?: string;
+          action?: string;
+          model_name?: string | null;
+          condition?: string | null;
+          details?: Json | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "stock_logs_shop_id_fkey";
+            columns: ["shop_id"];
+            isOneToOne: false;
+            referencedRelation: "shops";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "stock_logs_phone_model_id_fkey";
+            columns: ["phone_model_id"];
+            isOneToOne: false;
+            referencedRelation: "phone_models";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "stock_logs_staff_id_fkey";
             columns: ["staff_id"];
             isOneToOne: false;
             referencedRelation: "users";
