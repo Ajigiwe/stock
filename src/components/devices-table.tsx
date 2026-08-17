@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { DeviceRow, Shop } from "@/lib/data";
 import { formatMoney, formatDateTime } from "@/lib/format";
-import { Badge, EmptyState, Input, Select } from "@/components/ui";
+import { Badge, EmptyState, Input, Modal } from "@/components/ui";
 
 type CondFilter = "all" | "new" | "used";
 
@@ -68,6 +68,7 @@ export function DevicesTable({
   const [cond, setCond] = useState<CondFilter>("all");
   const [lowOnly, setLowOnly] = useState(false);
   const [shopId, setShopId] = useState("");
+  const [shopOpen, setShopOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   // When a shop is selected, narrow totals / sold / sales to that shop only.
@@ -138,19 +139,36 @@ export function DevicesTable({
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Select
-            value={shopId}
-            onChange={(e) => setShopId(e.target.value)}
+          <button
+            type="button"
+            onClick={() => setShopOpen(true)}
             aria-label="Filter by shop"
-            className="h-9 w-auto min-w-[9rem] text-xs"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-zinc-200 px-3 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50"
           >
-            <option value="">All shops</option>
-            {shops.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </Select>
+            <svg
+              aria-hidden="true"
+              className="h-3.5 w-3.5 text-zinc-400"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M3 9l1.5-4.5A2 2 0 0 1 6.4 3h11.2a2 2 0 0 1 1.9 1.5L21 9" />
+              <path d="M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9" />
+              <path d="M2 9h20" />
+              <path d="M10 13h4" />
+            </svg>
+            {scopeLabel}
+            <span
+              className={`text-zinc-400 transition-transform ${
+                shopOpen ? "rotate-180" : ""
+              }`}
+            >
+              {chevron}
+            </span>
+          </button>
           <div className="inline-flex rounded-lg border border-zinc-200 p-0.5">
             {(["all", "new", "used"] as CondFilter[]).map((c) => (
               <button
@@ -296,6 +314,52 @@ export function DevicesTable({
           </ul>
         </>
       )}
+
+      <Modal
+        open={shopOpen}
+        onClose={() => setShopOpen(false)}
+        title="Filter by shop"
+        subtitle="Show stock, sold units and sales history for one shop."
+        size="md"
+      >
+        <div className="space-y-1">
+          <button
+            type="button"
+            onClick={() => {
+              setShopId("");
+              setShopOpen(false);
+            }}
+            className={`flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left text-sm transition-colors ${
+              shopId === ""
+                ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                : "border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+            }`}
+          >
+            <span className="font-medium">All shops</span>
+            {shopId === "" && (
+              <span className="text-indigo-600">✓</span>
+            )}
+          </button>
+          {shops.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => {
+                setShopId(s.id);
+                setShopOpen(false);
+              }}
+              className={`flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left text-sm transition-colors ${
+                shopId === s.id
+                  ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                  : "border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+              }`}
+            >
+              <span className="font-medium">{s.name}</span>
+              {shopId === s.id && <span className="text-indigo-600">✓</span>}
+            </button>
+          ))}
+        </div>
+      </Modal>
     </div>
   );
 }
