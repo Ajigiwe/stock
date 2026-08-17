@@ -373,8 +373,9 @@ grant execute on function public.record_transaction(uuid, text, text, public.tx_
 
 -- ---------------------------------------------------------------------------
 -- RPC: adjust_stock  (restock / manual correction)
--- OWNER ONLY since 2026-08-15: attendants must request stock changes and the
--- owner approves them via approve_stock_request.
+-- Allowed for the owner and for staff the owner granted stock-editing
+-- privileges to (users.can_edit_stock). Everyone else must request stock
+-- changes and the owner approves them via approve_stock_request.
 -- ---------------------------------------------------------------------------
 create or replace function public.adjust_stock(
   p_shop_id uuid,
@@ -387,18 +388,19 @@ language plpgsql security definer set search_path = public
 as $$
 declare
   v_role      public.user_role;
+  v_can_edit  boolean;
   v_staff_id  uuid;
   v_id        uuid;
 begin
-  select u.id, u.role into v_staff_id, v_role
+  select u.id, u.role, u.can_edit_stock into v_staff_id, v_role, v_can_edit
     from public.users u
    where u.id = auth.uid();
   if v_staff_id is null then
     raise exception 'Not authenticated' using errcode = 'P0001';
   end if;
 
-  if v_role <> 'owner' then
-    raise exception 'Only owners can adjust stock directly' using errcode = 'P0001';
+  if v_role <> 'owner' and not coalesce(v_can_edit, false) then
+    raise exception 'Only owners or staff with stock privileges can adjust stock directly' using errcode = 'P0001';
   end if;
 
   if not exists (select 1 from public.phone_models where id = p_phone_model_id and shop_id = p_shop_id) then
