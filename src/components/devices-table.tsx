@@ -8,6 +8,31 @@ import { Badge, EmptyState, Input, Modal, Select } from "@/components/ui";
 
 type CondFilter = "all" | "new" | "used";
 
+type Level = "empty" | "low" | "medium" | "ok";
+
+const level = (available: number, threshold: number): Level =>
+  available <= 0
+    ? "empty"
+    : available <= threshold
+      ? "low"
+      : available <= threshold * 2
+        ? "medium"
+        : "ok";
+
+const levelClass: Record<Level, string> = {
+  empty: "text-zinc-300",
+  low: "text-red-600 font-bold",
+  medium: "text-amber-600 font-semibold",
+  ok: "text-green-600 font-semibold",
+};
+
+const chipClass: Record<Level, string> = {
+  empty: "border-zinc-200 bg-zinc-50 text-zinc-700",
+  low: "border-red-200 bg-red-50 text-red-700",
+  medium: "border-amber-200 bg-amber-50 text-amber-700",
+  ok: "border-emerald-200 bg-emerald-50 text-emerald-700",
+};
+
 function SalesList({ row }: { row: DeviceRow }) {
   if (row.sales.length === 0) {
     return <EmptyState>No sales recorded for this model yet.</EmptyState>;
@@ -97,11 +122,7 @@ function ModelDetail({
                   <Link
                     key={c.shopId}
                     href={`/shops/${c.shopId}`}
-                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${
-                      c.low
-                        ? "border-red-200 bg-red-50 text-red-700"
-                        : "border-zinc-200 bg-zinc-50 text-zinc-700"
-                    }`}
+                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${chipClass[level(c.available, c.threshold)]}`}
                   >
                     <span className="font-medium">{shop?.name}</span>
                     <span className="font-bold tabular-nums">{c.available}</span>
@@ -166,8 +187,8 @@ export function DevicesTable({
     ? shops.find((s) => s.id === shopId)?.name
     : "All shops";
 
-  const cellClass = (low: boolean) =>
-    low ? "text-red-600 font-bold" : "text-zinc-700 font-medium";
+  const cellClass = (c: DeviceRow["perShop"][number]) =>
+    levelClass[level(c.available, c.threshold)];
 
   return (
     <div className="space-y-3">
@@ -241,6 +262,21 @@ export function DevicesTable({
         shop and who sold each one
       </p>
 
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-green-500" /> Healthy
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-amber-500" /> Running low
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-red-500" /> Low stock
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="font-bold text-emerald-600">3</span> units sold
+        </span>
+      </div>
+
       {filtered.length === 0 ? (
         <EmptyState>No models match your search.</EmptyState>
       ) : (
@@ -286,7 +322,7 @@ export function DevicesTable({
                             <Link
                               href={`/shops/${s.id}`}
                               onClick={(e) => e.stopPropagation()}
-                              className={`tabular-nums hover:underline ${cellClass(c.low)}`}
+                              className={`tabular-nums hover:underline ${cellClass(c)}`}
                             >
                               {c.available}
                             </Link>
@@ -299,7 +335,11 @@ export function DevicesTable({
                     <td className="py-2 pr-3 text-right font-bold tabular-nums text-zinc-900">
                       {r.total}
                     </td>
-                    <td className="py-2 pr-3 text-right font-bold tabular-nums text-zinc-900">
+                    <td
+                      className={`py-2 pr-3 text-right font-bold tabular-nums ${
+                        r.sold > 0 ? "text-emerald-600" : "text-zinc-400"
+                      }`}
+                    >
                       {r.sold}
                     </td>
                     <td className="py-2 pr-4 text-center">

@@ -117,6 +117,7 @@ export type DeviceCell = {
   shopId: string;
   available: number;
   low: boolean;
+  threshold: number;
 };
 
 export type DeviceSale = {
@@ -167,6 +168,7 @@ export async function getDevicesData(): Promise<DevicesData> {
       shopId: s.id,
       available: 0,
       low: false,
+      threshold: 0,
     })),
     sales: [],
   });
@@ -182,6 +184,7 @@ export async function getDevicesData(): Promise<DevicesData> {
     if (idx != null) {
       const cell = row.perShop[idx];
       cell.available = m.available;
+      cell.threshold = m.low_stock_threshold;
       cell.low = m.available <= m.low_stock_threshold;
       row.low = row.perShop.filter((c) => c.low).length;
     }
