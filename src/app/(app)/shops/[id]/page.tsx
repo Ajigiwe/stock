@@ -2,12 +2,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   getSession,
-  getStock,
-  getTransactions,
-  getDailySummary,
-  getAdjustments,
-  getStockRequests,
-  getSwappedPhones,
+  getCachedStock,
+  getCachedTransactions,
+  getCachedShopSummary,
+  getCachedAdjustments,
+  getCachedStockRequests,
+  getCachedSwappedPhones,
 } from "@/lib/data";
 import { formatMoney, formatDateTime, todayISO, addDays } from "@/lib/format";
 import { Badge, Button, Card, EmptyState } from "@/components/ui";
@@ -49,12 +49,12 @@ export default async function ShopPage({
 
   const [summary, stock, transactions, adjustments, pendingRequests, swappedPhones] =
     await Promise.all([
-      getDailySummary(id, date),
-      getStock(id),
-      getTransactions({ shopId: id, from: date, to: date }),
-      getAdjustments(id, 200),
-      getStockRequests({ shopId: id, status: "pending" }),
-      getSwappedPhones({ shopId: id }),
+      getCachedShopSummary(id, date, date),
+      getCachedStock(id),
+      getCachedTransactions({ shopId: id, from: date, to: date }),
+      getCachedAdjustments(id, 200),
+      getCachedStockRequests({ shopId: id, status: "pending" }),
+      getCachedSwappedPhones({ shopId: id }),
     ]);
 
   const isOwner = session.profile?.role === "owner";

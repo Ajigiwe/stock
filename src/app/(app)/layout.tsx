@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSession, getShops } from "@/lib/data";
+import { getSession, getCachedShops } from "@/lib/data";
 import { AppShell } from "@/components/app-shell";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export default async function AppLayout({
   if (!session) redirect("/login");
 
   const profile = session.profile;
-  const shops = profile?.role === "owner" ? await getShops() : [];
+  const shops = profile?.role === "owner" ? await getCachedShops() : [];
 
   return (
     <AppShell

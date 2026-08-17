@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
   getSession,
-  getShops,
+  getCachedShops,
+  getCachedTransactions,
   getTransactions,
   type TransactionWithDetails,
 } from "@/lib/data";
@@ -28,18 +29,26 @@ export default async function ReportsPage({
   if (!session) redirect("/login");
 
   const sp = await searchParams;
-  const shops = await getShops();
+  const shops = await getCachedShops();
 
   const isOwner = session.profile?.role === "owner";
   const shopId = isOwner ? sp.shop : session.profile?.shop_id;
 
-  const txs = await getTransactions({
-    shopId: shopId || undefined,
-    from: sp.from,
-    to: sp.to,
-    type: sp.type,
-    paymentMethod: sp.payment,
-  });
+  const txs = isOwner
+    ? await getCachedTransactions({
+        shopId: sp.shop,
+        from: sp.from,
+        to: sp.to,
+        type: sp.type,
+        paymentMethod: sp.payment,
+      })
+    : await getTransactions({
+        shopId: shopId || undefined,
+        from: sp.from,
+        to: sp.to,
+        type: sp.type,
+        paymentMethod: sp.payment,
+      });
 
   const revenue = txs.reduce((a, t) => a + (t.amount ?? 0), 0);
   const byType = (type: string) => txs.filter((t) => t.type === type);

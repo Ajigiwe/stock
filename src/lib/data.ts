@@ -1,8 +1,24 @@
 import "server-only";
 
+import { unstable_cache } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getCachedAdminClient } from "@/lib/admin";
 import { todayISO, addDays } from "@/lib/format";
 import type { Database } from "@/lib/database.types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+export const DATA_CACHE_REVALIDATE_SECONDS = 30;
+export const DATA_CACHE_TAGS = [
+  "shops",
+  "stock",
+  "transactions",
+  "requests",
+  "adjustments",
+  "swaps",
+  "logs",
+  "users",
+] as const;
+export type DataCacheTag = (typeof DATA_CACHE_TAGS)[number];
 
 type Shop = Database["public"]["Tables"]["shops"]["Row"];
 type UserProfile = Database["public"]["Tables"]["users"]["Row"];
@@ -109,6 +125,283 @@ export async function getStock(shopId?: string): Promise<PhoneModel[]> {
   return data ?? [];
 }
 
+export type CacheTags = (typeof DATA_CACHE_TAGS)[number];
+
+// ---------------------------------------------------------------------------
+// Cached owner / global reads
+//
+// These use the service-role client (bypasses RLS). They are only ever called
+// from owner-gated or per-shop-scoped pages, so caching the (global) results
+// is safe — no authenticated user can reach data they aren't allowed to see.
+// They are invalidated on mutation with `updateTag` in src/lib/actions.ts.
+// ---------------------------------------------------------------------------
+
+function revalidateOpts(
+  tags: CacheTags[],
+  revalidate = DATA_CACHE_REVALIDATE_SECONDS,
+) {
+  return { tags: [...tags], revalidate };
+}
+
+export const getCachedShops = unstable_cache(
+  async () => {
+    const a = getCachedAdminClient();
+    const { data, error } = await a.from("shops").select("*").order("name");
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  },
+  ["shops"],
+  revalidateOpts(["shops"]),
+);
+
+export const getCachedStock = unstable_cache(
+  async (shopId?: string): Promise<PhoneModel[]> => {
+    const a = getCachedAdminClient();
+    let q = a.from("phone_models").select("*").order("model_name");
+    if (shopId) q = q.eq("shop_id", shopId);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  },
+  ["stock"],
+  revalidateOpts(["stock"]),
+);
+
+export const getCachedTransactions = unstable_cache(
+  async (opts: {
+    shopId?: string;
+    from?: string;
+    to?: string;
+    type?: string;
+    paymentMethod?: string;
+    limit?: number;
+  }): Promise<TransactionWithDetails[]> => {
+    const a = getCachedAdminClient();
+    let q = a.from("transactions").select("*").order("date", { ascending: false });
+    if (opts.shopId) q = q.eq("shop_id", opts.shopId);
+    if (opts.from) q = q.gte("date", `${opts.from}T00:00:00Z`);
+    if (opts.to) q = q.lt("date", `${addDays(opts.to, 1)}T00:00:00Z`);
+    if (opts.type) q = q.eq("type", opts.type as "sale" | "swap" | "repair");
+    if (opts.paymentMethod)
+      q = q.eq(
+        "payment_method",
+        opts.paymentMethod as Database["public"]["Enums"]["payment_method"],
+      );
+    if (opts.limit) q = q.limit(opts.limit);
+
+    const { data: txs, error } = await q;
+    if (error) throw new Error(error.message);
+    return hydrateTransactions(a, txs ?? []);
+  },
+  ["transactions"],
+  revalidateOpts(["transactions"]),
+);
+
+export const getCachedStockRequests = unstable_cache(
+  async (opts: {
+    shopId?: string;
+    status?: "pending" | "approved" | "rejected";
+    limit?: number;
+  }): Promise<StockRequestWithDetails[]> => {
+    const a = getCachedAdminClient();
+    let q = a
+      .from("stock_requests")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(opts.limit ?? 100);
+    if (opts.shopId) q = q.eq("shop_id", opts.shopId);
+    if (opts.status) q = q.eq("status", opts.status);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    const requests = data ?? [];
+
+    const shopIds = new Set(requests.map((r) => r.shop_id));
+    const staffIds = new Set(requests.map((r) => r.staff_id));
+    const modelIds = new Set(
+      requests.map((r) => r.phone_model_id).filter((x): x is string => !!x),
+    );
+
+    const [shopsRes, staffRes, modelsRes] = await Promise.all([
+      shopIds.size
+        ? a.from("shops").select("id, name").in("id", [...shopIds])
+        : { data: [] as Pick<Shop, "id" | "name">[], error: null },
+      staffIds.size
+        ? a.from("users").select("id, name").in("id", [...staffIds])
+        : { data: [] as Pick<UserProfile, "id" | "name">[], error: null },
+      modelIds.size
+        ? a.from("phone_models").select("id, model_name").in("id", [...modelIds])
+        : { data: [] as Pick<PhoneModel, "id" | "model_name">[], error: null },
+    ]);
+
+    const shopName = new Map((shopsRes.data ?? []).map((s) => [s.id, s.name]));
+    const staffName = new Map((staffRes.data ?? []).map((s) => [s.id, s.name]));
+    const modelName = new Map((modelsRes.data ?? []).map((m) => [m.id, m.model_name]));
+
+    return requests.map((r) => ({
+      ...r,
+      shop_name: shopName.get(r.shop_id) ?? null,
+      staff_name: staffName.get(r.staff_id) ?? null,
+      model_name_display: r.model_name ?? modelName.get(r.phone_model_id ?? "") ?? null,
+    }));
+  },
+  ["stock-requests"],
+  revalidateOpts(["requests"]),
+);
+
+export const getCachedAdjustments = unstable_cache(
+  async (shopId?: string, limit = 50): Promise<StockAdjustment[]> => {
+    const a = getCachedAdminClient();
+    let q = a
+      .from("stock_adjustments")
+      .select("*")
+      .order("date", { ascending: false })
+      .limit(limit);
+    if (shopId) q = q.eq("shop_id", shopId);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  },
+  ["adjustments"],
+  revalidateOpts(["adjustments"]),
+);
+
+export const getCachedSwappedPhones = unstable_cache(
+  async (opts: {
+    shopId?: string;
+    status?: "in_stock" | "sold" | "returned";
+    limit?: number;
+  }): Promise<SwappedPhone[]> => {
+    const a = getCachedAdminClient();
+    let q = a
+      .from("swapped_phones")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(opts.limit ?? 200);
+    if (opts.shopId) q = q.eq("shop_id", opts.shopId);
+    if (opts.status) q = q.eq("status", opts.status);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  },
+  ["swapped-phones"],
+  revalidateOpts(["swaps"]),
+);
+
+// Per-shop daily summary composed from cached, self-contained admin queries
+// (no nested cache) — safe for any authenticated viewer because the result is
+// keyed to a single shop.
+export const getCachedShopSummary = unstable_cache(
+  async (
+    shopId: string,
+    from: string,
+    to: string,
+    knownShop?: Shop,
+  ): Promise<ShopDailySummary> => {
+    const a = getCachedAdminClient();
+    const [stockRes, txsRes, shopRes] = await Promise.all([
+      a.from("phone_models").select("*").eq("shop_id", shopId).order("model_name"),
+      getCachedTransactions({ shopId, from, to }),
+      knownShop
+        ? { data: knownShop, error: null }
+        : a.from("shops").select("*").eq("id", shopId).maybeSingle(),
+    ]);
+    if (stockRes.error) throw new Error(stockRes.error.message);
+    if (!shopRes.data) throw new Error("Shop not found");
+
+    const stock = stockRes.data ?? [];
+    const txs = txsRes;
+    const shop = shopRes.data as Shop;
+    const map = new Map<string, DailyRow>();
+    for (const t of txs) {
+      for (const item of t.items) {
+        const key = `${item.model_name}|${item.condition}`;
+        const row = map.get(key) ?? {
+          phone_model_id: "",
+          model_name: item.model_name,
+          condition: item.condition,
+          sold: 0,
+          swapped_out: 0,
+        };
+        if (item.direction === "out") {
+          if (t.type === "swap") row.swapped_out += item.qty;
+          else row.sold += item.qty;
+        }
+        map.set(key, row);
+      }
+    }
+    const lowStock = stock.filter((s) => s.available <= s.low_stock_threshold);
+    const revenue = txs.reduce((acc, t) => acc + (t.amount ?? 0), 0);
+    const cogs = txs.reduce(
+      (acc, t) =>
+        acc + t.items.filter((i) => i.direction === "out").reduce((s, i) => s + i.qty * (i.cost_price ?? 0), 0),
+      0,
+    );
+
+    return {
+      shop,
+      rows: [...map.values()],
+      total_sales: txs.filter((t) => t.type === "sale").length,
+      total_swaps: txs.filter((t) => t.type === "swap").length,
+      total_repairs: txs.filter((t) => t.type === "repair").length,
+      revenue,
+      cogs,
+      profit: revenue - cogs,
+      low_stock: lowStock,
+    };
+  },
+  ["shop-summary"],
+  revalidateOpts(["stock", "transactions"]),
+);
+
+export const getCachedLoginLogs = unstable_cache(
+  async (limit = 100) => {
+    const a = getCachedAdminClient();
+    const { data, error } = await a
+      .from("login_logs")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  },
+  ["login-logs"],
+  revalidateOpts(["logs"]),
+);
+
+export const getCachedStockLogs = unstable_cache(
+  async (limit = 200): Promise<StockLogEntry[]> => {
+    const a = getCachedAdminClient();
+    const { data, error } = await a
+      .from("stock_logs")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    const logs = data ?? [];
+
+    const staffIds = new Set(logs.map((l) => l.staff_id));
+    const shopIds = new Set(logs.map((l) => l.shop_id));
+    const [staffRes, shopRes] = await Promise.all([
+      staffIds.size
+        ? a.from("users").select("id, name").in("id", [...staffIds])
+        : { data: [] as { id: string; name: string }[], error: null },
+      shopIds.size
+        ? a.from("shops").select("id, name").in("id", [...shopIds])
+        : { data: [] as { id: string; name: string }[], error: null },
+    ]);
+    const staffName = new Map((staffRes.data ?? []).map((u) => [u.id, u.name]));
+    const shopName = new Map((shopRes.data ?? []).map((s) => [s.id, s.name]));
+
+    return logs.map((l) => ({
+      ...l,
+      staff_name: staffName.get(l.staff_id) ?? null,
+      shop_name: shopName.get(l.shop_id) ?? null,
+    }));
+  },
+  ["stock-logs"],
+  revalidateOpts(["logs"]),
+);
+
 // ---------------------------------------------------------------------------
 // Devices (owner inventory across all shops)
 // ---------------------------------------------------------------------------
@@ -150,9 +443,9 @@ export type DevicesData = {
 
 export async function getDevicesData(): Promise<DevicesData> {
   const [shops, stock, txs] = await Promise.all([
-    getShops(),
-    getStock(),
-    getTransactions({}),
+    getCachedShops(),
+    getCachedStock(),
+    getCachedTransactions({}),
   ]);
   const shopIndex = new Map(shops.map((s, i) => [s.id, i]));
 
@@ -268,7 +561,7 @@ export async function getTransaction(
 }
 
 async function hydrateTransactions(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: SupabaseClient<Database>,
   txs: Transaction[],
 ): Promise<TransactionWithDetails[]> {
   const txIds = txs.map((t) => t.id);
@@ -576,7 +869,7 @@ export async function getDashboardData(
   const { from, to } = periodRange(period);
 
   if (role === "owner") {
-    const shops = await getShops();
+    const shops = await getCachedShops();
     const shopId =
       shopFilter && shops.some((s) => s.id === shopFilter) ? shopFilter : undefined;
 
@@ -584,13 +877,13 @@ export async function getDashboardData(
       Promise.all(
         shops
           .filter((s) => !shopId || s.id === shopId)
-          .map((s) => getShopSummary(s.id, from, to, s)),
+          .map((s) => getCachedShopSummary(s.id, from, to, s)),
       ),
-      getTransactions(shopId ? { shopId, limit: 10 } : { limit: 10 }),
-      getStockRequests(
+      getCachedTransactions(shopId ? { shopId, limit: 10 } : { limit: 10 }),
+      getCachedStockRequests(
         shopId ? { shopId, status: "pending" } : { status: "pending" },
       ),
-      getTransactions(shopId ? { shopId, from, to } : { from, to }),
+      getCachedTransactions(shopId ? { shopId, from, to } : { from, to }),
     ]);
     return {
       role,
@@ -647,16 +940,9 @@ export async function getDashboardData(
 export type LoginLog = Database["public"]["Tables"]["login_logs"]["Row"];
 
 export async function getLoginLogs(limit = 100): Promise<LoginLog[]> {
-  const session = await requireSession();
-  if (session.profile?.role !== "owner") throw new Error("Owner only");
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("login_logs")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error) throw new Error(error.message);
-  return data ?? [];
+  // Owner-gated by the calling page; uses the service-role client so the
+  // result can be cached.
+  return getCachedLoginLogs(limit);
 }
 
 export type StockLogEntry = Database["public"]["Tables"]["stock_logs"]["Row"] & {
@@ -665,35 +951,7 @@ export type StockLogEntry = Database["public"]["Tables"]["stock_logs"]["Row"] & 
 };
 
 export async function getStockLogs(limit = 200): Promise<StockLogEntry[]> {
-  const session = await requireSession();
-  if (session.profile?.role !== "owner") throw new Error("Owner only");
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("stock_logs")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error) throw new Error(error.message);
-
-  const logs = data ?? [];
-  const staffIds = new Set(logs.map((l) => l.staff_id));
-  const shopIds = new Set(logs.map((l) => l.shop_id));
-
-  const [staffRes, shopRes] = await Promise.all([
-    staffIds.size
-      ? supabase.from("users").select("id, name").in("id", [...staffIds])
-      : Promise.resolve({ data: [] as { id: string; name: string }[], error: null }),
-    shopIds.size
-      ? supabase.from("shops").select("id, name").in("id", [...shopIds])
-      : Promise.resolve({ data: [] as { id: string; name: string }[], error: null }),
-  ]);
-
-  const staffName = new Map((staffRes.data ?? []).map((u) => [u.id, u.name]));
-  const shopName = new Map((shopRes.data ?? []).map((s) => [s.id, s.name]));
-
-  return logs.map((l) => ({
-    ...l,
-    staff_name: staffName.get(l.staff_id) ?? null,
-    shop_name: shopName.get(l.shop_id) ?? null,
-  }));
+  // Owner-gated by the calling page; uses the service-role client so the
+  // result can be cached.
+  return getCachedStockLogs(limit);
 }

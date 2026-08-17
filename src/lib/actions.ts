@@ -1,17 +1,27 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { requireSession } from "@/lib/data";
+import { requireSession, DATA_CACHE_TAGS } from "@/lib/data";
 import { getAdminClient } from "@/lib/admin";
-import type { Database, PaymentMethod } from "@/lib/database.types";
+import type { Database, PaymentMethod, Json } from "@/lib/database.types";
 
 export type ActionResult = {
   ok: boolean;
   error?: string;
 };
+
+function invalidateAllData() {
+  for (const t of DATA_CACHE_TAGS) {
+    try {
+      updateTag(t);
+    } catch {
+      // updateTag can only run inside a Server Action context; ignore otherwise.
+    }
+  }
+}
 
 export type TxOutItem = { modelId: string; qty: number };
 export type TxInItem =
@@ -112,6 +122,8 @@ export async function login(
         user_agent: ua,
         device: parseDevice(ua),
       });
+      // The Logs page may be open for the owner — keep its cache fresh.
+      updateTag("logs");
     } catch {
       // ignore — logging must never block login
     }
@@ -324,7 +336,7 @@ export async function recordTransaction(
     }));
     const { error: swErr } = await supabase.from("swapped_phones").insert(rows);
     if (swErr) {
-      revalidatePath("/", "layout");
+      invalidateAllData();
       return {
         ok: true,
         id: newId,
@@ -333,7 +345,7 @@ export async function recordTransaction(
     }
   }
 
-  revalidatePath("/", "layout");
+  invalidateAllData();
   return { ok: true, id: newId };
 }
 
@@ -343,7 +355,7 @@ export async function deleteTransaction(id: string): Promise<ActionResult> {
     p_transaction_id: id,
   });
   if (error) return { ok: false, error: error.message };
-  revalidatePath("/", "layout");
+  invalidateAllData();
   return { ok: true };
 }
 
@@ -361,7 +373,7 @@ export async function updateSwappedPhoneStatus(
     .update({ status })
     .eq("id", id);
   if (error) return { ok: false, error: error.message };
-  revalidatePath("/", "layout");
+  invalidateAllData();
   return { ok: true };
 }
 
@@ -387,7 +399,7 @@ type StockLogInput = {
   phoneModelId?: string | null;
   modelName?: string | null;
   condition?: string | null;
-  details?: Record<string, unknown>;
+  details?: Json;
 };
 
 // Appends a stock_logs row so the owner can see every stock edit. Best-effort:
@@ -483,7 +495,7 @@ export async function createModel(input: CreateModelInput): Promise<ActionResult
     if (error) return { ok: false, error: error.message };
   }
 
-  revalidatePath("/", "layout");
+  invalidateAllData();
   return { ok: true };
 }
 
@@ -563,7 +575,7 @@ export async function updateModel(input: UpdateModelInput): Promise<ActionResult
     },
   });
 
-  revalidatePath("/", "layout");
+  invalidateAllData();
   return { ok: true };
 }
 
@@ -630,7 +642,7 @@ export async function adjustStock(input: AdjustStockInput): Promise<ActionResult
     if (error) return { ok: false, error: error.message };
   }
 
-  revalidatePath("/", "layout");
+  invalidateAllData();
   return { ok: true };
 }
 
@@ -719,7 +731,7 @@ export async function bulkAdjustStock(
     if (error) return { ok: false, error: error.message };
   }
 
-  revalidatePath("/", "layout");
+  invalidateAllData();
   return { ok: true, changes: changes.length };
 }
 
@@ -733,7 +745,7 @@ export async function approveStockRequest(id: string): Promise<ActionResult> {
     p_request_id: id,
   });
   if (error) return { ok: false, error: error.message };
-  revalidatePath("/", "layout");
+  invalidateAllData();
   return { ok: true };
 }
 
@@ -747,7 +759,7 @@ export async function rejectStockRequest(id: string): Promise<ActionResult> {
     p_request_id: id,
   });
   if (error) return { ok: false, error: error.message };
-  revalidatePath("/", "layout");
+  invalidateAllData();
   return { ok: true };
 }
 
@@ -769,7 +781,7 @@ export async function approveAllStockRequests(
   });
   if (error) return { ok: false, error: error.message };
   const row = Array.isArray(data) ? data[0] : data;
-  revalidatePath("/", "layout");
+  invalidateAllData();
   return {
     ok: true,
     approved: Number(row?.approved ?? 0),
@@ -798,7 +810,7 @@ export async function createShop(input: CreateShopInput): Promise<ActionResult> 
     phone: input.phone?.trim() || null,
   });
   if (error) return { ok: false, error: error.message };
-  revalidatePath("/", "layout");
+  invalidateAllData();
   return { ok: true };
 }
 
@@ -810,7 +822,7 @@ export async function deleteShop(id: string): Promise<ActionResult> {
   const supabase = await createClient();
   const { error } = await supabase.from("shops").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
-  revalidatePath("/", "layout");
+  invalidateAllData();
   return { ok: true };
 }
 
@@ -855,7 +867,7 @@ export async function createStaff(input: CreateStaffInput): Promise<ActionResult
     return { ok: false, error: (e as Error).message };
   }
 
-  revalidatePath("/", "layout");
+  invalidateAllData();
   return { ok: true };
 }
 
@@ -874,7 +886,7 @@ export async function removeStaff(id: string): Promise<ActionResult> {
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }
-  revalidatePath("/", "layout");
+  invalidateAllData();
   return { ok: true };
 }
 
@@ -919,7 +931,7 @@ export async function setStaffStockPrivilege(
     .update({ can_edit_stock: canEditStock })
     .eq("id", id);
   if (error) return { ok: false, error: error.message };
-  revalidatePath("/", "layout");
+  invalidateAllData();
   return { ok: true };
 }
 
@@ -956,7 +968,7 @@ export async function restoreBackup(raw: string): Promise<RestoreResult> {
   });
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath("/", "layout");
+  invalidateAllData();
   return {
     ok: true,
     restored: result?.restored ?? true,
@@ -1050,6 +1062,6 @@ export async function bulkCreateModels(
     if (error) return { ok: false, error: error.message };
   }
 
-  revalidatePath("/", "layout");
+  invalidateAllData();
   return { ok: true, added: toInsert.length, skipped };
 }

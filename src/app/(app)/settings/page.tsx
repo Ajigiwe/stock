@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSession, getShops } from "@/lib/data";
+import { getSession, getCachedShops } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
 import { Card } from "@/components/ui";
 import { ShopManager } from "@/components/settings/shop-manager";
@@ -17,7 +17,7 @@ export default async function SettingsPage() {
 
   const supabase = await createClient();
   const [shops, staffRes] = await Promise.all([
-    getShops(),
+    getCachedShops(),
     supabase.from("users").select("*").order("name"),
   ]);
 
