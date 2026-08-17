@@ -3,9 +3,59 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { DeviceRow, Shop } from "@/lib/data";
+import { formatMoney, formatDateTime } from "@/lib/format";
 import { Badge, EmptyState, Input } from "@/components/ui";
 
 type CondFilter = "all" | "new" | "used";
+
+const chevron = (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M6 9l6 6 6-6" />
+  </svg>
+);
+
+function SalesList({ row }: { row: DeviceRow }) {
+  if (row.sales.length === 0) {
+    return <EmptyState>No sales recorded for this model yet.</EmptyState>;
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-400">
+            <th className="py-1.5 pr-4 font-medium">Sold by</th>
+            <th className="py-1.5 pr-4 font-medium">To</th>
+            <th className="py-1.5 pr-4 font-medium">Shop</th>
+            <th className="py-1.5 pr-4 font-medium">Date</th>
+            <th className="py-1.5 pr-4 text-right font-medium">Qty</th>
+            <th className="py-1.5 text-right font-medium">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {row.sales.map((s) => (
+            <tr key={s.transactionId + s.date + s.qty} className="border-b border-zinc-50">
+              <td className="py-1.5 pr-4 font-medium text-zinc-900">
+                {s.staffName ?? "—"}
+              </td>
+              <td className="py-1.5 pr-4 text-zinc-700">
+                {s.customerName ?? "Walk-in"}
+                {s.customerPhone ? (
+                  <span className="ml-1 text-xs text-zinc-400">({s.customerPhone})</span>
+                ) : null}
+              </td>
+              <td className="py-1.5 pr-4 text-zinc-500">{s.shopName ?? "—"}</td>
+              <td className="py-1.5 pr-4 text-zinc-500">{formatDateTime(s.date)}</td>
+              <td className="py-1.5 pr-4 text-right tabular-nums">{s.qty}</td>
+              <td className="py-1.5 text-right font-semibold tabular-nums text-zinc-900">
+                {formatMoney(s.amount)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export function DevicesTable({
   shops,
@@ -17,6 +67,7 @@ export function DevicesTable({
   const [q, setQ] = useState("");
   const [cond, setCond] = useState<CondFilter>("all");
   const [lowOnly, setLowOnly] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -28,10 +79,18 @@ export function DevicesTable({
     });
   }, [rows, q, cond, lowOnly]);
 
+  const toggle = (key: string) =>
+    setExpanded((cur) => {
+      const next = new Set(cur);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
   const cellClass = (low: boolean) =>
-    low
-      ? "text-red-600 font-bold"
-      : "text-zinc-700 font-medium";
+    low ? "text-red-600 font-bold" : "text-zinc-700 font-medium";
+
+  const colSpan = shops.length + 5;
 
   return (
     <div className="space-y-3">
@@ -89,7 +148,7 @@ export function DevicesTable({
 
       <p className="text-xs text-zinc-500">
         {filtered.length} of {rows.length} models · totals across {shops.length}{" "}
-        shop{shops.length === 1 ? "" : "s"}
+        shop{shops.length === 1 ? "" : "s"} · tap a row to see who sold each one
       </p>
 
       {filtered.length === 0 ? (
@@ -100,109 +159,191 @@ export function DevicesTable({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-400">
-                  <th className="sticky left-0 bg-white py-2 pl-4 pr-4 font-medium">
+                  <th className="sticky left-0 bg-white py-2 pl-4 pr-2 font-medium">
                     Model
                   </th>
-                  <th className="py-2 pr-4 font-medium">Condition</th>
+                  <th className="py-2 pr-2 font-medium">Condition</th>
                   {shops.map((s) => (
-                    <th key={s.id} className="py-2 pr-4 text-right font-medium">
+                    <th key={s.id} className="py-2 pr-3 text-right font-medium">
                       {s.name}
                     </th>
                   ))}
-                  <th className="py-2 pr-4 text-right font-medium">Total</th>
-                  <th className="py-2 pr-4 text-center font-medium">Low</th>
+                  <th className="py-2 pr-3 text-right font-medium">Total</th>
+                  <th className="py-2 pr-3 text-right font-medium">Sold</th>
+                  <th className="py-2 pr-2 text-center font-medium">Low</th>
+                  <th className="py-2 pr-4 text-right font-medium">Sold by / to</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((r) => (
-                  <tr key={r.key} className="border-b border-zinc-50">
-                    <td className="sticky left-0 bg-white py-2 pl-4 pr-4 font-medium text-zinc-900">
-                      {r.model_name}
-                    </td>
-                    <td className="py-2 pr-4">
-                      <Badge tone={r.condition === "new" ? "blue" : "gray"}>
-                        {r.condition}
-                      </Badge>
-                    </td>
-                    {r.perShop.map((c) => (
-                      <td key={c.shopId} className="py-2 pr-4 text-right">
-                        {c.available > 0 ? (
-                          <Link
-                            href={`/shops/${c.shopId}`}
-                            className={`tabular-nums hover:underline ${cellClass(c.low)}`}
-                          >
-                            {c.available}
-                          </Link>
-                        ) : (
-                          <span className="text-zinc-300">—</span>
-                        )}
-                      </td>
-                    ))}
-                    <td className="py-2 pr-4 text-right font-bold tabular-nums text-zinc-900">
-                      {r.total}
-                    </td>
-                    <td className="py-2 pr-4 text-center">
-                      {r.low > 0 ? (
-                        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-100 px-1.5 text-xs font-semibold text-red-700">
-                          {r.low}
-                        </span>
-                      ) : (
-                        <span className="text-zinc-300">—</span>
-                      )}
-                    </td>
-                  </tr>
+                  <RowGroup
+                    key={r.key}
+                    row={r}
+                    expanded={expanded.has(r.key)}
+                    cellClass={cellClass}
+                    colSpan={colSpan}
+                    onToggle={() => toggle(r.key)}
+                  />
                 ))}
               </tbody>
             </table>
           </div>
 
           <ul className="space-y-2 sm:hidden">
-            {filtered.map((r) => (
-              <li
-                key={r.key}
-                className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium text-zinc-900">
-                      {r.model_name}
-                    </span>
-                    <Badge tone={r.condition === "new" ? "blue" : "gray"}>
-                      {r.condition}
-                    </Badge>
+            {filtered.map((r) => {
+              const open = expanded.has(r.key);
+              return (
+                <li
+                  key={r.key}
+                  className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm"
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggle(r.key)}
+                    className="flex w-full items-center justify-between gap-2 text-left"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium text-zinc-900">
+                        {r.model_name}
+                      </span>
+                      <Badge tone={r.condition === "new" ? "blue" : "gray"}>
+                        {r.condition}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold tabular-nums text-zinc-900">
+                        {r.total} avail · {r.sold} sold
+                      </span>
+                      <span
+                        className={`text-zinc-400 transition-transform ${
+                          open ? "rotate-180" : ""
+                        }`}
+                      >
+                        {chevron}
+                      </span>
+                    </div>
+                  </button>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {r.perShop
+                      .filter((c) => c.available > 0)
+                      .map((c) => {
+                        const shop = shops.find((s) => s.id === c.shopId);
+                        return (
+                          <Link
+                            key={c.shopId}
+                            href={`/shops/${c.shopId}`}
+                            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${
+                              c.low
+                                ? "border-red-200 bg-red-50 text-red-700"
+                                : "border-zinc-200 bg-zinc-50 text-zinc-700"
+                            }`}
+                          >
+                            <span className="font-medium">{shop?.name}</span>
+                            <span className="font-bold tabular-nums">
+                              {c.available}
+                            </span>
+                          </Link>
+                        );
+                      })}
                   </div>
-                  <span className="text-sm font-bold tabular-nums text-zinc-900">
-                    {r.total}
-                  </span>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {r.perShop
-                    .filter((c) => c.available > 0)
-                    .map((c) => {
-                      const shop = shops.find((s) => s.id === c.shopId);
-                      return (
-                        <Link
-                          key={c.shopId}
-                          href={`/shops/${c.shopId}`}
-                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${
-                            c.low
-                              ? "border-red-200 bg-red-50 text-red-700"
-                              : "border-zinc-200 bg-zinc-50 text-zinc-700"
-                          }`}
-                        >
-                          <span className="font-medium">{shop?.name}</span>
-                          <span className="font-bold tabular-nums">
-                            {c.available}
-                          </span>
-                        </Link>
-                      );
-                    })}
-                </div>
-              </li>
-            ))}
+                  {open && (
+                    <div className="mt-3 rounded-lg border border-zinc-100 bg-zinc-50 p-3">
+                      <SalesList row={r} />
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </>
       )}
     </div>
+  );
+}
+
+function RowGroup({
+  row,
+  expanded,
+  cellClass,
+  colSpan,
+  onToggle,
+}: {
+  row: DeviceRow;
+  expanded: boolean;
+  cellClass: (low: boolean) => string;
+  colSpan: number;
+  onToggle: () => void;
+}) {
+  return (
+    <>
+      <tr className="border-b border-zinc-50 hover:bg-zinc-50/60">
+        <td className="sticky left-0 bg-white py-2 pl-4 pr-2">
+          <button
+            type="button"
+            onClick={onToggle}
+            className="flex items-center gap-1.5 font-medium text-zinc-900 hover:text-indigo-600"
+          >
+            <span
+              className={`text-zinc-400 transition-transform ${
+                expanded ? "rotate-180" : ""
+              }`}
+            >
+              {chevron}
+            </span>
+            <span className="max-w-56 truncate">{row.model_name}</span>
+          </button>
+        </td>
+        <td className="py-2 pr-2">
+          <Badge tone={row.condition === "new" ? "blue" : "gray"}>
+            {row.condition}
+          </Badge>
+        </td>
+        {row.perShop.map((c) => (
+          <td key={c.shopId} className="py-2 pr-3 text-right">
+            {c.available > 0 ? (
+              <Link
+                href={`/shops/${c.shopId}`}
+                className={`tabular-nums hover:underline ${cellClass(c.low)}`}
+              >
+                {c.available}
+              </Link>
+            ) : (
+              <span className="text-zinc-300">—</span>
+            )}
+          </td>
+        ))}
+        <td className="py-2 pr-3 text-right font-bold tabular-nums text-zinc-900">
+          {row.total}
+        </td>
+        <td className="py-2 pr-3 text-right font-bold tabular-nums text-zinc-900">
+          {row.sold}
+        </td>
+        <td className="py-2 pr-2 text-center">
+          {row.low > 0 ? (
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-100 px-1.5 text-xs font-semibold text-red-700">
+              {row.low}
+            </span>
+          ) : (
+            <span className="text-zinc-300">—</span>
+          )}
+        </td>
+        <td className="py-2 pr-4">
+          <button
+            type="button"
+            onClick={onToggle}
+            className="text-xs font-medium text-indigo-600 hover:underline"
+          >
+            {row.sales.length} sale{row.sales.length === 1 ? "" : "s"}
+          </button>
+        </td>
+      </tr>
+      {expanded && (
+        <tr className="border-b border-zinc-100 bg-zinc-50">
+          <td colSpan={colSpan} className="px-4 py-3">
+            <SalesList row={row} />
+          </td>
+        </tr>
+      )}
+    </>
   );
 }

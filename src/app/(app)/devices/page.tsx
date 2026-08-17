@@ -12,6 +12,7 @@ export default async function DevicesPage() {
   const { shops, rows } = await getDevicesData();
 
   const totalUnits = rows.reduce((a, r) => a + r.total, 0);
+  const totalSold = rows.reduce((a, r) => a + r.sold, 0);
   const lowModels = rows.filter((r) => r.low > 0).length;
 
   return (
@@ -19,11 +20,11 @@ export default async function DevicesPage() {
       <div>
         <h1 className="text-xl font-bold text-zinc-900">Devices</h1>
         <p className="text-sm text-zinc-500">
-          Available pieces per model across every shop
+          Available pieces per model across every shop, plus who sold them
         </p>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
           <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
             Models
@@ -38,6 +39,14 @@ export default async function DevicesPage() {
           </div>
           <div className="mt-1 text-2xl font-bold tabular-nums text-zinc-900">
             {totalUnits}
+          </div>
+        </div>
+        <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+            Units sold
+          </div>
+          <div className="mt-1 text-2xl font-bold tabular-nums text-emerald-700">
+            {totalSold}
           </div>
         </div>
         <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">

@@ -119,13 +119,27 @@ export type DeviceCell = {
   low: boolean;
 };
 
+export type DeviceSale = {
+  transactionId: string;
+  date: string;
+  shopId: string;
+  shopName: string | null;
+  staffName: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  qty: number;
+  amount: number;
+};
+
 export type DeviceRow = {
   key: string;
   model_name: string;
   condition: "new" | "used";
   total: number;
+  sold: number; // total units sold
   low: number; // number of shops running low on this model
   perShop: DeviceCell[];
+  sales: DeviceSale[]; // newest first
 };
 
 export type DevicesData = {
@@ -134,26 +148,34 @@ export type DevicesData = {
 };
 
 export async function getDevicesData(): Promise<DevicesData> {
-  const [shops, stock] = await Promise.all([getShops(), getStock()]);
+  const [shops, stock, txs] = await Promise.all([
+    getShops(),
+    getStock(),
+    getTransactions({}),
+  ]);
   const shopIndex = new Map(shops.map((s, i) => [s.id, i]));
 
   const map = new Map<string, DeviceRow>();
+  const initRow = (model_name: string, condition: "new" | "used"): DeviceRow => ({
+    key: `${model_name}|${condition}`,
+    model_name,
+    condition,
+    total: 0,
+    sold: 0,
+    low: 0,
+    perShop: shops.map((s) => ({
+      shopId: s.id,
+      available: 0,
+      low: false,
+    })),
+    sales: [],
+  });
+
   for (const m of stock) {
     const key = `${m.model_name}|${m.condition}`;
     let row = map.get(key);
     if (!row) {
-      row = {
-        key,
-        model_name: m.model_name,
-        condition: m.condition,
-        total: 0,
-        low: 0,
-        perShop: shops.map((s) => ({
-          shopId: s.id,
-          available: 0,
-          low: false,
-        })),
-      };
+      row = initRow(m.model_name, m.condition);
       map.set(key, row);
     }
     const idx = shopIndex.get(m.shop_id);
@@ -164,6 +186,34 @@ export async function getDevicesData(): Promise<DevicesData> {
       row.low = row.perShop.filter((c) => c.low).length;
     }
     row.total += m.available;
+  }
+
+  for (const t of txs) {
+    for (const it of t.items) {
+      if (it.direction !== "out") continue;
+      const key = `${it.model_name}|${it.condition}`;
+      let row = map.get(key);
+      if (!row) {
+        row = initRow(it.model_name, it.condition);
+        map.set(key, row);
+      }
+      row.sold += it.qty;
+      row.sales.push({
+        transactionId: t.id,
+        date: t.date,
+        shopId: t.shop_id,
+        shopName: t.shop_name,
+        staffName: t.staff_name,
+        customerName: t.customer_name,
+        customerPhone: t.customer_phone,
+        qty: it.qty,
+        amount: t.amount,
+      });
+    }
+  }
+
+  for (const row of map.values()) {
+    row.sales.sort((a, b) => b.date.localeCompare(a.date));
   }
 
   const rows = [...map.values()].sort(
