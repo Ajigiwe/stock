@@ -109,6 +109,72 @@ export async function getStock(shopId?: string): Promise<PhoneModel[]> {
   return data ?? [];
 }
 
+// ---------------------------------------------------------------------------
+// Devices (owner inventory across all shops)
+// ---------------------------------------------------------------------------
+
+export type DeviceCell = {
+  shopId: string;
+  available: number;
+  low: boolean;
+};
+
+export type DeviceRow = {
+  key: string;
+  model_name: string;
+  condition: "new" | "used";
+  total: number;
+  low: number; // number of shops running low on this model
+  perShop: DeviceCell[];
+};
+
+export type DevicesData = {
+  shops: Shop[];
+  rows: DeviceRow[];
+};
+
+export async function getDevicesData(): Promise<DevicesData> {
+  const [shops, stock] = await Promise.all([getShops(), getStock()]);
+  const shopIndex = new Map(shops.map((s, i) => [s.id, i]));
+
+  const map = new Map<string, DeviceRow>();
+  for (const m of stock) {
+    const key = `${m.model_name}|${m.condition}`;
+    let row = map.get(key);
+    if (!row) {
+      row = {
+        key,
+        model_name: m.model_name,
+        condition: m.condition,
+        total: 0,
+        low: 0,
+        perShop: shops.map((s) => ({
+          shopId: s.id,
+          available: 0,
+          low: false,
+        })),
+      };
+      map.set(key, row);
+    }
+    const idx = shopIndex.get(m.shop_id);
+    if (idx != null) {
+      const cell = row.perShop[idx];
+      cell.available = m.available;
+      cell.low = m.available <= m.low_stock_threshold;
+      row.low = row.perShop.filter((c) => c.low).length;
+    }
+    row.total += m.available;
+  }
+
+  const rows = [...map.values()].sort(
+    (a, b) =>
+      a.model_name.localeCompare(b.model_name) ||
+      a.condition.localeCompare(b.condition),
+  );
+
+  return { shops, rows };
+}
+
 export async function getTransactions(opts: {
   shopId?: string;
   from?: string; // YYYY-MM-DD inclusive

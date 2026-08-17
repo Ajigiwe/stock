@@ -67,6 +67,12 @@ const ICONS: Record<string, ReactNode> = {
       <rect x="16" y="9" width="3" height="9" rx="1" />
     </svg>
   ),
+  devices: (
+    <svg {...svgProps}>
+      <rect x="7" y="2" width="10" height="20" rx="2" />
+      <path d="M11 18h2" />
+    </svg>
+  ),
   settings: (
     <svg {...svgProps}>
       <circle cx="12" cy="12" r="3" />
@@ -128,7 +134,10 @@ export function AppShell({
     { href: "/transactions/new", label: "Record transaction", icon: ICONS.record },
     { href: "/reports", label: "Reports", icon: ICONS.reports },
     ...(role === "owner"
-      ? [{ href: "/settings", label: "Settings", icon: ICONS.settings }]
+      ? [
+          { href: "/devices", label: "Devices", icon: ICONS.devices },
+          { href: "/settings", label: "Settings", icon: ICONS.settings },
+        ]
       : []),
     ...(role === "attendant" && shopId
       ? [{ href: `/shops/${shopId}`, label: "My shop", icon: ICONS.shop }]
