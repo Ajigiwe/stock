@@ -24,11 +24,13 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        continue-on-error: true
         run: |
           curl -sf -X POST "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/resume" \
             -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
             -H "Content-Type: application/json" > /dev/null \
-          && echo "Resume requested (or already active)."
+          && echo "Resume requested (or already active)." \
+          || echo "Resume skipped (already active or token issue)."
 
       - name: Ping Supabase REST API
         env:
