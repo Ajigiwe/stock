@@ -34,8 +34,8 @@ function subscribeCollapse(cb: () => void) {
 }
 
 const svgProps = {
-  width: 18,
-  height: 18,
+  width: 20,
+  height: 20,
   viewBox: "0 0 24 24",
   fill: "none",
   stroke: "currentColor",
@@ -114,7 +114,7 @@ export function AppShell({
   userName?: string | null;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const collapsed = useSyncExternalStore(
     subscribeCollapse,
     () => collapseState,
@@ -135,6 +135,23 @@ export function AppShell({
 
   const toggleCollapsed = () => setCollapseGlobal(!collapseState);
 
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : pathname.startsWith(href);
+
+  // Primary mobile tabs: Dashboard · Record · (Devices | My shop) · Reports.
+  const tabs: NavLink[] = [
+    { href: "/", label: "Home", icon: ICONS.dashboard },
+    { href: "/transactions/new", label: "Record", icon: ICONS.record },
+    ...(role === "owner"
+      ? [{ href: "/devices", label: "Devices", icon: ICONS.devices }]
+      : []),
+    ...(role === "attendant" && shopId
+      ? [{ href: `/shops/${shopId}`, label: "My shop", icon: ICONS.shop }]
+      : []),
+    { href: "/reports", label: "Reports", icon: ICONS.reports },
+  ];
+
+  // Full link set for the desktop sidebar.
   const links: NavLink[] = [
     { href: "/", label: "Dashboard", icon: ICONS.dashboard },
     { href: "/transactions/new", label: "Record transaction", icon: ICONS.record },
@@ -152,17 +169,24 @@ export function AppShell({
     { href: "/account", label: "Account", icon: ICONS.account },
   ];
 
-  const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname.startsWith(href);
+  // Secondary destinations for the mobile menu sheet (tabs stay uncluttered).
+  const menuLinks: NavLink[] = [
+    ...(role === "owner"
+      ? [
+          { href: "/logs", label: "Logs", icon: ICONS.logs },
+          { href: "/settings", label: "Settings", icon: ICONS.settings },
+        ]
+      : []),
+    { href: "/account", label: "Account", icon: ICONS.account },
+  ];
 
   const renderSidebar = (isCollapsed: boolean, onToggle?: () => void) => (
     <div className="flex h-full flex-col">
-      <div className="flex h-14 shrink-0 items-center gap-2 border-b border-zinc-800 px-3">
+      <div className="flex h-14 shrink-0 items-center gap-2 border-b border-white/10 px-3">
         {!isCollapsed && (
           <Link
             href="/"
-            onClick={() => setOpen(false)}
-            className="text-base font-bold text-white"
+            className="text-base font-bold tracking-tight text-white"
           >
             Mr Jeff Stock
           </Link>
@@ -173,7 +197,7 @@ export function AppShell({
             onClick={onToggle}
             aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             title={isCollapsed ? "Expand" : "Collapse"}
-            className={`inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white ${
+            className={`inline-flex h-8 w-8 items-center justify-center rounded-lg text-white/50 transition-colors hover:bg-white/10 hover:text-white ${
               isCollapsed ? "mx-auto" : "ml-auto"
             }`}
           >
@@ -202,14 +226,13 @@ export function AppShell({
           <Link
             key={l.href}
             href={l.href}
-            onClick={() => setOpen(false)}
             title={isCollapsed ? l.label : undefined}
             className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
               isCollapsed ? "justify-center" : ""
             } ${
               isActive(l.href)
-                ? "bg-indigo-600 text-white"
-                : "text-zinc-400 hover:bg-zinc-800 hover:text-white"
+                ? "bg-brand text-white"
+                : "text-white/55 hover:bg-white/10 hover:text-white"
             }`}
           >
             <span className="shrink-0">{l.icon}</span>
@@ -218,8 +241,8 @@ export function AppShell({
         ))}
 
         {role === "owner" && shops.length > 0 && !isCollapsed && (
-          <div className="mt-3 border-t border-zinc-800 pt-3">
-            <p className="px-3 pb-1 text-xs uppercase tracking-wide text-zinc-500">
+          <div className="mt-3 border-t border-white/10 pt-3">
+            <p className="px-3 pb-1 text-xs uppercase tracking-wide text-white/40">
               Shops
             </p>
             <ShopSwitcher shops={shops} />
@@ -227,16 +250,15 @@ export function AppShell({
         )}
       </nav>
 
-      <div className="shrink-0 border-t border-zinc-800 p-3">
+      <div className="shrink-0 border-t border-white/10 p-3">
         <Link
           href="/account"
-          onClick={() => setOpen(false)}
           title={isCollapsed ? userName || "Account" : undefined}
-          className={`mb-2 flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-zinc-900 ${
+          className={`mb-2 flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-white/10 ${
             isCollapsed ? "justify-center" : ""
           }`}
         >
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-semibold text-white">
             {(userName || "?").charAt(0).toUpperCase()}
           </span>
           {!isCollapsed && (
@@ -244,7 +266,7 @@ export function AppShell({
               <span className="block truncate text-sm font-medium text-white">
                 {userName || "My account"}
               </span>
-              <span className="block text-xs capitalize text-zinc-500">
+              <span className="block text-xs capitalize text-white/40">
                 {role ?? "signed in"}
               </span>
             </span>
@@ -258,48 +280,107 @@ export function AppShell({
   return (
     <>
       {/* Mobile top bar */}
-      <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between bg-zinc-900 px-4 md:hidden">
+      <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between bg-ink px-4 md:hidden">
         <button
-          onClick={() => setOpen(true)}
+          onClick={() => setMenuOpen(true)}
           aria-label="Open menu"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-white hover:bg-zinc-800"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-white transition-colors hover:bg-white/10"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <path d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-        <Link href="/" className="text-base font-bold text-white">
+        <Link href="/" className="text-base font-bold tracking-tight text-white">
           Mr Jeff Stock
         </Link>
-        <span className="w-9" />
+        <Link
+          href="/account"
+          aria-label="Account"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-brand text-[11px] font-bold text-white"
+        >
+          {(userName || "?").charAt(0).toUpperCase()}
+        </Link>
       </header>
 
-      {/* Mobile overlay sidebar (always expanded) */}
-      {open && (
+      {/* Mobile menu sheet (secondary destinations) */}
+      {menuOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div
             className="absolute inset-0 bg-black/50"
-            onClick={() => setOpen(false)}
+            onClick={() => setMenuOpen(false)}
           />
-          <aside className="absolute inset-y-0 left-0 w-64 bg-zinc-900 shadow-xl">
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Close menu"
-              className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white"
+          <aside className="absolute inset-y-0 left-0 flex w-72 flex-col bg-ink shadow-xl">
+            <div className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 px-4">
+              <span className="text-base font-bold text-white">Menu</span>
+              <button
+                type="button"
+                onClick={() => setMenuOpen(false)}
+                aria-label="Close menu"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </div>
+            <nav
+              className="flex-1 space-y-1 overflow-y-auto p-3"
+              onClick={() => setMenuOpen(false)}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <path d="M6 6l12 12M18 6L6 18" />
-              </svg>
-            </button>
-            {renderSidebar(false)}
+              {role === "owner" && shops.length > 0 && (
+                <div className="pb-3">
+                  <ShopSwitcher shops={shops} />
+                </div>
+              )}
+              {menuLinks.map((l) => (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    isActive(l.href)
+                      ? "bg-brand text-white"
+                      : "text-white/55 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <span className="shrink-0">{l.icon}</span>
+                  <span className="truncate">{l.label}</span>
+                </Link>
+              ))}
+            </nav>
+            <div className="shrink-0 border-t border-white/10 p-3">
+              <LogoutButton />
+            </div>
           </aside>
         </div>
       )}
 
+      {/* Mobile bottom tab bar */}
+      <nav
+        aria-label="Primary"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white md:hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <div className="grid auto-cols-fr grid-flow-col">
+          {tabs.map((t) => (
+            <Link
+              key={t.href}
+              href={t.href}
+              className={`flex flex-col items-center gap-0.5 px-1 pb-1.5 pt-2 text-[10px] leading-tight transition-colors ${
+                isActive(t.href)
+                  ? "font-bold text-brand"
+                  : "font-medium text-mute hover:text-ink"
+              }`}
+            >
+              {t.icon}
+              <span>{t.label}</span>
+            </Link>
+          ))}
+        </div>
+      </nav>
+
       {/* Desktop sidebar (collapsible) */}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 hidden bg-zinc-900 transition-[width] duration-200 md:block ${
+        className={`fixed inset-y-0 left-0 z-30 hidden bg-ink transition-[width] duration-200 md:block ${
           collapsed ? "w-16" : "w-60"
         }`}
       >
@@ -311,7 +392,9 @@ export function AppShell({
           collapsed ? "md:ml-16" : "md:ml-60"
         }`}
       >
-        <div className="mx-auto w-full max-w-5xl px-4 py-6">{children}</div>
+        <div className="mx-auto w-full max-w-5xl px-4 pb-28 pt-6 md:pb-8">
+          {children}
+        </div>
       </main>
     </>
   );

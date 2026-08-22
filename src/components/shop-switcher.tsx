@@ -8,7 +8,7 @@ export function ShopSwitcher({ shops }: { shops: Shop[] }) {
 
   return (
     <select
-      className="h-9 w-full rounded-lg border border-zinc-700 bg-zinc-800 px-2 text-sm text-white"
+      className="h-9 w-full cursor-pointer rounded-lg border border-white/15 bg-white/10 px-2 text-sm text-white"
       onChange={(e) => {
         if (e.target.value) router.push(`/shops/${e.target.value}`);
       }}

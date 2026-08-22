@@ -8,7 +8,7 @@ export function LogoutButton({ collapsed = false }: { collapsed?: boolean }) {
       onClick={() => void logout()}
       title={collapsed ? "Sign out" : undefined}
       aria-label="Sign out"
-      className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white ${
+      className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-white/55 transition-colors hover:bg-white/10 hover:text-white ${
         collapsed ? "justify-center" : ""
       }`}
     >

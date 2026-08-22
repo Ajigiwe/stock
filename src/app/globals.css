@@ -1,8 +1,33 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f4f4f5;
-  --foreground: #18181b;
+  --background: #f4f5fa;
+  --foreground: #14162b;
+}
+
+/* Design tokens (see redesign mockup) */
+@theme {
+  /* ink — near-black navy, for text and dark surfaces */
+  --color-ink: #14162b;
+  --color-ink-soft: #23263f;
+  /* paper — cool off-white background */
+  --color-paper: #f4f5fa;
+  /* line — hairline borders */
+  --color-line: #e4e5ef;
+  /* mute — secondary text */
+  --color-mute: #767b94;
+  /* brand — primary action */
+  --color-brand: #4338ca;
+  --color-brand-deep: #312896;
+  --color-brand-tint: #eeedfb;
+  /* ledger gold — money figures, used sparingly */
+  --color-ledger: #b8791f;
+  /* states */
+  --color-instock: #1e7a4c;
+  --color-instock-tint: #e5f3eb;
+  --color-lowstock: #b4402a;
+  --color-lowstock-tint: #fbeDE8;
+  --color-warnstock: #b8791f;
 }
 
 @theme inline {
