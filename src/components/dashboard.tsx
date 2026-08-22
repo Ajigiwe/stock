@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { DashboardData, DashboardPeriod, ShopDailySummary } from "@/lib/data";
-import { formatMoney, formatDateTime } from "@/lib/format";
+import { formatMoney, formatDateTime, todayISO } from "@/lib/format";
 import { Badge, Card, EmptyState } from "@/components/ui";
 import { RealtimeRefresher } from "@/components/realtime-refresher";
 import { StockRequestsPanel } from "@/components/stock-requests-panel";
@@ -16,15 +16,15 @@ const PERIOD_LABELS: Record<DashboardPeriod, string> = {
 function PeriodToggle({ period }: { period: DashboardPeriod }) {
   const options: DashboardPeriod[] = ["today", "7d", "30d"];
   return (
-    <div className="inline-flex rounded-lg border border-zinc-200 bg-white p-0.5">
+    <div className="inline-flex rounded-lg border border-line bg-white p-0.5">
       {options.map((p) => (
         <Link
           key={p}
           href={p === "today" ? "/" : `/?period=${p}`}
           className={`h-8 rounded-md px-3 text-xs font-medium leading-8 transition-colors ${
             period === p
-              ? "bg-indigo-600 text-white"
-              : "text-zinc-500 hover:text-zinc-800"
+              ? "bg-brand text-white"
+              : "text-mute hover:text-ink"
           }`}
         >
           {PERIOD_LABELS[p]}
@@ -43,24 +43,44 @@ export function Dashboard({ data }: { data: DashboardData }) {
       : `${data.summaries.length} shop${data.summaries.length === 1 ? "" : "s"}`
     : "your shop";
 
+  // Top models moving — units out per model across the scoped shops.
+  const movers = (() => {
+    const map = new Map<string, number>();
+    for (const s of data.summaries) {
+      for (const r of s.rows) {
+        map.set(r.model_name, (map.get(r.model_name) ?? 0) + r.sold + r.swapped_out);
+      }
+    }
+    return [...map.entries()]
+      .map(([name, units]) => ({ name, units }))
+      .filter((m) => m.units > 0)
+      .sort((a, b) => b.units - a.units)
+      .slice(0, 5);
+  })();
+
   return (
     <div className="space-y-6">
       <RealtimeRefresher />
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-zinc-900">
-            {isOwner ? "Dashboard" : data.shop?.name ?? "Dashboard"}
+          <h1 className="text-xl font-extrabold tracking-tight text-ink">
+            {isOwner ? periodLabel : data.shop?.name ?? periodLabel}
           </h1>
-          <p className="text-sm text-zinc-500">
-            {periodLabel} · {scopeLabel} · live
+          <p className="mt-0.5 text-[12.5px] text-mute">
+            {new Date(todayISO() + "T00:00:00").toLocaleDateString("en-GB", {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+            })}{" "}
+            · {scopeLabel} · live
           </p>
         </div>
         <Link
           href="/transactions/new"
-          className="inline-flex h-10 items-center rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-500"
+          className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-[10px] bg-brand px-4 text-sm font-bold text-white transition-colors hover:bg-brand-deep"
         >
-          Record transaction
+          Record
         </Link>
       </div>
 
@@ -77,9 +97,11 @@ export function Dashboard({ data }: { data: DashboardData }) {
 
       <StatCards totals={data.totals} period={data.period} />
 
-      <DashboardCharts data={data} />
+      <LowStockAlert summaries={data.summaries} isOwner={isOwner} />
 
-      {data.totals.low_stock > 0 && <LowStockAlert summaries={data.summaries} isOwner={isOwner} />}
+      {movers.length > 0 && <TopMovers movers={movers} />}
+
+      <DashboardCharts data={data} />
 
       {data.pending.length > 0 && (
         <Card
@@ -114,46 +136,37 @@ export function Dashboard({ data }: { data: DashboardData }) {
 
 function StatCards({
   totals,
-  period,
 }: {
   totals: DashboardData["totals"];
   period: DashboardPeriod;
 }) {
-  const revenueLabel = period === "today" ? "Revenue today" : "Revenue";
   const items = [
-    {
-      label: revenueLabel,
-      value: formatMoney(totals.revenue),
-      dot: "bg-emerald-500",
-      tone: "text-emerald-700",
-    },
-    { label: "Sales", value: String(totals.sales), dot: "bg-sky-500", tone: "text-sky-700" },
-    { label: "Swaps", value: String(totals.swaps), dot: "bg-violet-500", tone: "text-violet-700" },
-    { label: "Repairs", value: String(totals.repairs), dot: "bg-amber-500", tone: "text-amber-700" },
-    { label: "Units out", value: String(totals.units_out), dot: "bg-zinc-400", tone: "text-zinc-900" },
+    { label: "Revenue", value: formatMoney(totals.revenue), tone: "text-ledger" },
+    { label: "Sales", value: String(totals.sales), tone: "text-ink" },
+    { label: "Swaps", value: String(totals.swaps), tone: "text-ink" },
+    { label: "Repairs", value: String(totals.repairs), tone: "text-ink" },
+    { label: "Units out", value: String(totals.units_out), tone: "text-ink" },
     {
       label: "Low stock",
       value: String(totals.low_stock),
-      dot: totals.low_stock > 0 ? "bg-red-500" : "bg-zinc-400",
-      tone: totals.low_stock > 0 ? "text-red-600" : "text-zinc-900",
+      tone: totals.low_stock > 0 ? "text-lowstock" : "text-ink",
     },
   ];
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
       {items.map((it) => (
         <div
           key={it.label}
-          className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm"
+          className="flex min-h-[84px] flex-col gap-1 rounded-2xl border border-line bg-white px-4 py-3.5"
         >
-          <div className="flex items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full ${it.dot}`} />
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-              {it.label}
-            </span>
-          </div>
-          <div className={`mt-2 text-2xl font-bold tabular-nums ${it.tone}`}>
+          <span className="text-[10.5px] font-semibold uppercase tracking-wider text-mute">
+            {it.label}
+          </span>
+          <span
+            className={`font-mono text-[22px] font-bold leading-tight tabular-nums ${it.tone}`}
+          >
             {it.value}
-          </div>
+          </span>
         </div>
       ))}
     </div>
@@ -173,22 +186,72 @@ function LowStockAlert({
       model: m,
     })),
   );
+  if (items.length === 0) return null;
+  const first = items[0];
+  const href = isOwner ? "/devices" : `/shops/${first.shop.id}`;
   return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-      <h2 className="text-sm font-semibold text-amber-900">Low stock</h2>
-      <ul className="mt-2 space-y-1">
-        {items.map(({ shop, model }) => (
-          <li key={model.id} className="text-sm text-amber-800">
-            <span className="font-medium">{model.model_name}</span>{" "}
-            <Badge tone={model.condition === "new" ? "blue" : "gray"}>
-              {model.condition}
-            </Badge>{" "}
-            · {model.available} left (min {model.low_stock_threshold})
-            {isOwner && <span className="text-amber-600"> · {shop.name}</span>}
-          </li>
+    <Link
+      href={href}
+      className="flex items-center justify-between gap-3 rounded-2xl border border-[#ebc9bb] bg-lowstock-tint p-4 transition-transform hover:-translate-y-px"
+    >
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-lowstock text-[15px] font-extrabold text-white">
+          {items.length}
+        </span>
+        <div className="min-w-0">
+          <div className="text-[13.5px] font-bold text-ink">
+            {items.length === 1 ? "Model running low" : "Models running low"}
+          </div>
+          <div className="mt-0.5 truncate text-[11.5px] text-mute">
+            {first.model.model_name} · {first.model.available} left
+            {isOwner ? ` · ${first.shop.name}` : ""}
+            {items.length > 1 ? ` · +${items.length - 1} more` : ""}
+          </div>
+        </div>
+      </div>
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="shrink-0 text-lowstock"
+      >
+        <path d="M9 6l6 6-6 6" />
+      </svg>
+    </Link>
+  );
+}
+
+function TopMovers({
+  movers,
+}: {
+  movers: { name: string; units: number }[];
+}) {
+  return (
+    <section>
+      <h2 className="mb-2.5 mt-1 text-[13px] font-bold text-ink">
+        Top models moving
+      </h2>
+      <div className="flex flex-col gap-2">
+        {movers.map((m) => (
+          <div
+            key={m.name}
+            className="flex items-center justify-between rounded-xl border border-line bg-white px-3.5 py-2.5"
+          >
+            <span className="truncate text-[13px] font-semibold text-ink">
+              {m.name}
+            </span>
+            <span className="shrink-0 font-mono text-xs font-semibold tabular-nums text-mute">
+              {m.units} out
+            </span>
+          </div>
         ))}
-      </ul>
-    </div>
+      </div>
+    </section>
   );
 }
 
@@ -204,7 +267,7 @@ function RecentTransactions({
       title="Recent transactions"
       subtitle="Latest activity"
       actions={
-        <Link href="/reports" className="text-sm font-medium text-zinc-900 underline">
+        <Link href="/reports" className="text-sm font-medium text-brand hover:underline">
           View reports →
         </Link>
       }
@@ -212,12 +275,12 @@ function RecentTransactions({
       {recent.length === 0 ? (
         <EmptyState>No transactions yet. Record your first sale or swap.</EmptyState>
       ) : (
-        <ul className="divide-y divide-zinc-50">
+        <ul className="divide-y divide-line">
           {recent.map((t) => (
             <li key={t.id} className="flex items-center justify-between gap-3 py-2">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-zinc-900">
+                  <span className="truncate font-medium text-ink">
                     {t.items.map((i) => (i.direction === "out" ? "−" : "+") + i.model_name).join(", ") ||
                       "—"}
                   </span>
@@ -225,12 +288,12 @@ function RecentTransactions({
                     {t.type}
                   </Badge>
                 </div>
-                <div className="text-xs text-zinc-500">
+                <div className="text-xs text-mute">
                   {t.customer_name || "Walk-in"} · {formatDateTime(t.date)}
                   {isOwner && t.shop_name ? ` · ${t.shop_name}` : ""}
                 </div>
               </div>
-              <span className="text-sm font-semibold text-zinc-900">{formatMoney(t.amount)}</span>
+              <span className="shrink-0 font-mono text-sm font-semibold tabular-nums text-ink">{formatMoney(t.amount)}</span>
             </li>
           ))}
         </ul>
@@ -255,21 +318,21 @@ function ShopClosingCard({
       actions={
         <Link
           href={`/shops/${summary.shop.id}`}
-          className="text-sm font-medium text-zinc-900 underline"
+          className="text-sm font-medium text-brand hover:underline"
         >
           Shop view →
         </Link>
       }
     >
-      <div className="mb-3 flex flex-wrap gap-3 text-sm text-zinc-600">
+      <div className="mb-3 flex flex-wrap gap-3 text-sm text-mute">
         <span>
-          Sales: <b>{summary.total_sales}</b>
+          Sales: <b className="text-ink">{summary.total_sales}</b>
         </span>
         <span>
-          Swaps: <b>{summary.total_swaps}</b>
+          Swaps: <b className="text-ink">{summary.total_swaps}</b>
         </span>
         <span>
-          Revenue: <b>{formatMoney(summary.revenue)}</b>
+          Revenue: <b className="font-mono tabular-nums text-ledger">{formatMoney(summary.revenue)}</b>
         </span>
       </div>
 
@@ -280,7 +343,7 @@ function ShopClosingCard({
           <div className="hidden overflow-x-auto sm:block">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-400">
+                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-mute">
                   <th className="py-2 pr-4 font-medium">Model</th>
                   <th className="py-2 pr-4 font-medium">Condition</th>
                   <th className="py-2 pr-4 text-right font-medium">Sold</th>
@@ -290,8 +353,8 @@ function ShopClosingCard({
               </thead>
               <tbody>
                 {summary.rows.map((r) => (
-                  <tr key={`${r.model_name}-${r.condition}`} className="border-b border-zinc-50">
-                    <td className="py-2 pr-4 font-medium text-zinc-900">{r.model_name}</td>
+                  <tr key={`${r.model_name}-${r.condition}`} className="border-b border-line/60">
+                    <td className="py-2 pr-4 font-medium text-ink">{r.model_name}</td>
                     <td className="py-2 pr-4">
                       <Badge tone={r.condition === "new" ? "blue" : "gray"}>{r.condition}</Badge>
                     </td>
@@ -307,18 +370,18 @@ function ShopClosingCard({
             {summary.rows.map((r) => (
               <li
                 key={`${r.model_name}-${r.condition}`}
-                className="flex items-center justify-between gap-3 rounded-lg border border-zinc-100 bg-zinc-50 px-3 py-2"
+                className="flex items-center justify-between gap-3 rounded-lg border border-line bg-paper px-3 py-2"
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="truncate text-sm font-medium text-zinc-900">{r.model_name}</span>
+                    <span className="truncate text-sm font-medium text-ink">{r.model_name}</span>
                     <Badge tone={r.condition === "new" ? "blue" : "gray"}>{r.condition}</Badge>
                   </div>
-                  <div className="mt-0.5 text-xs text-zinc-500">
+                  <div className="mt-0.5 text-xs text-mute">
                     Sold {r.sold} · Swapped out {r.swapped_out}
                   </div>
                 </div>
-                <div className="shrink-0 text-sm font-semibold text-zinc-900">{r.sold + r.swapped_out}</div>
+                <div className="shrink-0 font-mono text-sm font-semibold tabular-nums text-ink">{r.sold + r.swapped_out}</div>
               </li>
             ))}
           </ul>
