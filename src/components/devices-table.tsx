@@ -20,17 +20,17 @@ const level = (available: number, threshold: number): Level =>
         : "ok";
 
 const levelClass: Record<Level, string> = {
-  empty: "text-zinc-300",
-  low: "text-red-600 font-bold",
-  medium: "text-amber-600 font-semibold",
-  ok: "text-green-600 font-semibold",
+  empty: "text-line",
+  low: "text-lowstock font-bold",
+  medium: "text-brand font-semibold",
+  ok: "text-instock font-semibold",
 };
 
 const chipClass: Record<Level, string> = {
-  empty: "border-zinc-200 bg-zinc-50 text-zinc-700",
-  low: "border-red-200 bg-red-50 text-red-700",
-  medium: "border-amber-200 bg-amber-50 text-amber-700",
-  ok: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  empty: "border-line bg-paper text-mute",
+  low: "border-lowstock bg-lowstock-tint text-lowstock",
+  medium: "border-brand bg-brand-tint text-brand",
+  ok: "border-instock bg-instock-tint text-instock",
 };
 
 function SalesList({ row }: { row: DeviceRow }) {
@@ -41,7 +41,7 @@ function SalesList({ row }: { row: DeviceRow }) {
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-400">
+          <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-mute">
             <th className="py-1.5 pr-4 font-medium">Sold by</th>
             <th className="py-1.5 pr-4 font-medium">To</th>
             <th className="py-1.5 pr-4 font-medium">Shop</th>
@@ -52,20 +52,20 @@ function SalesList({ row }: { row: DeviceRow }) {
         </thead>
         <tbody>
           {row.sales.map((s) => (
-            <tr key={s.transactionId + s.date + s.qty} className="border-b border-zinc-50">
-              <td className="py-1.5 pr-4 font-medium text-zinc-900">
+            <tr key={s.transactionId + s.date + s.qty} className="border-b border-paper">
+              <td className="py-1.5 pr-4 font-medium text-ink">
                 {s.staffName ?? "—"}
               </td>
-              <td className="py-1.5 pr-4 text-zinc-700">
+              <td className="py-1.5 pr-4 text-ink/70">
                 {s.customerName ?? "Walk-in"}
                 {s.customerPhone ? (
-                  <span className="ml-1 text-xs text-zinc-400">({s.customerPhone})</span>
+                  <span className="ml-1 text-xs text-mute">({s.customerPhone})</span>
                 ) : null}
               </td>
-              <td className="py-1.5 pr-4 text-zinc-500">{s.shopName ?? "—"}</td>
-              <td className="py-1.5 pr-4 text-zinc-500">{formatDateTime(s.date)}</td>
+              <td className="py-1.5 pr-4 text-mute">{s.shopName ?? "—"}</td>
+              <td className="py-1.5 pr-4 text-mute">{formatDateTime(s.date)}</td>
               <td className="py-1.5 pr-4 text-right tabular-nums">{s.qty}</td>
-              <td className="py-1.5 text-right font-semibold tabular-nums text-zinc-900">
+              <td className="py-1.5 text-right font-semibold tabular-nums text-ink">
                 {formatMoney(s.amount)}
               </td>
             </tr>
@@ -76,15 +76,7 @@ function SalesList({ row }: { row: DeviceRow }) {
   );
 }
 
-function ModelDetail({
-  row,
-  shops,
-  shopId,
-}: {
-  row: DeviceRow;
-  shops: Shop[];
-  shopId: string;
-}) {
+function ModelDetail({ row, shops, shopId }: { row: DeviceRow; shops: Shop[]; shopId: string }) {
   const scopeLabel = shopId
     ? shops.find((s) => s.id === shopId)?.name
     : "all shops";
@@ -94,12 +86,12 @@ function ModelDetail({
         <Badge tone={row.condition === "new" ? "blue" : "gray"}>
           {row.condition}
         </Badge>
-        <span className="text-sm text-zinc-500">
-          <span className="font-semibold tabular-nums text-zinc-900">
+        <span className="text-sm text-mute">
+          <span className="font-semibold tabular-nums text-ink">
             {row.total}
           </span>{" "}
           available ·{" "}
-          <span className="font-semibold tabular-nums text-zinc-900">
+          <span className="font-semibold tabular-nums text-ink">
             {row.sold}
           </span>{" "}
           sold across {scopeLabel}
@@ -107,12 +99,12 @@ function ModelDetail({
       </div>
 
       <div>
-        <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+        <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-mute">
           Stock by shop
         </h3>
         <div className="flex flex-wrap gap-1.5">
           {row.perShop.filter((c) => c.available > 0).length === 0 ? (
-            <p className="text-sm text-zinc-400">No stock in this shop.</p>
+            <p className="text-sm text-mute">No stock in this shop.</p>
           ) : (
             row.perShop
               .filter((c) => c.available > 0 && (!shopId || c.shopId === shopId))
@@ -134,7 +126,7 @@ function ModelDetail({
       </div>
 
       <div>
-        <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+        <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-mute">
           Sold by / to
         </h3>
         <SalesList row={row} />
@@ -143,20 +135,13 @@ function ModelDetail({
   );
 }
 
-export function DevicesTable({
-  shops,
-  rows,
-}: {
-  shops: Shop[];
-  rows: DeviceRow[];
-}) {
+export function DevicesTable({ shops, rows }: { shops: Shop[]; rows: DeviceRow[] }) {
   const [q, setQ] = useState("");
   const [cond, setCond] = useState<CondFilter>("all");
   const [lowOnly, setLowOnly] = useState(false);
   const [shopId, setShopId] = useState("");
   const [selected, setSelected] = useState<DeviceRow | null>(null);
 
-  // When a shop is selected, narrow totals / sold / sales to that shop only.
   const scoped = useMemo(() => {
     if (!shopId) return rows;
     return rows.map((r) => {
@@ -190,13 +175,17 @@ export function DevicesTable({
   const cellClass = (c: DeviceRow["perShop"][number]) =>
     levelClass[level(c.available, c.threshold)];
 
+  const statusDot = (r: DeviceRow) =>
+    r.total <= 0 ? "bg-line" : r.low > 0 ? "bg-lowstock" : "bg-instock";
+
   return (
     <div className="space-y-3">
+      {/* Filters */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative sm:max-w-xs sm:flex-1">
           <svg
             aria-hidden="true"
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-mute"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -222,12 +211,10 @@ export function DevicesTable({
           >
             <option value="">All shops</option>
             {shops.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
+              <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </Select>
-          <div className="inline-flex rounded-lg border border-zinc-200 p-0.5">
+          <div className="inline-flex rounded-lg border border-line p-0.5">
             {(["all", "new", "used"] as CondFilter[]).map((c) => (
               <button
                 key={c}
@@ -235,8 +222,8 @@ export function DevicesTable({
                 onClick={() => setCond(c)}
                 className={`h-8 rounded-md px-3 text-xs font-medium capitalize transition-colors ${
                   cond === c
-                    ? "bg-zinc-900 text-white"
-                    : "text-zinc-500 hover:text-zinc-800"
+                    ? "bg-ink text-white"
+                    : "text-mute hover:text-ink"
                 }`}
               >
                 {c}
@@ -248,8 +235,8 @@ export function DevicesTable({
             onClick={() => setLowOnly((v) => !v)}
             className={`h-8 rounded-lg border px-3 text-xs font-medium transition-colors ${
               lowOnly
-                ? "border-amber-300 bg-amber-50 text-amber-800"
-                : "border-zinc-200 text-zinc-500 hover:text-zinc-800"
+                ? "border-brand bg-brand-tint text-brand"
+                : "border-line text-mute hover:text-ink"
             }`}
           >
             Low stock
@@ -257,23 +244,24 @@ export function DevicesTable({
         </div>
       </div>
 
-      <p className="text-xs text-zinc-500">
+      <p className="text-xs text-mute">
         {filtered.length} of {rows.length} models · tap a row to see stock by
         shop and who sold each one
       </p>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500">
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-mute">
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-green-500" /> Healthy
+          <span className="h-2 w-2 rounded-full bg-instock" /> Healthy
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-amber-500" /> Running low
+          <span className="h-2 w-2 rounded-full bg-brand" /> Running low
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-red-500" /> Low stock
+          <span className="h-2 w-2 rounded-full bg-lowstock" /> Low stock
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="font-bold text-emerald-600">3</span> units sold
+          <span className="font-bold text-instock">3</span> units sold
         </span>
       </div>
 
@@ -281,10 +269,11 @@ export function DevicesTable({
         <EmptyState>No models match your search.</EmptyState>
       ) : (
         <>
-          <div className="hidden overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm sm:block">
+          {/* Desktop matrix */}
+          <div className="hidden overflow-x-auto rounded-xl border border-line bg-white shadow-sm sm:block">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-400">
+                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-mute">
                   <th className="sticky left-0 bg-white py-2 pl-4 pr-2 font-medium">
                     Model
                   </th>
@@ -303,10 +292,10 @@ export function DevicesTable({
                 {filtered.map((r) => (
                   <tr
                     key={r.key}
-                    className="cursor-pointer border-b border-zinc-50 hover:bg-zinc-50/60"
+                    className="cursor-pointer border-b border-paper hover:bg-paper/60"
                     onClick={() => setSelected(r)}
                   >
-                    <td className="sticky left-0 bg-white py-2 pl-4 pr-2 font-medium text-zinc-900 hover:text-indigo-600">
+                    <td className="sticky left-0 bg-white py-2 pl-4 pr-2 font-medium text-ink hover:text-brand">
                       {r.model_name}
                     </td>
                     <td className="py-2 pr-2">
@@ -327,28 +316,28 @@ export function DevicesTable({
                               {c.available}
                             </Link>
                           ) : (
-                            <span className="text-zinc-300">—</span>
+                            <span className="text-line">—</span>
                           )}
                         </td>
                       );
                     })}
-                    <td className="py-2 pr-3 text-right font-bold tabular-nums text-zinc-900">
+                    <td className="py-2 pr-3 text-right font-bold tabular-nums text-ink">
                       {r.total}
                     </td>
                     <td
                       className={`py-2 pr-3 text-right font-bold tabular-nums ${
-                        r.sold > 0 ? "text-emerald-600" : "text-zinc-400"
+                        r.sold > 0 ? "text-instock" : "text-mute"
                       }`}
                     >
                       {r.sold}
                     </td>
                     <td className="py-2 pr-4 text-center">
                       {r.low > 0 ? (
-                        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-100 px-1.5 text-xs font-semibold text-red-700">
+                        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-lowstock-tint px-1.5 text-xs font-semibold text-lowstock">
                           {r.low}
                         </span>
                       ) : (
-                        <span className="text-zinc-300">—</span>
+                        <span className="text-line">—</span>
                       )}
                     </td>
                   </tr>
@@ -357,49 +346,30 @@ export function DevicesTable({
             </table>
           </div>
 
-          <ul className="space-y-2 sm:hidden">
+          {/* Mobile compact rows */}
+          <ul className="space-y-1.5 sm:hidden">
             {filtered.map((r) => (
               <li
                 key={r.key}
-                className="cursor-pointer rounded-xl border border-zinc-200 bg-white p-3 shadow-sm"
+                className="cursor-pointer rounded-xl border border-line bg-white px-3 py-2.5 transition-colors active:bg-paper"
                 onClick={() => setSelected(r)}
               >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium text-zinc-900">
-                      {r.model_name}
-                    </span>
-                    <Badge tone={r.condition === "new" ? "blue" : "gray"}>
-                      {r.condition}
-                    </Badge>
-                  </div>
-                  <span className="text-sm font-semibold tabular-nums text-zinc-900">
-                    {r.total} avail · {r.sold} sold
+                <div className="flex items-center gap-2.5">
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${statusDot(r)}`} />
+                  <span className="truncate text-[13.5px] font-bold text-ink">
+                    {r.model_name}
                   </span>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {r.perShop
-                    .filter((c) => c.available > 0 && (!shopId || c.shopId === shopId))
-                    .map((c) => {
-                      const shop = shops.find((s) => s.id === c.shopId);
-                      return (
-                        <Link
-                          key={c.shopId}
-                          href={`/shops/${c.shopId}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${
-                            c.low
-                              ? "border-red-200 bg-red-50 text-red-700"
-                              : "border-zinc-200 bg-zinc-50 text-zinc-700"
-                          }`}
-                        >
-                          <span className="font-medium">{shop?.name}</span>
-                          <span className="font-bold tabular-nums">
-                            {c.available}
-                          </span>
-                        </Link>
-                      );
-                    })}
+                  <Badge tone={r.condition === "new" ? "blue" : "gray"}>
+                    {r.condition}
+                  </Badge>
+                  <span className="flex-1" />
+                  <span className="text-right text-[13px] tabular-nums">
+                    <span className="font-mono font-bold text-ink">{r.total}</span>
+                    <span className="text-mute"> avail</span>
+                    <span className="mx-1 text-line">·</span>
+                    <span className={`font-mono font-bold ${r.sold > 0 ? "text-instock" : "text-mute"}`}>{r.sold}</span>
+                    <span className="text-mute"> sold</span>
+                  </span>
                 </div>
               </li>
             ))}
@@ -407,13 +377,12 @@ export function DevicesTable({
         </>
       )}
 
+      {/* Detail modal */}
       <Modal
         open={selected !== null}
         onClose={() => setSelected(null)}
         title={selected?.model_name}
-        subtitle={
-          selected ? `Details · ${scopeLabel}` : undefined
-        }
+        subtitle={selected ? `Details · ${scopeLabel}` : undefined}
         size="xl"
       >
         {selected && (
