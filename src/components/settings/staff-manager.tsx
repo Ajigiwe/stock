@@ -85,7 +85,7 @@ export function StaffManager({ shops, staff }: { shops: Shop[]; staff: UserProfi
           + Add staff
         </ButtonSecondary>
       ) : (
-        <div className="grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4 sm:grid-cols-2">
+        <div className="grid gap-3 rounded-lg border border-line bg-paper p-4 sm:grid-cols-2">
           <Field label="Full name">
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
@@ -113,36 +113,36 @@ export function StaffManager({ shops, staff }: { shops: Shop[]; staff: UserProfi
               Cancel
             </ButtonSecondary>
           </div>
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-mute">
             The staff member signs in with this email and password, then can only
             see and record their own shop.
           </p>
         </div>
       )}
 
-      <ul className="divide-y divide-zinc-100">
+      <ul className="divide-y divide-paper">
         {staff.map((s) => {
           const shopName = shops.find((x) => x.id === s.shop_id)?.name;
           return (
             <li key={s.id} className="py-2">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-medium text-zinc-900">{s.name}</div>
-                  <div className="text-xs text-zinc-500">
+                  <div className="text-sm font-medium text-ink">{s.name}</div>
+                  <div className="text-xs text-mute">
                     {shopName ?? "No shop"} · {s.role}
                   </div>
                   {s.role === "attendant" && (
-                    <label className="mt-1.5 inline-flex cursor-pointer items-center gap-1.5 text-xs text-zinc-600">
+                    <label className="mt-1.5 inline-flex cursor-pointer items-center gap-1.5 text-xs text-mute">
                       <input
                         type="checkbox"
                         checked={s.can_edit_stock}
                         disabled={pending}
                         onChange={() => onTogglePrivilege(s)}
-                        className="h-3.5 w-3.5 accent-indigo-600"
+                        className="h-3.5 w-3.5 accent-brand"
                       />
                       Can edit stock
                       {s.can_edit_stock && (
-                        <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                        <span className="rounded-full bg-instock-tint px-1.5 py-0.5 text-[10px] font-semibold text-instock">
                           granted
                         </span>
                       )}
@@ -168,7 +168,7 @@ export function StaffManager({ shops, staff }: { shops: Shop[]; staff: UserProfi
                 </div>
               </div>
               {resetFor === s.id && (
-                <div className="mt-3 grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4 sm:grid-cols-2">
+                <div className="mt-3 grid gap-3 rounded-lg border border-line bg-paper p-4 sm:grid-cols-2">
                   <Field label={`New password for ${s.name}`}>
                     <Input
                       type="password"

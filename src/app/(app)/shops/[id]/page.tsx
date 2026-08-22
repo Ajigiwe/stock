@@ -77,20 +77,20 @@ export default async function ShopPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-zinc-900">{summary.shop.name}</h1>
-          <p className="text-sm text-zinc-500">
+          <h1 className="text-xl font-bold text-ink">{summary.shop.name}</h1>
+          <p className="text-sm text-mute">
             {summary.shop.location ?? "—"} · {dateLabel}
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <form method="get" action={`/shops/${id}`} className="flex items-end gap-2">
             <div>
-              <span className="mb-1 block text-xs font-medium text-zinc-500">Day</span>
+              <span className="mb-1 block text-xs font-medium text-mute">Day</span>
               <div className="flex items-center gap-1">
                 <Link
                   href={`/shops/${id}?date=${addDays(date, -1)}`}
                   aria-label="Previous day"
-                  className="inline-flex h-10 w-9 items-center justify-center rounded-lg border border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-50"
+                  className="inline-flex h-10 w-9 items-center justify-center rounded-lg border border-line bg-white text-mute hover:bg-paper"
                 >
                   ←
                 </Link>
@@ -99,12 +99,12 @@ export default async function ShopPage({
                   name="date"
                   defaultValue={date}
                   max={todayISO()}
-                  className="h-10 rounded-lg border border-zinc-300 bg-white px-2 text-sm text-zinc-900 focus:border-zinc-500 focus:outline-none"
+                  className="h-10 rounded-lg border border-line bg-white px-2 text-sm text-ink focus:border-mute focus:outline-none"
                 />
                 <Link
                   href={`/shops/${id}?date=${addDays(date, 1)}`}
                   aria-label="Next day"
-                  className="inline-flex h-10 w-9 items-center justify-center rounded-lg border border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-50"
+                  className="inline-flex h-10 w-9 items-center justify-center rounded-lg border border-line bg-white text-mute hover:bg-paper"
                 >
                   →
                 </Link>
@@ -116,7 +116,7 @@ export default async function ShopPage({
           </form>
           <Link
             href={`/transactions/new?shop=${id}`}
-            className="inline-flex h-10 items-center rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-500"
+            className="inline-flex h-10 items-center rounded-lg bg-brand px-4 text-sm font-medium text-white hover:bg-brand-deep"
           >
             Record transaction
           </Link>
@@ -124,7 +124,7 @@ export default async function ShopPage({
       </div>
 
       {summary.low_stock.length > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="rounded-lg border border-brand bg-brand-tint px-4 py-3 text-sm text-brand">
           <span className="font-semibold">Low stock:</span>{" "}
           {summary.low_stock.map((m) => `${m.model_name} (${m.available})`).join(", ")}
         </div>
@@ -135,7 +135,7 @@ export default async function ShopPage({
         subtitle={`${dateLabel} — units out, split by sale vs swap`}
         actions={<ShareSummaryButton text={summaryText} />}
       >
-        <div className="mb-3 flex flex-wrap gap-3 text-sm text-zinc-600">
+        <div className="mb-3 flex flex-wrap gap-3 text-sm text-mute">
           <span>
             Sales: <b>{summary.total_sales}</b>
           </span>
@@ -153,7 +153,7 @@ export default async function ShopPage({
             <div className="hidden overflow-x-auto sm:block">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-400">
+                  <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-mute">
                     <th className="py-2 pr-4 font-medium">Model</th>
                     <th className="py-2 pr-4 font-medium">Condition</th>
                     <th className="py-2 pr-4 text-right font-medium">Sold</th>
@@ -163,8 +163,8 @@ export default async function ShopPage({
                 </thead>
                 <tbody>
                   {summary.rows.map((r) => (
-                    <tr key={`${r.model_name}-${r.condition}`} className="border-b border-zinc-50">
-                      <td className="py-2 pr-4 font-medium text-zinc-900">{r.model_name}</td>
+                    <tr key={`${r.model_name}-${r.condition}`} className="border-b border-paper">
+                      <td className="py-2 pr-4 font-medium text-ink">{r.model_name}</td>
                       <td className="py-2 pr-4">
                         <Badge tone={r.condition === "new" ? "blue" : "gray"}>{r.condition}</Badge>
                       </td>
@@ -180,18 +180,18 @@ export default async function ShopPage({
               {summary.rows.map((r) => (
                 <li
                   key={`${r.model_name}-${r.condition}`}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-zinc-100 bg-zinc-50 px-3 py-2"
+                  className="flex items-center justify-between gap-3 rounded-lg border border-line bg-paper px-3 py-2"
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="truncate text-sm font-medium text-zinc-900">{r.model_name}</span>
+                      <span className="truncate text-sm font-medium text-ink">{r.model_name}</span>
                       <Badge tone={r.condition === "new" ? "blue" : "gray"}>{r.condition}</Badge>
                     </div>
-                    <div className="mt-0.5 text-xs text-zinc-500">
+                    <div className="mt-0.5 text-xs text-mute">
                       Sold {r.sold} · Swapped out {r.swapped_out}
                     </div>
                   </div>
-                  <div className="shrink-0 text-sm font-semibold text-zinc-900">{r.sold + r.swapped_out}</div>
+                  <div className="shrink-0 text-sm font-semibold text-ink">{r.sold + r.swapped_out}</div>
                 </li>
               ))}
             </ul>
@@ -252,12 +252,12 @@ export default async function ShopPage({
         {transactions.length === 0 ? (
           <EmptyState>No transactions today.</EmptyState>
         ) : (
-          <ul className="divide-y divide-zinc-50">
+          <ul className="divide-y divide-paper">
             {transactions.map((t) => (
               <li key={t.id} className="flex items-center justify-between gap-3 py-2">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-zinc-900">
+                    <span className="font-medium text-ink">
                       {t.items.map((i) => (i.direction === "out" ? "−" : "+") + i.model_name).join(", ") ||
                         "—"}
                     </span>
@@ -265,7 +265,7 @@ export default async function ShopPage({
                       {t.type}
                     </Badge>
                   </div>
-                  <div className="text-xs text-zinc-500">
+                  <div className="text-xs text-mute">
                     {t.customer_name || "Walk-in"}
                     {t.customer_phone ? ` · ${t.customer_phone}` : ""} · {formatDateTime(t.date)} ·{" "}
                     {t.staff_name ?? "—"}
@@ -274,11 +274,11 @@ export default async function ShopPage({
                 <div className="flex items-center gap-3 text-sm">
                   <Link
                     href={`/transactions/${t.id}`}
-                    className="text-xs font-medium text-zinc-500 underline hover:text-zinc-800"
+                    className="text-xs font-medium text-mute underline hover:text-ink"
                   >
                     Receipt
                   </Link>
-                  <span className="font-semibold text-zinc-900">{formatMoney(t.amount)}</span>
+                  <span className="font-semibold text-ink">{formatMoney(t.amount)}</span>
                   {isOwner && <DeleteTransactionButton id={t.id} />}
                 </div>
               </li>

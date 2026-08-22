@@ -43,9 +43,9 @@ export function useConfirm() {
 }
 
 const toneStyles: Record<ToastTone, string> = {
-  success: "border-emerald-200 bg-emerald-50 text-emerald-800",
-  error: "border-red-200 bg-red-50 text-red-700",
-  info: "border-zinc-200 bg-white text-zinc-800",
+  success: "border-instock bg-instock-tint text-instock",
+  error: "border-lowstock bg-lowstock-tint text-lowstock",
+  info: "border-line bg-white text-ink",
 };
 
 const toneIcon: Record<ToastTone, string> = {
@@ -98,10 +98,10 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
                 aria-hidden="true"
                 className={`mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
                   t.tone === "success"
-                    ? "bg-emerald-600 text-white"
+                    ? "bg-instock text-white"
                     : t.tone === "error"
-                      ? "bg-red-600 text-white"
-                      : "bg-zinc-400 text-white"
+                      ? "bg-lowstock text-white"
+                      : "bg-mute text-white"
                 }`}
               >
                 {toneIcon[t.tone]}
@@ -115,22 +115,22 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         {confirmState && (
           <div className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center sm:p-4">
             <div
-              className="absolute inset-0 bg-zinc-900/50"
+              className="absolute inset-0 bg-ink/50"
               onClick={() => closeConfirm(false)}
               aria-hidden="true"
             />
             <div className="relative z-10 w-full max-w-sm rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-2xl">
-              <h2 className="text-base font-semibold text-zinc-900">
+              <h2 className="text-base font-semibold text-ink">
                 {confirmState.title}
               </h2>
               {confirmState.message && (
-                <p className="mt-1 text-sm text-zinc-500">{confirmState.message}</p>
+                <p className="mt-1 text-sm text-mute">{confirmState.message}</p>
               )}
               <div className="mt-5 flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => closeConfirm(false)}
-                  className="inline-flex h-10 items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50"
+                  className="inline-flex h-10 items-center justify-center rounded-lg border border-line bg-white px-4 text-sm font-medium text-ink/80 transition-colors hover:bg-paper"
                 >
                   {confirmState.cancelLabel ?? "Cancel"}
                 </button>
@@ -139,8 +139,8 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
                   onClick={() => closeConfirm(true)}
                   className={`inline-flex h-10 items-center justify-center rounded-lg px-4 text-sm font-medium text-white transition-colors ${
                     confirmState.danger
-                      ? "bg-red-600 hover:bg-red-500"
-                      : "bg-indigo-600 hover:bg-indigo-500"
+                      ? "bg-lowstock hover:bg-lowstock-tint0"
+                      : "bg-brand hover:bg-brand-deep"
                   }`}
                 >
                   {confirmState.confirmLabel ?? "Confirm"}

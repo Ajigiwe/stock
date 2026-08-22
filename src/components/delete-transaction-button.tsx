@@ -30,7 +30,7 @@ export function DeleteTransactionButton({ id }: { id: string }) {
   return (
     <button
       disabled={pending}
-      className="text-xs font-medium text-red-600 hover:text-red-500 disabled:opacity-50"
+      className="text-xs font-medium text-lowstock hover:text-lowstock disabled:opacity-50"
       onClick={onDelete}
     >
       {pending ? "…" : "Delete"}

@@ -60,7 +60,7 @@ export function StockRequestsPanel({
     <div className="space-y-2">
       {isOwner && requests.length > 0 && (
         <div className="flex items-center justify-between gap-3">
-          <span className="text-xs text-zinc-500">
+          <span className="text-xs text-mute">
             {requests.length} pending change{requests.length === 1 ? "" : "s"}
           </span>
           <Button
@@ -85,12 +85,12 @@ export function StockRequestsPanel({
           return (
             <div
               key={r.id}
-              className="rounded-lg border border-zinc-200 bg-zinc-50 p-3"
+              className="rounded-lg border border-line bg-paper p-3"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2 text-sm">
-                    <span className="font-medium text-zinc-900">{title}</span>
+                    <span className="font-medium text-ink">{title}</span>
                     {isCreate && r.condition && (
                       <Badge tone={r.condition === "new" ? "blue" : "gray"}>
                         {r.condition}
@@ -98,7 +98,7 @@ export function StockRequestsPanel({
                     )}
                     <Badge tone="amber">pending</Badge>
                   </div>
-                  <div className="mt-1 text-xs text-zinc-500">
+                  <div className="mt-1 text-xs text-mute">
                     {r.staff_name ?? "Staff"}
                     {showShop && r.shop_name ? ` · ${r.shop_name}` : ""}
                     {r.opening_stock != null ? ` · opening ${r.opening_stock}` : ""}
@@ -109,7 +109,7 @@ export function StockRequestsPanel({
                     {formatDateTime(r.created_at)}
                   </div>
                   {r.error_note && (
-                    <div className="mt-1 text-xs text-red-600">
+                    <div className="mt-1 text-xs text-lowstock">
                       Failed to apply: {r.error_note}
                     </div>
                   )}

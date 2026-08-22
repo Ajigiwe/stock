@@ -69,12 +69,12 @@ export default async function ReportsPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-zinc-900">Reports</h1>
-          <p className="text-sm text-zinc-500">{txs.length} transactions in range</p>
+          <h1 className="text-xl font-bold text-ink">Reports</h1>
+          <p className="text-sm text-mute">{txs.length} transactions in range</p>
         </div>
         <a
           href={exportHref}
-          className="inline-flex h-10 items-center rounded-lg border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+          className="inline-flex h-10 items-center rounded-lg border border-line bg-white px-4 text-sm font-medium text-ink/80 hover:bg-paper"
         >
           Export CSV
         </a>
@@ -126,7 +126,7 @@ export default async function ReportsPage({
           <div className="sm:col-span-5">
             <button
               type="submit"
-              className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-500 sm:w-auto"
+              className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-brand px-4 text-sm font-medium text-white hover:bg-brand-deep sm:w-auto"
             >
               Apply
             </button>
@@ -136,20 +136,20 @@ export default async function ReportsPage({
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
-          <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">Revenue</div>
-          <div className="mt-1 text-xl font-bold text-zinc-900">{formatMoney(revenue)}</div>
+          <div className="text-xs font-medium uppercase tracking-wide text-mute">Revenue</div>
+          <div className="mt-1 text-xl font-bold text-ink">{formatMoney(revenue)}</div>
         </Card>
         <Card>
-          <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">Sales</div>
-          <div className="mt-1 text-xl font-bold text-zinc-900">{byType("sale").length}</div>
+          <div className="text-xs font-medium uppercase tracking-wide text-mute">Sales</div>
+          <div className="mt-1 text-xl font-bold text-ink">{byType("sale").length}</div>
         </Card>
         <Card>
-          <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">Swaps</div>
-          <div className="mt-1 text-xl font-bold text-zinc-900">{byType("swap").length}</div>
+          <div className="text-xs font-medium uppercase tracking-wide text-mute">Swaps</div>
+          <div className="mt-1 text-xl font-bold text-ink">{byType("swap").length}</div>
         </Card>
         <Card>
-          <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">Repairs</div>
-          <div className="mt-1 text-xl font-bold text-zinc-900">{byType("repair").length}</div>
+          <div className="text-xs font-medium uppercase tracking-wide text-mute">Repairs</div>
+          <div className="mt-1 text-xl font-bold text-ink">{byType("repair").length}</div>
         </Card>
       </div>
 
@@ -159,7 +159,7 @@ export default async function ReportsPage({
             {Object.entries(paymentBreakdown).map(([k, v]) => (
               <div key={k} className="flex items-center gap-2">
                 <Badge tone="blue">{PAYMENT_LABELS[k] ?? k}</Badge>
-                <span className="font-semibold text-zinc-900">{formatMoney(v)}</span>
+                <span className="font-semibold text-ink">{formatMoney(v)}</span>
               </div>
             ))}
           </div>
@@ -174,7 +174,7 @@ export default async function ReportsPage({
             <div className="hidden overflow-x-auto sm:block">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-400">
+                  <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-mute">
                     <th className="py-2 pr-4 font-medium">Date</th>
                     {isOwner && <th className="py-2 pr-4 font-medium">Shop</th>}
                     <th className="py-2 pr-4 font-medium">Staff</th>
@@ -194,7 +194,7 @@ export default async function ReportsPage({
             </div>
             <ul className="space-y-2 sm:hidden">
               {txs.map((t) => (
-                <li key={t.id} className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                <li key={t.id} className="rounded-lg border border-line bg-paper p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -202,23 +202,23 @@ export default async function ReportsPage({
                           {t.type}
                         </Badge>
                         {isOwner && t.shop_name && (
-                          <span className="text-xs text-zinc-500">{t.shop_name}</span>
+                          <span className="text-xs text-mute">{t.shop_name}</span>
                         )}
                       </div>
-                      <div className="mt-1 text-sm font-medium text-zinc-900">
+                      <div className="mt-1 text-sm font-medium text-ink">
                         {t.items.map((i) => (i.direction === "out" ? "−" : "+") + i.model_name).join(", ") ||
                           "—"}
                       </div>
-                      <div className="mt-0.5 text-xs text-zinc-500">
+                      <div className="mt-0.5 text-xs text-mute">
                         {formatDateTime(t.date)} · {t.staff_name ?? "—"} ·{" "}
                         {PAYMENT_LABELS[t.payment_method] ?? t.payment_method}
                       </div>
                     </div>
                     <div className="shrink-0 text-right">
-                      <div className="text-sm font-semibold text-zinc-900">{formatMoney(t.amount)}</div>
+                      <div className="text-sm font-semibold text-ink">{formatMoney(t.amount)}</div>
                       <Link
                         href={`/transactions/${t.id}`}
-                        className="text-xs font-medium text-zinc-500 underline hover:text-zinc-800"
+                        className="text-xs font-medium text-mute underline hover:text-ink"
                       >
                         Receipt
                       </Link>
@@ -236,24 +236,24 @@ export default async function ReportsPage({
 
 function ReportRow({ t, isOwner }: { t: TransactionWithDetails; isOwner: boolean }) {
   return (
-    <tr className="border-b border-zinc-50">
-      <td className="py-2 pr-4 text-zinc-500">{formatDateTime(t.date)}</td>
+    <tr className="border-b border-paper">
+      <td className="py-2 pr-4 text-mute">{formatDateTime(t.date)}</td>
       {isOwner && <td className="py-2 pr-4">{t.shop_name ?? "—"}</td>}
-      <td className="py-2 pr-4 text-zinc-500">{t.staff_name ?? "—"}</td>
+      <td className="py-2 pr-4 text-mute">{t.staff_name ?? "—"}</td>
       <td className="py-2 pr-4">
         <Badge tone={t.type === "sale" ? "green" : t.type === "swap" ? "blue" : "gray"}>
           {t.type}
         </Badge>
       </td>
-      <td className="py-2 pr-4 text-zinc-700">
+      <td className="py-2 pr-4 text-ink/80">
         {t.items.map((i) => (i.direction === "out" ? "−" : "+") + i.model_name).join(", ") || "—"}
       </td>
-      <td className="py-2 pr-4 text-zinc-500">{PAYMENT_LABELS[t.payment_method] ?? t.payment_method}</td>
-      <td className="py-2 pr-4 text-right font-semibold text-zinc-900">{formatMoney(t.amount)}</td>
+      <td className="py-2 pr-4 text-mute">{PAYMENT_LABELS[t.payment_method] ?? t.payment_method}</td>
+      <td className="py-2 pr-4 text-right font-semibold text-ink">{formatMoney(t.amount)}</td>
       <td className="py-2 text-right">
         <Link
           href={`/transactions/${t.id}`}
-          className="text-xs font-medium text-zinc-500 underline hover:text-zinc-800"
+          className="text-xs font-medium text-mute underline hover:text-ink"
         >
           Receipt
         </Link>

@@ -128,7 +128,7 @@ export function BulkAddModels({ shops }: { shops: Shop[] }) {
         >
           Download template
         </ButtonSecondary>
-        <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-zinc-300 bg-white px-3 text-xs font-medium text-zinc-700 hover:bg-zinc-50">
+        <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-line bg-white px-3 text-xs font-medium text-ink/80 hover:bg-paper">
           Load CSV file
           <input
             type="file"
@@ -159,12 +159,12 @@ export function BulkAddModels({ shops }: { shops: Shop[] }) {
       </div>
 
       {preview && (
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
-          <p className="text-xs font-medium text-zinc-700">
+        <div className="rounded-lg border border-line bg-paper p-3">
+          <p className="text-xs font-medium text-ink/80">
             {preview.length} row{preview.length === 1 ? "" : "s"} ready — will
             skip models that already exist in this shop.
           </p>
-          <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto text-xs text-zinc-600">
+          <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto text-xs text-mute">
             {preview.slice(0, 20).map((r, i) => (
               <li key={i}>
                 {r.model_name} · {r.condition} · GHS {r.sale_price || "—"} · opening{" "}
@@ -172,7 +172,7 @@ export function BulkAddModels({ shops }: { shops: Shop[] }) {
               </li>
             ))}
             {preview.length > 20 && (
-              <li className="text-zinc-400">…and {preview.length - 20} more</li>
+              <li className="text-mute">…and {preview.length - 20} more</li>
             )}
           </ul>
         </div>
@@ -180,7 +180,7 @@ export function BulkAddModels({ shops }: { shops: Shop[] }) {
 
       <ErrorNote>{error}</ErrorNote>
       {info && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+        <div className="rounded-lg border border-instock bg-instock-tint px-3 py-2 text-xs text-instock">
           {info}
         </div>
       )}

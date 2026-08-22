@@ -121,54 +121,54 @@ export function ProductEditModal({
         }
         subtitle="Edit product details and adjust stock"
       >
-        <div className="grid grid-cols-3 gap-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-center">
+        <div className="grid grid-cols-3 gap-2 rounded-xl border border-line bg-paper p-3 text-center">
           <div>
-            <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">
+            <div className="text-[11px] font-medium uppercase tracking-wide text-mute">
               Opening
             </div>
-            <div className="text-sm font-bold text-zinc-900">{model.opening_stock}</div>
+            <div className="text-sm font-bold text-ink">{model.opening_stock}</div>
           </div>
           <div>
-            <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">
+            <div className="text-[11px] font-medium uppercase tracking-wide text-mute">
               Bought in
             </div>
-            <div className="text-sm font-bold text-zinc-900">{model.bought_in}</div>
+            <div className="text-sm font-bold text-ink">{model.bought_in}</div>
           </div>
           <div>
-            <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">
+            <div className="text-[11px] font-medium uppercase tracking-wide text-mute">
               Available
             </div>
-            <div className={`text-sm font-bold ${low ? "text-red-600" : "text-zinc-900"}`}>
+            <div className={`text-sm font-bold ${low ? "text-lowstock" : "text-ink"}`}>
               {model.available}
             </div>
           </div>
         </div>
         {low && (
-          <p className="mt-2 text-xs font-medium text-red-600">
+          <p className="mt-2 text-xs font-medium text-lowstock">
             Low stock — at or below the threshold of {model.low_stock_threshold}.
           </p>
         )}
         {model.cost_price != null && model.sale_price != null && (
-          <p className="mt-2 text-xs text-zinc-500">
+          <p className="mt-2 text-xs text-mute">
             Unit margin:{" "}
-            <span className="font-semibold text-emerald-700">
+            <span className="font-semibold text-instock">
               {formatMoney(model.sale_price - model.cost_price)}
             </span>
             {model.sale_price > 0 &&
               ` (${Math.round(((model.sale_price - model.cost_price) / model.sale_price) * 100)}%)`}
             {" · "}stock value at cost{" "}
-            <span className="font-medium text-zinc-700">
+            <span className="font-medium text-ink/80">
               {formatMoney(model.cost_price * model.available)}
             </span>
           </p>
         )}
 
         <div className="mt-4">
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-mute">
             Product details
           </h3>
           {!canEditStock && (
-            <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <p className="mb-2 rounded-lg border border-brand bg-brand-tint px-3 py-2 text-xs text-brand">
               Editing product details requires stock privileges — only the owner
               can grant them.
             </p>
@@ -234,11 +234,11 @@ export function ProductEditModal({
         </div>
 
         <div className="mt-5">
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-mute">
             Adjust stock
           </h3>
           {!canEditStock && (
-            <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <p className="mb-2 rounded-lg border border-brand bg-brand-tint px-3 py-2 text-xs text-brand">
               Stock changes are sent to the owner for approval.
             </p>
           )}
@@ -292,25 +292,25 @@ export function ProductEditModal({
 
         {adjustments.length > 0 && (
           <div className="mt-5">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-mute">
               Recent adjustments
             </h3>
             <ul className="space-y-1.5">
               {adjustments.slice(0, 6).map((a) => (
                 <li
                   key={a.id}
-                  className="flex items-center justify-between gap-2 rounded-lg bg-zinc-50 px-3 py-1.5 text-xs"
+                  className="flex items-center justify-between gap-2 rounded-lg bg-paper px-3 py-1.5 text-xs"
                 >
                   <span>
                     <Badge tone={a.delta > 0 ? "green" : "red"}>
                       {a.delta > 0 ? `+${a.delta}` : a.delta}
                     </Badge>{" "}
-                    <span className="text-zinc-600">{a.type}</span>
+                    <span className="text-mute">{a.type}</span>
                     {a.reason ? (
-                      <span className="text-zinc-400"> · {a.reason}</span>
+                      <span className="text-mute"> · {a.reason}</span>
                     ) : null}
                   </span>
-                  <span className="text-zinc-400">{formatDateTime(a.date)}</span>
+                  <span className="text-mute">{formatDateTime(a.date)}</span>
                 </li>
               ))}
             </ul>

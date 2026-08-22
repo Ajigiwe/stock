@@ -83,7 +83,7 @@ export function AddModelForm({
         }
       >
         {!canEditStock && (
-          <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <p className="mb-3 rounded-lg border border-brand bg-brand-tint px-3 py-2 text-xs text-brand">
             New models are sent to the owner for approval before they appear in stock.
           </p>
         )}

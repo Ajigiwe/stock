@@ -26,8 +26,8 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-zinc-900">Settings</h1>
-        <p className="text-sm text-zinc-500">Manage shops, staff, and data</p>
+        <h1 className="text-xl font-bold text-ink">Settings</h1>
+        <p className="text-sm text-mute">Manage shops, staff, and data</p>
       </div>
 
       <Card title="Shops" subtitle="Your shop locations">

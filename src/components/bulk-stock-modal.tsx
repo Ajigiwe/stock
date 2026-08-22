@@ -94,18 +94,18 @@ export function BulkStockModal({
         }
       >
         {stock.length === 0 ? (
-          <p className="py-4 text-sm text-zinc-500">
+          <p className="py-4 text-sm text-mute">
             No models in this shop yet. Add one first.
           </p>
         ) : (
           <>
-            <div className="mb-2 flex items-center justify-between text-xs text-zinc-500">
+            <div className="mb-2 flex items-center justify-between text-xs text-mute">
               <span>{stock.length} model{stock.length === 1 ? "" : "s"}</span>
-              <span className={changes.length ? "font-semibold text-zinc-700" : ""}>
+              <span className={changes.length ? "font-semibold text-ink/80" : ""}>
                 {changes.length} change{changes.length === 1 ? "" : "s"}
               </span>
             </div>
-            <div className="mb-2 grid grid-cols-[minmax(0,1fr)_120px] items-center gap-3 px-3 text-[11px] font-medium uppercase tracking-wide text-zinc-400">
+            <div className="mb-2 grid grid-cols-[minmax(0,1fr)_120px] items-center gap-3 px-3 text-[11px] font-medium uppercase tracking-wide text-mute">
               <span>Model</span>
               <span className="text-right">Target</span>
             </div>
@@ -123,25 +123,25 @@ export function BulkStockModal({
                     key={m.id}
                     className={`grid grid-cols-[minmax(0,1fr)_120px] items-center gap-3 rounded-lg border px-3 py-2 ${
                       changed
-                        ? "border-emerald-200 bg-emerald-50/60"
-                        : "border-zinc-200 bg-zinc-50"
+                        ? "border-instock bg-instock-tint/60"
+                        : "border-line bg-paper"
                     }`}
                   >
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-medium text-zinc-900">
+                      <div className="truncate text-sm font-medium text-ink">
                         {m.model_name}
                       </div>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-zinc-500">
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-mute">
                         <Badge tone={m.condition === "new" ? "blue" : "gray"}>
                           {m.condition}
                         </Badge>
-                        <span className={low ? "text-red-600" : ""}>
+                        <span className={low ? "text-lowstock" : ""}>
                           now {m.available}
                         </span>
                         {changed && (
                           <span
                             className={
-                              delta > 0 ? "text-emerald-600" : "text-red-600"
+                              delta > 0 ? "text-instock" : "text-lowstock"
                             }
                           >
                             → {target} ({delta > 0 ? "+" : ""}
@@ -151,7 +151,7 @@ export function BulkStockModal({
                       </div>
                     </div>
                     <div className="flex items-center justify-end gap-1.5">
-                      <span className="text-xs text-zinc-400">→</span>
+                      <span className="text-xs text-mute">→</span>
                       <Input
                         type="number"
                         min="0"

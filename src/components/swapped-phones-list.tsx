@@ -51,11 +51,11 @@ export function SwappedPhonesList({
         return (
           <li
             key={p.id}
-            className="flex items-start justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3"
+            className="flex items-start justify-between gap-3 rounded-lg border border-line bg-paper p-3"
           >
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="truncate text-sm font-medium text-zinc-900">
+                <span className="truncate text-sm font-medium text-ink">
                   {p.model_name}
                 </span>
                 <Badge tone={p.condition === "new" ? "blue" : "gray"}>
@@ -63,7 +63,7 @@ export function SwappedPhonesList({
                 </Badge>
                 <Badge tone={meta.tone}>{meta.label}</Badge>
               </div>
-              <div className="mt-0.5 text-xs text-zinc-500">
+              <div className="mt-0.5 text-xs text-mute">
                 {p.customer_name ? `${p.customer_name} · ` : ""}
                 {formatDateTime(p.created_at)}
               </div>
@@ -75,7 +75,7 @@ export function SwappedPhonesList({
                 onChange={(e) =>
                   setStatus(p.id, e.target.value as SwappedPhone["status"])
                 }
-                className="h-8 shrink-0 rounded-lg border border-zinc-300 bg-white px-2 text-xs text-zinc-700 focus:border-zinc-500 focus:outline-none disabled:opacity-50"
+                className="h-8 shrink-0 rounded-lg border border-line bg-white px-2 text-xs text-ink/80 focus:border-mute focus:outline-none disabled:opacity-50"
                 aria-label="Update status"
               >
                 <option value="in_stock">In stock</option>

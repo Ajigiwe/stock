@@ -42,8 +42,8 @@ export default async function LogsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-zinc-900">Logs</h1>
-        <p className="text-sm text-zinc-500">
+        <h1 className="text-xl font-bold text-ink">Logs</h1>
+        <p className="text-sm text-mute">
           Who signed in and every stock edit, for your review
         </p>
       </div>
@@ -55,7 +55,7 @@ export default async function LogsPage() {
         {loginLogs.length === 0 ? (
           <EmptyState>No sign-ins recorded yet.</EmptyState>
         ) : (
-          <ul className="divide-y divide-zinc-50">
+          <ul className="divide-y divide-paper">
             {loginLogs.map((l) => (
               <li
                 key={l.id}
@@ -63,19 +63,19 @@ export default async function LogsPage() {
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-zinc-900">
+                    <span className="font-medium text-ink">
                       {l.name ?? l.email ?? "Unknown"}
                     </span>
                     {l.device && (
                       <Badge tone="gray">{l.device}</Badge>
                     )}
                   </div>
-                  <div className="mt-0.5 text-xs text-zinc-500">
+                  <div className="mt-0.5 text-xs text-mute">
                     {l.email ? `${l.email} · ` : ""}
                     {l.ip ? `IP ${l.ip}` : "location unknown"}
                   </div>
                 </div>
-                <span className="text-xs text-zinc-400">
+                <span className="text-xs text-mute">
                   {formatDateTime(l.created_at)}
                 </span>
               </li>
@@ -91,7 +91,7 @@ export default async function LogsPage() {
         {stockLogs.length === 0 ? (
           <EmptyState>No stock edits recorded yet.</EmptyState>
         ) : (
-          <ul className="divide-y divide-zinc-50">
+          <ul className="divide-y divide-paper">
             {stockLogs.map((l) => (
               <li
                 key={l.id}
@@ -99,7 +99,7 @@ export default async function LogsPage() {
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-zinc-900">
+                    <span className="font-medium text-ink">
                       {l.staff_name ?? "—"}
                     </span>
                     <Badge
@@ -119,7 +119,7 @@ export default async function LogsPage() {
                       {ACTION_LABEL[l.action] ?? l.action}
                     </Badge>
                   </div>
-                  <div className="mt-0.5 text-xs text-zinc-500">
+                  <div className="mt-0.5 text-xs text-mute">
                     {l.model_name ?? "—"}
                     {l.condition ? ` (${l.condition})` : ""}
                     {stockDetails(l.action, l.details)
@@ -128,7 +128,7 @@ export default async function LogsPage() {
                     {l.shop_name ? ` · ${l.shop_name}` : ""}
                   </div>
                 </div>
-                <span className="text-xs text-zinc-400">
+                <span className="text-xs text-mute">
                   {formatDateTime(l.created_at)}
                 </span>
               </li>

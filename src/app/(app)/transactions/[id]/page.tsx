@@ -35,8 +35,8 @@ export default async function ReceiptPage({
   if (!tx) {
     return (
       <div className="mx-auto max-w-md py-16 text-center">
-        <p className="text-sm text-zinc-600">Transaction not found.</p>
-        <Link href="/reports" className="mt-3 inline-block text-sm font-medium text-zinc-900 underline">
+        <p className="text-sm text-mute">Transaction not found.</p>
+        <Link href="/reports" className="mt-3 inline-block text-sm font-medium text-ink underline">
           Back to reports
         </Link>
       </div>
@@ -85,60 +85,60 @@ export default async function ReceiptPage({
       <div className="no-print flex items-center justify-between">
         <Link
           href={`/shops/${tx.shop_id}`}
-          className="text-sm text-zinc-500 hover:text-zinc-800"
+          className="text-sm text-mute hover:text-ink"
         >
           ← Back to shop
         </Link>
         <Link
           href="/transactions/new"
-          className="text-sm font-medium text-zinc-900 underline"
+          className="text-sm font-medium text-ink underline"
         >
           New transaction
         </Link>
       </div>
 
-      <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+      <div className="rounded-xl border border-line bg-white p-6 shadow-sm">
         <div className="text-center">
-          <h1 className="text-lg font-bold text-zinc-900">
+          <h1 className="text-lg font-bold text-ink">
             {shop?.name ?? "Mr Jeff Stock"}
           </h1>
           {shop?.location && (
-            <p className="text-xs text-zinc-500">{shop.location}</p>
+            <p className="text-xs text-mute">{shop.location}</p>
           )}
-          {shop?.phone && <p className="text-xs text-zinc-500">Tel: {shop.phone}</p>}
+          {shop?.phone && <p className="text-xs text-mute">Tel: {shop.phone}</p>}
         </div>
 
-        <div className="my-4 border-t border-dashed border-zinc-300" />
+        <div className="my-4 border-t border-dashed border-line" />
 
-        <div className="flex items-center justify-between text-xs text-zinc-500">
+        <div className="flex items-center justify-between text-xs text-mute">
           <span>Receipt #{receiptNo}</span>
           <Badge tone={tx.type === "sale" ? "green" : tx.type === "swap" ? "blue" : "gray"}>
             {TYPE_LABELS[tx.type] ?? tx.type}
           </Badge>
         </div>
-        <div className="mt-1 text-xs text-zinc-500">{formatDateTime(tx.date)}</div>
+        <div className="mt-1 text-xs text-mute">{formatDateTime(tx.date)}</div>
         {tx.staff_name && (
-          <div className="text-xs text-zinc-500">Served by {tx.staff_name}</div>
+          <div className="text-xs text-mute">Served by {tx.staff_name}</div>
         )}
         {(tx.customer_name || tx.customer_phone) && (
-          <div className="mt-1 text-xs text-zinc-500">
+          <div className="mt-1 text-xs text-mute">
             Customer: {tx.customer_name || "—"}
             {tx.customer_phone ? ` · ${tx.customer_phone}` : ""}
           </div>
         )}
 
-        <div className="my-4 border-t border-dashed border-zinc-300" />
+        <div className="my-4 border-t border-dashed border-line" />
 
         {out.length > 0 && (
           <div>
-            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-mute">
               Items
             </div>
-            <ul className="space-y-1 text-sm text-zinc-800">
+            <ul className="space-y-1 text-sm text-ink">
               {out.map((i) => (
                 <li key={i.id} className="flex justify-between gap-2">
                   <span>{i.model_name}</span>
-                  <span className="text-zinc-500">x{i.qty}</span>
+                  <span className="text-mute">x{i.qty}</span>
                 </li>
               ))}
             </ul>
@@ -147,10 +147,10 @@ export default async function ReceiptPage({
 
         {tradeIns.length > 0 && (
           <div className="mt-3">
-            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-mute">
               Trade-in received
             </div>
-            <ul className="space-y-1 text-sm text-zinc-800">
+            <ul className="space-y-1 text-sm text-ink">
               {tradeIns.map((label) => (
                 <li key={label} className="flex justify-between gap-2">
                   <span>{label}</span>
@@ -160,19 +160,19 @@ export default async function ReceiptPage({
           </div>
         )}
 
-        <div className="my-4 border-t border-dashed border-zinc-300" />
+        <div className="my-4 border-t border-dashed border-line" />
 
         <div className="flex items-end justify-between">
-          <span className="text-sm font-medium text-zinc-500">
+          <span className="text-sm font-medium text-mute">
             {tx.type === "swap" ? "Top-up paid" : tx.type === "repair" ? "Repair charge" : "Total"}
           </span>
-          <span className="text-xl font-bold text-zinc-900">{formatMoney(tx.amount)}</span>
+          <span className="text-xl font-bold text-ink">{formatMoney(tx.amount)}</span>
         </div>
-        <div className="mt-0.5 text-right text-xs text-zinc-500">
+        <div className="mt-0.5 text-right text-xs text-mute">
           Paid by {PAYMENT_LABELS[tx.payment_method] ?? tx.payment_method}
         </div>
 
-        <p className="mt-5 text-center text-xs text-zinc-400">
+        <p className="mt-5 text-center text-xs text-mute">
           Thank you for your business!
         </p>
       </div>

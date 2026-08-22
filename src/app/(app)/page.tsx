@@ -17,7 +17,7 @@ export default async function HomePage({
   if (!profile) {
     return (
       <div className="mx-auto max-w-md py-16 text-center">
-        <p className="text-sm text-zinc-600">Profile not found.</p>
+        <p className="text-sm text-mute">Profile not found.</p>
       </div>
     );
   }
@@ -27,9 +27,9 @@ export default async function HomePage({
   if (profile.role !== "owner" && !profile.shop_id) {
     return (
       <div className="mx-auto max-w-md py-12">
-        <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-          <h1 className="text-lg font-semibold text-zinc-900">Welcome</h1>
-          <p className="mt-2 text-sm text-zinc-600">
+        <div className="rounded-xl border border-line bg-white p-6 shadow-sm">
+          <h1 className="text-lg font-semibold text-ink">Welcome</h1>
+          <p className="mt-2 text-sm text-mute">
             Your account has no role or shop assigned yet. Ask the owner to
             assign you to a shop from Settings.
           </p>
@@ -46,13 +46,13 @@ export default async function HomePage({
   if (profile.role === "owner" && data.summaries.length === 0) {
     return (
       <div className="mx-auto max-w-md py-12 text-center">
-        <h1 className="text-lg font-semibold text-zinc-900">No shops yet</h1>
-        <p className="mt-2 text-sm text-zinc-600">
+        <h1 className="text-lg font-semibold text-ink">No shops yet</h1>
+        <p className="mt-2 text-sm text-mute">
           Add your first shop to start tracking stock.
         </p>
         <Link
           href="/settings"
-          className="mt-4 inline-block rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+          className="mt-4 inline-block rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-deep"
         >
           Add a shop
         </Link>

@@ -34,9 +34,9 @@ export function DashboardCharts({ data }: { data: DashboardData }) {
   const maxUnits = Math.max(1, ...topModels.map((m) => m.units));
 
   const typeItems = [
-    { label: "Sales", value: data.totals.sales, cls: "bg-emerald-500" },
-    { label: "Swaps", value: data.totals.swaps, cls: "bg-sky-500" },
-    { label: "Repairs", value: data.totals.repairs, cls: "bg-zinc-400" },
+    { label: "Sales", value: data.totals.sales, cls: "bg-instock" },
+    { label: "Swaps", value: data.totals.swaps, cls: "bg-brand" },
+    { label: "Repairs", value: data.totals.repairs, cls: "bg-mute" },
   ];
   const maxType = Math.max(1, ...typeItems.map((t) => t.value));
   const hasTx = data.totals.sales + data.totals.swaps + data.totals.repairs > 0;
@@ -55,7 +55,7 @@ export function DashboardCharts({ data }: { data: DashboardData }) {
                   title={`${dm(p.date)} — ${formatMoney(p.revenue)}`}
                 >
                   <div
-                    className="relative w-full rounded-t bg-emerald-500/80"
+                    className="relative w-full rounded-t bg-instock/80"
                     style={{ height: `${revPct}%` }}
                   />
                 </div>
@@ -66,7 +66,7 @@ export function DashboardCharts({ data }: { data: DashboardData }) {
             {series.map((p, i) => (
               <div
                 key={p.date}
-                className="flex-1 truncate text-center text-[10px] text-zinc-400"
+                className="flex-1 truncate text-center text-[10px] text-mute"
               >
                 {i % labelStep === 0 ? dm(p.date) : ""}
               </div>
@@ -84,10 +84,10 @@ export function DashboardCharts({ data }: { data: DashboardData }) {
               {typeItems.map((t) => (
                 <li key={t.label}>
                   <div className="mb-1 flex justify-between text-xs">
-                    <span className="font-medium text-zinc-700">{t.label}</span>
-                    <span className="text-zinc-500">{t.value}</span>
+                    <span className="font-medium text-ink/80">{t.label}</span>
+                    <span className="text-mute">{t.value}</span>
                   </div>
-                  <div className="h-2.5 w-full overflow-hidden rounded-full bg-zinc-100">
+                  <div className="h-2.5 w-full overflow-hidden rounded-full bg-paper">
                     <div
                       className={`h-full rounded-full ${t.cls}`}
                       style={{ width: `${(t.value / maxType) * 100}%` }}
@@ -107,14 +107,14 @@ export function DashboardCharts({ data }: { data: DashboardData }) {
               {topModels.map((m) => (
                 <li key={`${m.name}|${m.condition}`}>
                   <div className="mb-1 flex justify-between gap-2 text-xs">
-                    <span className="min-w-0 truncate font-medium text-zinc-700">
+                    <span className="min-w-0 truncate font-medium text-ink/80">
                       {m.name}
                     </span>
-                    <span className="shrink-0 text-zinc-500">{m.units}</span>
+                    <span className="shrink-0 text-mute">{m.units}</span>
                   </div>
-                  <div className="h-2.5 w-full overflow-hidden rounded-full bg-zinc-100">
+                  <div className="h-2.5 w-full overflow-hidden rounded-full bg-paper">
                     <div
-                      className="h-full rounded-full bg-zinc-800"
+                      className="h-full rounded-full bg-ink/80"
                       style={{ width: `${(m.units / maxUnits) * 100}%` }}
                     />
                   </div>

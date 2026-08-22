@@ -10,8 +10,8 @@ export function SetupOwnerForm() {
 
   if (state.ok) {
     return (
-      <div className="space-y-3 text-sm text-zinc-700">
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-800">
+      <div className="space-y-3 text-sm text-ink/80">
+        <div className="rounded-lg border border-instock bg-instock-tint px-3 py-2 text-instock">
           Owner account created. You can now sign in.
         </div>
         <p>
@@ -20,7 +20,7 @@ export function SetupOwnerForm() {
         </p>
         <Link
           href="/login"
-          className="inline-block rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+          className="inline-block rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-deep"
         >
           Go to sign in
         </Link>

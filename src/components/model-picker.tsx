@@ -92,9 +92,9 @@ export function ModelPicker({
       />
 
       {open && (
-        <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-zinc-200 bg-white shadow-lg">
+        <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-line bg-white shadow-lg">
           {matches.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-zinc-500">
+            <div className="px-3 py-2 text-sm text-mute">
               No matching models.
             </div>
           ) : (
@@ -112,11 +112,11 @@ export function ModelPicker({
                     }}
                     onMouseEnter={() => setHighlight(i)}
                     className={`flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-sm ${
-                      i === highlight ? "bg-zinc-100" : ""
+                      i === highlight ? "bg-paper" : ""
                     }`}
                   >
                     <span className="flex min-w-0 items-center gap-2">
-                      <span className="truncate font-medium text-zinc-900">
+                      <span className="truncate font-medium text-ink">
                         {m.model_name}
                       </span>
                       <Badge tone={m.condition === "new" ? "blue" : "gray"}>
@@ -126,7 +126,7 @@ export function ModelPicker({
                     {showStock && (
                       <span
                         className={`shrink-0 text-xs ${
-                          low ? "text-red-600" : "text-zinc-500"
+                          low ? "text-lowstock" : "text-mute"
                         }`}
                       >
                         {m.available} in stock

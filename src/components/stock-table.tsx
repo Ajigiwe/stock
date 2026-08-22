@@ -58,7 +58,7 @@ export function StockTable({
         <div className="relative sm:max-w-xs sm:flex-1">
           <svg
             aria-hidden="true"
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-mute"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -76,7 +76,7 @@ export function StockTable({
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-lg border border-zinc-200 p-0.5">
+          <div className="inline-flex rounded-lg border border-line p-0.5">
             {(["all", "new", "used"] as CondFilter[]).map((c) => (
               <button
                 key={c}
@@ -84,8 +84,8 @@ export function StockTable({
                 onClick={() => setCond(c)}
                 className={`h-8 rounded-md px-3 text-xs font-medium capitalize transition-colors ${
                   cond === c
-                    ? "bg-zinc-900 text-white"
-                    : "text-zinc-500 hover:text-zinc-800"
+                    ? "bg-ink text-white"
+                    : "text-mute hover:text-ink"
                 }`}
               >
                 {c}
@@ -97,8 +97,8 @@ export function StockTable({
             onClick={() => setLowOnly((v) => !v)}
             className={`h-8 rounded-lg border px-3 text-xs font-medium transition-colors ${
               lowOnly
-                ? "border-amber-300 bg-amber-50 text-amber-800"
-                : "border-zinc-200 text-zinc-500 hover:text-zinc-800"
+                ? "border-brand bg-brand-tint text-brand"
+                : "border-line text-mute hover:text-ink"
             }`}
           >
             Low stock
@@ -106,7 +106,7 @@ export function StockTable({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-mute">
         <span>
           {filtered.length} of {stock.length} models
         </span>
@@ -114,13 +114,13 @@ export function StockTable({
         {canEditStock && totals.cost > 0 && (
           <span>
             Stock value (cost):{" "}
-            <b className="text-zinc-700">{formatMoney(totals.cost)}</b>
+            <b className="text-ink/80">{formatMoney(totals.cost)}</b>
           </span>
         )}
         {canEditStock && totals.retail > 0 && (
           <span>
             Retail value:{" "}
-            <b className="text-zinc-700">{formatMoney(totals.retail)}</b>
+            <b className="text-ink/80">{formatMoney(totals.retail)}</b>
           </span>
         )}
       </div>
@@ -132,7 +132,7 @@ export function StockTable({
           <div className="hidden overflow-x-auto sm:block">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-400">
+                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-mute">
                   <th className="py-2 pr-4 font-medium">Model</th>
                   <th className="py-2 pr-4 font-medium">Condition</th>
                   <th className="py-2 pr-4 text-right font-medium">Cost</th>
@@ -147,8 +147,8 @@ export function StockTable({
                 {filtered.map((m) => {
                   const low = m.available <= m.low_stock_threshold;
                   return (
-                    <tr key={m.id} className="border-b border-zinc-50">
-                      <td className="py-2 pr-4 font-medium text-zinc-900">
+                    <tr key={m.id} className="border-b border-paper">
+                      <td className="py-2 pr-4 font-medium text-ink">
                         {m.model_name}
                         {low && (
                           <span className="ml-2">
@@ -159,15 +159,15 @@ export function StockTable({
                       <td className="py-2 pr-4">
                         <Badge tone={m.condition === "new" ? "blue" : "gray"}>{m.condition}</Badge>
                       </td>
-                      <td className="py-2 pr-4 text-right text-zinc-500">
+                      <td className="py-2 pr-4 text-right text-mute">
                         {m.cost_price != null ? formatMoney(m.cost_price) : "—"}
                       </td>
-                      <td className="py-2 pr-4 text-right text-zinc-500">
+                      <td className="py-2 pr-4 text-right text-mute">
                         {m.sale_price != null ? formatMoney(m.sale_price) : "—"}
                       </td>
                       <td className="py-2 pr-4 text-right">{m.opening_stock}</td>
                       <td className="py-2 pr-4 text-right">{m.bought_in}</td>
-                      <td className={`py-2 pr-4 text-right font-bold ${low ? "text-red-600" : "text-zinc-900"}`}>
+                      <td className={`py-2 pr-4 text-right font-bold ${low ? "text-lowstock" : "text-ink"}`}>
                         {m.available}
                       </td>
                       <td className="py-2">
@@ -188,14 +188,14 @@ export function StockTable({
             {filtered.map((m) => {
               const low = m.available <= m.low_stock_threshold;
               return (
-                <li key={m.id} className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                <li key={m.id} className="rounded-lg border border-line bg-paper p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="truncate text-sm font-medium text-zinc-900">{m.model_name}</span>
+                        <span className="truncate text-sm font-medium text-ink">{m.model_name}</span>
                         {low && <Badge tone="amber">low</Badge>}
                       </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-mute">
                         <Badge tone={m.condition === "new" ? "blue" : "gray"}>{m.condition}</Badge>
                         <span>Cost {m.cost_price != null ? formatMoney(m.cost_price) : "—"}</span>
                         <span>Sale {m.sale_price != null ? formatMoney(m.sale_price) : "—"}</span>
@@ -210,16 +210,16 @@ export function StockTable({
                   </div>
                   <div className="mt-2 grid grid-cols-3 gap-2 text-center">
                     <div className="rounded-lg bg-white px-2 py-1.5">
-                      <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">Opening</div>
-                      <div className="text-sm font-semibold text-zinc-900">{m.opening_stock}</div>
+                      <div className="text-[11px] font-medium uppercase tracking-wide text-mute">Opening</div>
+                      <div className="text-sm font-semibold text-ink">{m.opening_stock}</div>
                     </div>
                     <div className="rounded-lg bg-white px-2 py-1.5">
-                      <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">Bought</div>
-                      <div className="text-sm font-semibold text-zinc-900">{m.bought_in}</div>
+                      <div className="text-[11px] font-medium uppercase tracking-wide text-mute">Bought</div>
+                      <div className="text-sm font-semibold text-ink">{m.bought_in}</div>
                     </div>
-                    <div className={`rounded-lg bg-white px-2 py-1.5 ${low ? "ring-1 ring-red-200" : ""}`}>
-                      <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">Available</div>
-                      <div className={`text-sm font-bold ${low ? "text-red-600" : "text-zinc-900"}`}>{m.available}</div>
+                    <div className={`rounded-lg bg-white px-2 py-1.5 ${low ? "ring-1 ring-lowstock" : ""}`}>
+                      <div className="text-[11px] font-medium uppercase tracking-wide text-mute">Available</div>
+                      <div className={`text-sm font-bold ${low ? "text-lowstock" : "text-ink"}`}>{m.available}</div>
                     </div>
                   </div>
                 </li>

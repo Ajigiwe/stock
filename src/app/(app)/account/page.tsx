@@ -27,24 +27,24 @@ export default async function AccountPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-zinc-900">Account</h1>
-        <p className="text-sm text-zinc-500">Your profile and password</p>
+        <h1 className="text-xl font-bold text-ink">Account</h1>
+        <p className="text-sm text-mute">Your profile and password</p>
       </div>
 
       <Card title="Your details">
         <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">Name</dt>
-            <dd className="mt-0.5 text-sm font-medium text-zinc-900">
+            <dt className="text-xs font-medium uppercase tracking-wide text-mute">Name</dt>
+            <dd className="mt-0.5 text-sm font-medium text-ink">
               {profile?.name || "—"}
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">Email</dt>
-            <dd className="mt-0.5 text-sm text-zinc-900">{session.email ?? "—"}</dd>
+            <dt className="text-xs font-medium uppercase tracking-wide text-mute">Email</dt>
+            <dd className="mt-0.5 text-sm text-ink">{session.email ?? "—"}</dd>
           </div>
           <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">Role</dt>
+            <dt className="text-xs font-medium uppercase tracking-wide text-mute">Role</dt>
             <dd className="mt-0.5">
               <Badge tone={isOwner ? "blue" : "gray"}>
                 {isOwner ? "Owner" : "Attendant"}
@@ -53,8 +53,8 @@ export default async function AccountPage() {
           </div>
           {!isOwner && (
             <div>
-              <dt className="text-xs font-medium uppercase tracking-wide text-zinc-400">Shop</dt>
-              <dd className="mt-0.5 text-sm text-zinc-900">{shopName ?? "—"}</dd>
+              <dt className="text-xs font-medium uppercase tracking-wide text-mute">Shop</dt>
+              <dd className="mt-0.5 text-sm text-ink">{shopName ?? "—"}</dd>
             </div>
           )}
         </dl>

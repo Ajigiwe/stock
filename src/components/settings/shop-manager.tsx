@@ -54,7 +54,7 @@ export function ShopManager({ shops }: { shops: Shop[] }) {
           + Add shop
         </ButtonSecondary>
       ) : (
-        <div className="grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4 sm:grid-cols-3">
+        <div className="grid gap-3 rounded-lg border border-line bg-paper p-4 sm:grid-cols-3">
           <Field label="Name">
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Takoradi Market Circle" />
           </Field>
@@ -76,12 +76,12 @@ export function ShopManager({ shops }: { shops: Shop[] }) {
         </div>
       )}
 
-      <ul className="divide-y divide-zinc-100">
+      <ul className="divide-y divide-paper">
         {shops.map((s) => (
           <li key={s.id} className="flex items-center justify-between gap-3 py-2">
             <div>
-              <div className="text-sm font-medium text-zinc-900">{s.name}</div>
-              <div className="text-xs text-zinc-500">
+              <div className="text-sm font-medium text-ink">{s.name}</div>
+              <div className="text-xs text-mute">
                 {s.location ?? "No location"} · {s.phone ?? "No phone"}
               </div>
             </div>

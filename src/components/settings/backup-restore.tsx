@@ -47,7 +47,7 @@ export function BackupRestore() {
       <div className="flex flex-wrap items-center gap-3">
         <a
           href="/settings/backup"
-          className="inline-flex h-8 items-center justify-center rounded-lg bg-zinc-900 px-3 text-xs font-medium text-white transition-colors hover:bg-zinc-700"
+          className="inline-flex h-8 items-center justify-center rounded-lg bg-ink px-3 text-xs font-medium text-white transition-colors hover:bg-ink/70"
         >
           Download backup
         </a>
@@ -55,7 +55,7 @@ export function BackupRestore() {
           ref={fileRef}
           type="file"
           accept=".json,application/json"
-          className="max-w-full text-xs text-zinc-500"
+          className="max-w-full text-xs text-mute"
           onChange={(e) => {
             setFileName(e.target.files?.[0]?.name ?? null);
             setError(null);
@@ -66,7 +66,7 @@ export function BackupRestore() {
         </ButtonSecondary>
       </div>
 
-      <p className="text-xs text-zinc-500">
+      <p className="text-xs text-mute">
         Backup downloads a JSON file with all shops, devices, transactions, and
         adjustments. Restoring <span className="font-medium">replaces everything</span>{" "}
         with the selected backup file. Staff login accounts are kept where the
