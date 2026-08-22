@@ -92,7 +92,7 @@ export function ModelPicker({
       />
 
       {open && (
-        <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-line bg-white shadow-lg">
+        <div className="absolute z-20 mt-1 max-h-64 min-w-full overflow-y-auto rounded-lg border border-line bg-white shadow-lg">
           {matches.length === 0 ? (
             <div className="px-3 py-2 text-sm text-mute">
               No matching models.
@@ -115,8 +115,8 @@ export function ModelPicker({
                       i === highlight ? "bg-paper" : ""
                     }`}
                   >
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="truncate font-medium text-ink">
+                    <span className="flex items-center gap-2">
+                      <span className="whitespace-nowrap font-medium text-ink">
                         {m.model_name}
                       </span>
                       <Badge tone={m.condition === "new" ? "blue" : "gray"}>
