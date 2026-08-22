@@ -68,9 +68,9 @@ function Section({ title, sub, tone, children, action }: {
 }) {
   const bar = tone === "out" ? "bg-lowstock" : tone === "in" ? "bg-instock" : "bg-brand";
   return (
-    <div className="overflow-hidden rounded-2xl border border-line bg-white">
+    <div className="rounded-2xl border border-line bg-white">
       <div className="flex">
-        <div className={`w-1 shrink-0 ${bar}`} />
+        <div className={`w-1 shrink-0 rounded-l-2xl ${bar}`} />
         <div className="flex-1 p-3.5">
           <div className="flex items-start justify-between gap-2">
             <div>
