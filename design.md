@@ -1,255 +1,400 @@
-# Phone Stock Management System — Design Document
+# Mr Jeff Stock - System Design Document
 
-## Context
+Multi-shop phone stock and sales management for Ghana phone shops.
+Built with Next.js 16.3.1, React 19, Supabase (PostgreSQL + Auth + Realtime), Tailwind CSS 4.
 
-Client sells and swaps iPhones in Ghana across **2–3 shop locations**. The owner
-travels frequently and needs to monitor and manage all shops remotely — stock
-levels, sales, swaps, and daily activity — without being physically present.
+---
 
-Source reference (original tracking format, informal paper/text log):
+## 1. Architecture Overview
 
 ```
-Sales log: name | phone type | type of sale | qty | phone_no | payment method | amount
-Stock log: phone type | stock | bought | available
+Browser (PWA)
+  Next.js 16 App Router + React 19 + Tailwind v4
+        |
+Next.js Server (Node)
+  Server Components + Server Actions + RSC
+  middleware.ts (src/proxy.ts)
+  cache: no-store on all Supabase reads
+  unstable_cache + updateTag for owner/global reads
+        |
+  Supabase JS (anon key, RLS)  |  Admin API (service role key, bypasses RLS)
+        |
+  Supabase PostgreSQL
+    10 tables + 7 RPCs + Triggers + RLS + Realtime
 ```
 
-This system digitizes and formalizes that into a multi-shop, cloud-synced
-platform with role-based access.
+Key decisions:
+- headers() is async (Next.js 16)
+- force-dynamic on all data pages
+- Server Actions handle all mutations; no API routes
+- Stock invariant enforced at DB level via triggers
+- Repairs are SERVICE-ONLY: no stock movement
 
 ---
 
-## Core Requirements
+## 2. Tech Stack
 
-1. **Multi-shop support** — 2–3 shops, each with independent stock, but
-   visible together to the owner.
-2. **Remote visibility** — owner can check any shop's stock and activity from
-   anywhere, in real time, via phone browser.
-3. **Stock tracked at model level** — not per-unit/IMEI. E.g. "iPhone 13 –
-   128GB" is a single stock count, not individual serials.
-4. **Three transaction types**: Sale, Swap, Repair.
-5. **Swaps move stock in both directions** — customer's used phone comes in
-   (added to stock as a new/used-condition model entry), shop's phone goes
-   out.
-6. **Swaps include a cash top-up** — the shop's phone is generally worth more
-   than the customer's, so the customer also pays a cash difference. This
-   top-up is the amount recorded for swap transactions (not a full sale
-   price).
-7. **Daily closing report** — at the end of each day, staff/owner need to see
-   how many units of each model went out that day, broken down by sale vs
-   swap.
-8. **Role-based access** — Owner sees everything across all shops; shop
-   attendants only see and record for their own shop, and cannot edit or
-   delete past transactions (protects log integrity when the owner isn't
-   watching).
-
----
-
-## Data Model
-
-### `shops`
-| field | type | notes |
+| Package | Version | Purpose |
 |---|---|---|
-| id | uuid | PK |
-| name | text | e.g. "Takoradi Market Circle" |
-| location | text | free text address/area |
-| phone | text | shop contact number |
+| next | 16.3.1 | Framework |
+| react / react-dom | 19.2.8 | UI |
+| @supabase/ssr | ^0.12.4 | Supabase SSR auth |
+| @supabase/supabase-js | ^2.112.3 | Supabase client |
+| tailwindcss | ^4 | Styling (@theme tokens) |
+| typescript | ^5 | Type safety |
+| eslint | ^9 | Linting |
 
-### `users`
-| field | type | notes |
+---
+
+## 3. Environment Variables
+
+| Variable | Scope | Purpose |
 |---|---|---|
-| id | uuid | PK, use Supabase Auth |
-| name | text | |
-| role | enum | `owner`, `attendant` |
-| shop_id | uuid FK → shops | null for owner (owner is cross-shop) |
+| NEXT_PUBLIC_SUPABASE_URL | Client+Server | Supabase project URL |
+| NEXT_PUBLIC_SUPABASE_ANON_KEY | Client+Server | Supabase anon key |
+| SUPABASE_SERVICE_ROLE_KEY | Server only | Bypasses RLS |
+| OWNER_SETUP_SECRET | Server only | Bootstrap owner via /setup |
+| SUPABASE_PROJECT_URL | Actions | Keep-awake REST URL |
+| SUPABASE_ANON_KEY | Actions | Keep-awake ping |
+| SUPABASE_ACCESS_TOKEN | Actions | Management API token |
+| SUPABASE_PROJECT_REF | Actions | Project ref |
 
-### `phone_models`
-Per-shop stock ledger. One row per model **per shop** (same model name can
-exist in multiple shops with different stock counts).
+---
 
-| field | type | notes |
+## 4. Database Schema (10 tables)
+
+### shops
+id uuid PK, name text, location text, phone text, created_at timestamptz
+
+### users
+id uuid PK -> auth.users(id) CASCADE, name text, role user_role, shop_id uuid -> shops(id) SET NULL, can_edit_stock boolean default false, created_at timestamptz
+Trigger: handle_new_user() auto-creates row on auth.users insert
+
+### phone_models
+id uuid PK, shop_id uuid FK CASCADE, model_name text, condition phone_condition, cost_price numeric(12,2), sale_price numeric(12,2), opening_stock int, bought_in int, available int CHECK>=0 (computed by triggers), low_stock_threshold int default 5, created_at timestamptz
+UNIQUE (shop_id, model_name, condition)
+Stock invariant: available = opening_stock + bought_in + SUM(in) - SUM(out)
+
+### transactions
+id uuid PK, shop_id uuid FK, staff_id uuid FK, customer_name text, customer_phone text, type tx_type, payment_method, amount numeric(12,2), date timestamptz, created_at timestamptz
+INDEXES: (shop_id, date DESC), (type)
+
+### transaction_items
+id uuid PK, transaction_id uuid FK CASCADE, phone_model_id uuid FK RESTRICT, direction item_direction, qty int CHECK>0
+
+### stock_adjustments
+id uuid PK, shop_id uuid FK, phone_model_id uuid FK, staff_id uuid FK, type adjustment_type, delta int, reason text, date timestamptz
+
+### stock_requests
+id uuid PK, shop_id uuid FK, staff_id uuid FK, type text (create_model/adjust_stock), status text (pending/approved/rejected), model_name, condition, cost_price, sale_price, low_stock_threshold, opening_stock, phone_model_id FK, delta, reason, created_at, decided_at, decided_by, error_note
+
+### swapped_phones
+id uuid PK, shop_id uuid FK, transaction_id uuid FK SET NULL, staff_id uuid FK, model_name text, condition, customer_name, customer_phone, status text (in_stock/sold/returned), notes, created_at
+
+### login_logs
+id uuid PK, user_id uuid FK, email, name, ip, user_agent, device (iPhone/iPad/Android/Windows/Mac/Linux), created_at
+
+### stock_logs
+id uuid PK, shop_id uuid FK, phone_model_id uuid FK SET NULL, staff_id uuid FK, action text (create_model/update_model/adjust_stock/bulk_create), model_name, condition, details jsonb, created_at
+
+---
+
+## 5. Enums
+
+| Enum | Values |
+|---|---|
+| user_role | owner, attendant |
+| phone_condition | new, used |
+| tx_type | sale, swap, repair |
+| payment_method | cash, mobile_money, card, bank_transfer, other |
+| item_direction | out, in |
+| adjustment_type | restock, correction |
+
+---
+
+## 6. Database Triggers
+
+### apply_item_stock_change()
+Fires AFTER INSERT/UPDATE/DELETE on transaction_items.
+INSERT: checks stock, updates available. DELETE: reverses. UPDATE: reverses old + applies new.
+
+### apply_stock_adjustment()
+Fires AFTER INSERT/UPDATE/DELETE on stock_adjustments.
+INSERT: checks stock for negative deltas, updates available + bought_in. DELETE: reverses. UPDATE: reverses old + applies new.
+
+---
+
+## 7. RPC Functions (7)
+
+### record_transaction
+Atomic: creates transaction + items. Enforces shop scope. Checks stock. Auto-creates new models for in_items. Returns uuid.
+
+### adjust_stock
+Checks owner or can_edit_stock. Validates model belongs to shop. Creates adjustment row.
+
+### delete_transaction
+Owner only. Cascading delete reverses stock via triggers.
+
+### approve_stock_request
+Owner only. Creates model or applies adjustment. Updates status.
+
+### reject_stock_request
+Owner only. Sets status to rejected.
+
+### approve_all_stock_requests
+Owner only. Iterates pending, applies each, catches errors per-request.
+
+### restore_backup
+Owner only. Disables triggers, deletes all data, re-inserts from backup JSON, re-enables triggers.
+
+---
+
+## 8. Row Level Security
+
+Helper: current_user_profile() returns (id, role, shop_id)
+
+| Table | Owner | Attendant |
 |---|---|---|
-| id | uuid | PK |
-| shop_id | uuid FK → shops | |
-| model_name | text | e.g. "iPhone 13 128GB", or "iPhone 11 (used, swap-in)" |
-| condition | enum | `new`, `used` — used matters for swap-in phones |
-| cost_price | numeric | what the shop paid/valued it at |
-| sale_price | numeric | asking price |
-| opening_stock | int | baseline count when system started tracking |
-| bought_in | int | running total added via restocking |
-| available | int | **computed/running balance** — never hand-edited directly; updated only via transactions, so it can't drift out of sync with reality |
+| shops | full access | SELECT own shop |
+| users | full access | read own + read same shop |
+| phone_models | full access | full access own shop |
+| transactions | full access | INSERT + SELECT own shop |
+| transaction_items | full access | via parent transaction shop |
+| stock_adjustments | full access | INSERT + SELECT own shop |
+| stock_requests | full access | INSERT + SELECT own shop |
+| swapped_phones | full access | INSERT + SELECT own shop |
+| login_logs | SELECT all | SELECT own + INSERT own |
+| stock_logs | full access | INSERT + SELECT own shop |
 
-### `transactions`
-One row per customer interaction.
+---
 
-| field | type | notes |
+## 9. Authentication and Roles
+
+### Owner
+- Single account via /setup with OWNER_SETUP_SECRET
+- Full CRUD on all data
+- Manages shops, staff, stock privileges
+- Approves/rejects stock requests
+- Access: Dashboard (all), Devices, Reports, Logs, Settings, Account
+
+### Attendant
+- Created by owner in Settings > Staff
+- Assigned to one shop
+- Records transactions for own shop only
+- can_edit_stock: true = direct stock editing; false = stock_requests approval flow
+- Access: Dashboard (own shop), Record, Shop page, Account
+
+---
+
+## 10. Pages and Routes
+
+| Route | Access | Description |
 |---|---|---|
-| id | uuid | PK |
-| shop_id | uuid FK → shops | |
-| staff_id | uuid FK → users | who recorded it |
-| customer_name | text | |
-| customer_phone | text | customer's contact number |
-| type | enum | `sale`, `swap`, `repair` |
-| payment_method | enum | cash, mobile money, card, etc. — confirm exact list with client |
-| amount | numeric | **for `sale`: full sale price. For `swap`: cash top-up only, not the phone's value.** |
-| date | timestamp | |
+| /login | public | Email/password login |
+| /setup | public | Bootstrap owner account |
+| / | authenticated | Dashboard with stats, charts, alerts |
+| /shops/[id] | authenticated | Shop detail, stock table, transactions |
+| /devices | owner | Model x shop matrix |
+| /transactions/new | authenticated | 3-step record wizard |
+| /transactions/[id] | authenticated | Receipt with share/print |
+| /reports | authenticated | Filtered reports + CSV export |
+| /logs | owner | Login + stock edit audit logs |
+| /settings | owner | Shops, staff, bulk import, backup |
+| /account | authenticated | Profile + change password |
 
-### `transaction_items`
-Line items per transaction — this is what lets a swap move stock two
-directions within one transaction record.
+---
 
-| field | type | notes |
+## 11. Components
+
+### Layout
+- app-shell.tsx: Mobile ink header + bottom 4-tab nav + menu sheet. Desktop sidebar.
+- shop-switcher.tsx: Owner shop context switcher
+- logout-button.tsx: Sign out + redirect
+
+### Dashboard
+- dashboard.tsx: Stat cards, charts, recent txs, low stock alerts, pending requests
+- dashboard-charts.tsx: Revenue trend + sales by type + top models
+- period-toggle.tsx: Today / 7d / 30d toggle
+- shop-filter.tsx: Owner shop filter dropdown
+
+### Transaction Recording
+- transaction-form.tsx: 3-step wizard (Type -> Phones -> Pay). QtySteppers, multi-line, swap trade-ins, suggested price.
+- model-picker.tsx: Autocomplete with stock hints, keyboard nav
+
+### Devices
+- devices-table.tsx: Desktop matrix + mobile compact rows, detail modal, sold history
+
+### Stock Management
+- stock-table.tsx: Per-shop stock with search/filters
+- product-edit-modal.tsx: Edit model + stock adjustment + history
+- bulk-stock-modal.tsx: Set target quantities for all models
+- add-model-form.tsx: Add new model (direct or via request)
+
+### Settings
+- shop-manager.tsx: Create/delete shops
+- staff-manager.tsx: Create/remove staff, reset passwords, toggle stock privilege
+- backup-restore.tsx: Download/upload JSON backup
+- bulk-add-models.tsx: Paste JSON/CSV to import models
+
+### Approval
+- stock-requests-panel.tsx: Pending requests, approve/reject/bulk approve
+
+### Swap
+- swapped-phones-list.tsx: Trade-in iPhones, status updates
+
+### Receipt
+- receipt-actions.tsx: WhatsApp share + copy + print
+- delete-transaction-button.tsx: Owner-only delete
+
+### Auth
+- auth-forms.tsx: Login form component
+- setup-owner-form.tsx: Owner setup form
+- change-password-form.tsx: Password change form
+
+### Shared UI (ui.tsx)
+- Button, ButtonSecondary, ButtonDanger
+- Input, Select, Textarea
+- Label, Field (with required indicator)
+- Card (with title/subtitle)
+- Badge (gray/green/amber/red/blue tones)
+- ErrorNote
+- EmptyState
+- Modal (with title/subtitle, backdrop)
+- useToast (success/error/info)
+- useConfirm (danger confirmation dialog)
+
+### Feedback (feedback.tsx)
+- Toast notifications (success/error/info) with auto-dismiss
+- Confirmation dialog with danger variant
+
+---
+
+## 12. Server Actions (src/lib/actions.ts)
+
+### Auth
+- login(): Sign in with retry, log login (IP, device, user-agent)
+- logout(): Sign out + redirect
+- changePassword(): Update own password
+- setupOwner(): Create owner account with secret
+
+### Transactions
+- recordTransaction(): Validate + call RPC + log swap phones + invalidate cache
+- deleteTransaction(): Call RPC + invalidate cache
+- updateSwappedPhoneStatus(): Update trade-in status (owner)
+
+### Stock
+- createModel(): Direct insert or stock_request for non-privileged
+- updateModel(): Edit model details (owner/privileged)
+- adjustStock(): Direct RPC or stock_request for non-privileged
+- bulkAdjustStock(): Set target quantities, compute deltas, apply or request
+- approveStockRequest(): Call RPC
+- rejectStockRequest(): Call RPC
+- approveAllStockRequests(): Call RPC (bulk)
+
+### Admin
+- createShop(), deleteShop()
+- createStaff(), removeStaff(), resetStaffPassword()
+- setStaffStockPrivilege(): Toggle can_edit_stock
+- restoreBackup(): Call RPC
+- bulkCreateModels(): Batch insert models (owner)
+
+All actions: validate input, check role, call Supabase, invalidateAllData() via updateTag.
+
+---
+
+## 13. Data Layer (src/lib/data.ts)
+
+### Types
+- SessionUser, TransactionWithDetails, DailyRow, ShopDailySummary
+- DeviceCell, DeviceSale, DeviceRow, DevicesData
+- StockRequestWithDetails, DashboardData, DashboardTotals, DailyPoint
+- LoginLog, StockLogEntry
+
+### Direct Queries (with Supabase client)
+- getSession(), requireSession()
+- getShops(), getStock(shopId?)
+- getTransactions(opts), getTransaction(id)
+- getDailySummary(shopId, date), getShopSummary(shopId, from, to)
+- getAdjustments(shopId?, limit)
+- getSwappedPhones(opts)
+- getStockRequests(opts)
+- getDevicesData(): Aggregated model x shop matrix
+- getDashboardData(period, shopFilter): Unified dashboard for owner/attendant
+- getLoginLogs(limit), getStockLogs(limit)
+
+### Hydration
+- hydrateTransactions(): Enriches transactions with shop names, staff names, item details
+
+---
+
+## 14. Caching Strategy
+
+- DATA_CACHE_REVALIDATE_SECONDS = 30
+- DATA_CACHE_TAGS: shops, stock, transactions, requests, adjustments, swaps, logs, users
+- getCachedAdminClient(): Service-role client without no-store
+- All owner/global reads use unstable_cache with tags
+- All mutations call invalidateAllData() -> updateTag for each tag
+- Pages: export const dynamic = force-dynamic
+
+Cached functions:
+- getCachedShops, getCachedStock, getCachedTransactions
+- getCachedStockRequests, getCachedAdjustments, getCachedSwappedPhones
+- getCachedShopSummary, getCachedLoginLogs, getCachedStockLogs
+
+---
+
+## 15. Formatting (src/lib/format.ts)
+
+- formatMoney(n): GHS XX.XX
+- formatNumber(n): raw number string
+- formatDateTime(iso): Smart format (time only if same day, else DD Mon YYYY, HH:MM)
+- todayISO(): YYYY-MM-DD for today
+- addDays(iso, days): Date arithmetic
+
+---
+
+## 16. PWA and Deployment
+
+- Service worker at /sw.js
+- Web manifest at /manifest.webmanifest
+- Installable on mobile devices
+- Deployed via Vercel (Next.js)
+
+---
+
+## 17. Design Tokens (globals.css @theme)
+
+| Token | Value | Usage |
 |---|---|---|
-| id | uuid | PK |
-| transaction_id | uuid FK → transactions | |
-| phone_model_id | uuid FK → phone_models | |
-| direction | enum | `out` (leaving shop stock) or `in` (entering shop stock) |
-| qty | int | almost always 1, but support >1 for bulk sales |
-
-**How each transaction type populates `transaction_items`:**
-- **Sale**: one `out` row (the phone sold).
-- **Swap**: one `out` row (shop's phone to customer) + one `in` row
-  (customer's phone into shop stock — if that model doesn't yet exist for
-  this shop, create a new `phone_models` row for it, condition = `used`).
-- **Repair**: no stock movement by default; only log the transaction record
-  and amount charged. (Flag to confirm with client if repairs ever consume
-  parts/stock — not currently in scope.)
-
-**Stock update logic**: `available` on `phone_models` is recalculated (or
-incremented/decremented via a DB trigger/function) whenever a
-`transaction_items` row is inserted — `out` decreases `available`, `in`
-increases it. Do not allow direct manual edits to `available` in the UI;
-only allow manual **stock intake** (restocking) as its own recorded action
-that increments `bought_in` and `available` together.
+| ink | #14162B | Primary text |
+| paper | #F4F5FA | Page/card background |
+| line | #E4E5EF | Borders, dividers |
+| mute | #767B94 | Secondary text |
+| brand | #4338CA | Primary accent |
+| brand-deep | #312896 | Hover states |
+| brand-tint | #E8E7FB | Light brand bg |
+| ledger | #B8791F | Currency highlights |
+| instock | #1E7A4C | Positive/good stock |
+| instock-tint | #E6F5ED | Light green bg |
+| lowstock | #B4402A | Warning/danger |
+| lowstock-tint | #FBEDE8 | Light red bg |
 
 ---
 
-## Screens
+## 18. Supabase Keep-Awake
 
-### Owner Dashboard (cross-shop, mobile-friendly)
-- Stock levels across all shops, side by side
-- Today's sales/swaps count and total revenue, per shop
-- Low-stock alerts (configurable threshold per model)
-- Best-selling models across all shops
-- Revenue breakdown by payment method
-- **Daily closing summary**: per shop, per model, how many units went out
-  today, split by sale vs swap — this should be front-and-center, not buried
-  in a reports tab
-
-### Shop View (attendant, scoped to their shop only)
-- Current stock table for their shop
-- "Record Transaction" form — type (sale/swap/repair), model(s) involved,
-  customer details, payment method, amount
-  - Swap form specifically needs two model pickers: "phone going out" and
-    "phone coming in," plus the top-up amount
-- Their shop's daily log / closing summary
-
-### Reports
-- Filterable by shop, date range, payment method, transaction type
-- Exportable (CSV at minimum)
+GitHub Actions workflow (.github/workflows/keep-supabase-awake.yml):
+- Runs every 3 hours
+- Non-blocking resume via Supabase Management API
+- REST ping to verify the project is responsive
+- Secrets: SUPABASE_PROJECT_URL, SUPABASE_ANON_KEY, SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF
 
 ---
 
-## Roles & Permissions
+## 19. Git and Deployment
 
-| action | owner | attendant |
-|---|---|---|
-| view all shops | yes | no (own shop only) |
-| record transaction | yes | yes (own shop only) |
-| edit/delete past transaction | yes | **no** |
-| add/remove staff | yes | no |
-| add/remove shops | yes | no |
-| adjust stock (restock) | yes | yes (own shop only) — confirm with client if this should require owner approval |
-
----
-
-## Tech Stack
-
-- **Frontend/Backend**: Next.js (React) — single web app, responsive, works
-  as the owner's remote dashboard from any phone browser without a native
-  app build.
-- **Database/Auth/Realtime**: Supabase (Postgres) — realtime subscriptions
-  so stock updates reflect live across devices; built-in auth for
-  owner/attendant roles via Row Level Security (RLS) policies scoped by
-  `shop_id`.
-
-### Known issue: Supabase free-tier idle pausing
-Supabase free-tier projects auto-pause after ~1 week of zero API activity.
-For a live production tool this is a real risk (owner opens dashboard to a
-paused DB). Mitigations, in order of recommendation:
-1. **Short term / during build**: scheduled keep-alive ping (e.g. free
-   GitHub Action cron hitting the project every few days) to prevent
-   pausing.
-2. **At launch / production**: upgrade to Supabase Pro (~$25/mo) — no
-   pausing, better backups and performance. Recommended once this is live
-   in the shops and the owner depends on it daily.
-3. **Alternative**: self-host Postgres (Railway/Render) to sidestep the
-   idle policy entirely, similar cost.
-
-Building agent should implement the keep-alive ping as a safety net
-regardless of which DB tier is chosen at launch.
-
----
-
-## Open Questions for Client (not yet resolved — confirm before finalizing)
-
-- Exact list of accepted payment methods (cash, MoMo provider(s), card?).
-- Should repairs ever consume parts/stock, or are they always service-only?
-- Should attendant-initiated restocking require owner approval, or is direct
-  entry fine?
-- Low-stock alert threshold — same for all models, or configurable per
-  model?
-- Any need for multi-currency (Ghana cedis assumed only)?
-
----
-
-## Build Priority (suggested order)
-
-1. Supabase schema (tables above + RLS policies for shop-scoped access)
-2. Auth + role setup (owner vs attendant login)
-3. Transaction recording form (sale/swap/repair) with correct stock-side-effect logic
-4. Shop view: stock table + daily closing summary
-5. Owner dashboard: cross-shop rollup views
-6. Reports/export
-7. Keep-alive ping job for Supabase
-
----
-
-## Resolved During Build (implementation decisions)
-
-These resolve the inconsistencies/open items from above. The running schema is
-in `supabase/schema.sql` — treat that as source of truth.
-
-1. **Repairs are service-only.** The customer's phone comes in and goes back
-   with them; no stock movement, only the transaction record + charge. The UI
-   states this on the repair form.
-2. **Stock invariant enforced in the DB.** `available` can never be hand-edited
-   and can never go below 0:
-   `available = opening_stock + bought_in + Σ(in) − Σ(out)`.
-   - `transaction_items` rows drive it via a trigger (`out` decrements, `in`
-     increments).
-   - Manual intake goes through a separate `stock_adjustments` table (its own
-     trigger), so restocks/corrections are audited and never touch
-     `available` directly.
-   - `record_transaction()` / `adjust_stock()` RPCs do the work atomically and
-     raise a friendly error on insufficient stock.
-3. **Transactions are recorded atomically** via a Postgres RPC
-   (`record_transaction`) instead of multiple client-side inserts — a swap
-   can't leave a half-written transaction.
-4. **Swap-ins create `used` condition rows** keyed by `(shop_id, model_name,
-   condition)`. A swap-in for an unknown model auto-creates the row.
-5. **Payment methods**: `cash, mobile_money, card, bank_transfer, other`.
-   Adjust the enum in `schema.sql` if the client's list differs.
-6. **Low-stock threshold is configurable per model** (`low_stock_threshold`
-   column, default 5), not global.
-7. **Deleting a transaction** (owner only) reverses its stock effect via the
-   item trigger. Edge case: if a swap-in phone was later sold, deleting the
-   original swap would push `available` negative and the DB blocks it with a
-   clear error — acceptable for now.
-8. **Attendant restocking is allowed without owner approval** (per design
-   default). Staff can add stock/corrections for their own shop only.
-9. **Owner bootstrap (no public signup)**: the owner account is created once
-   by the operator via `/setup`, guarded by the `OWNER_SETUP_SECRET` env var.
-   The setup handler refuses to run if an owner already exists. Staff accounts
-   are created by the owner in Settings using the server-side service role key
-   and cannot sign up on their own; `/signup` redirects to `/login`.
-
+- Remote: github.com/Ajigiwe/stock
+- Branch: main
+- Lint: npx eslint src --max-warnings=0
+- Build: npm run build
+- All mutations invalidate cache via updateTag
