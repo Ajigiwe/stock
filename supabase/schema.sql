@@ -112,16 +112,17 @@ create table public.phone_models (
 -- transactions  (one row per customer interaction)
 -- ---------------------------------------------------------------------------
 create table public.transactions (
-  id              uuid primary key default gen_random_uuid(),
-  shop_id         uuid not null references public.shops (id) on delete cascade,
-  staff_id        uuid not null references public.users (id),
-  customer_name   text,
-  customer_phone  text,
-  type            tx_type not null,
-  payment_method  payment_method not null,
-  amount          numeric(12,2) not null default 0, -- sale: full price; swap: top-up; repair: charge
-  date            timestamptz not null default now(),
-  created_at      timestamptz not null default now()
+  id                uuid primary key default gen_random_uuid(),
+  shop_id           uuid not null references public.shops (id) on delete cascade,
+  staff_id          uuid not null references public.users (id),
+  customer_name     text,
+  customer_phone    text,
+  type              tx_type not null,
+  payment_method    payment_method not null,
+  amount            numeric(12,2) not null default 0, -- sale: full price; swap: top-up; repair: charge
+  date              timestamptz not null default now(),
+  created_at        timestamptz not null default now(),
+  idempotency_key   uuid unique  -- client-generated; prevents double-submit duplicates
 );
 
 create index transactions_shop_date_idx on public.transactions (shop_id, date desc);
@@ -290,7 +291,8 @@ create or replace function public.record_transaction(
   p_amount numeric,
   p_date timestamptz default now(),
   p_out_items jsonb default '[]'::jsonb,
-  p_in_items jsonb default '[]'::jsonb
+  p_in_items jsonb default '[]'::jsonb,
+  p_idempotency_key uuid default null
 ) returns uuid
 language plpgsql security definer set search_path = public
 as $$
@@ -317,8 +319,19 @@ begin
     end if;
   end if;
 
-  insert into public.transactions (shop_id, staff_id, customer_name, customer_phone, type, payment_method, amount, date)
-  values (p_shop_id, v_staff_id, p_customer_name, p_customer_phone, p_type, p_payment_method, p_amount, p_date)
+  -- Idempotency: if this key was already used, return the existing transaction
+  -- (no double stock deduction).
+  if p_idempotency_key is not null then
+    select t.id into v_tx_id
+      from public.transactions t
+     where t.idempotency_key = p_idempotency_key;
+    if v_tx_id is not null then
+      return v_tx_id;
+    end if;
+  end if;
+
+  insert into public.transactions (shop_id, staff_id, customer_name, customer_phone, type, payment_method, amount, date, idempotency_key)
+  values (p_shop_id, v_staff_id, p_customer_name, p_customer_phone, p_type, p_payment_method, p_amount, p_date, p_idempotency_key)
   returning id into v_tx_id;
 
   -- outgoing stock
@@ -369,7 +382,7 @@ begin
 end;
 $$;
 
-grant execute on function public.record_transaction(uuid, text, text, public.tx_type, public.payment_method, numeric, timestamptz, jsonb, jsonb) to authenticated;
+grant execute on function public.record_transaction(uuid, text, text, public.tx_type, public.payment_method, numeric, timestamptz, jsonb, jsonb, uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- RPC: adjust_stock  (restock / manual correction)

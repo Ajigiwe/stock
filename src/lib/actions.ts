@@ -318,6 +318,7 @@ export async function recordTransaction(
     p_date: date ?? new Date().toISOString(),
     p_out_items: outItems,
     p_in_items: inItems,
+    p_idempotency_key: crypto.randomUUID(),
   });
 
   if (error) return { ok: false, error: error.message };
@@ -350,11 +351,43 @@ export async function recordTransaction(
 }
 
 export async function deleteTransaction(id: string): Promise<ActionResult> {
+  const session = await requireSession();
   const supabase = await createClient();
+
+  // 1. Capture a full snapshot before the cascade delete fires.
+  const { data: txRow } = await supabase
+    .from("transactions")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  const { data: items } = await supabase
+    .from("transaction_items")
+    .select("*")
+    .eq("transaction_id", id);
+  const snapshot = { transaction: txRow ?? null, items: items ?? [] };
+
+  // 2. Delete via RPC (cascades transaction_items).
   const { error } = await supabase.rpc("delete_transaction", {
     p_transaction_id: id,
   });
   if (error) return { ok: false, error: error.message };
+
+  // 3. Best-effort log the deleted transaction for audit.
+  try {
+    const admin = getAdminClient();
+    await admin.from("stock_logs").insert({
+      shop_id: snapshot.transaction!.shop_id,
+      staff_id: session.id,
+      action: "delete_transaction",
+      model_name: null,
+      phone_model_id: null,
+      condition: null,
+      details: { deleted_transaction: snapshot } as Json,
+    });
+  } catch (e) {
+    console.error("stock_log insert (delete_transaction) failed:", e);
+  }
+
   invalidateAllData();
   return { ok: true };
 }

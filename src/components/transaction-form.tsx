@@ -180,6 +180,7 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
   };
 
   const goNext = () => {
+    if (pending) return;
     setError(null);
     if (step === steps.length - 1) return submit();
     if (!stepValid()) {

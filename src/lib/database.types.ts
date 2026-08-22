@@ -137,6 +137,7 @@ export type Database = {
           amount: number;
           date: string;
           created_at: string;
+          idempotency_key: string | null;
         };
         Insert: {
           id?: string;
@@ -149,6 +150,7 @@ export type Database = {
           amount?: number;
           date?: string;
           created_at?: string;
+          idempotency_key?: string | null;
         };
         Update: {
           id?: string;
@@ -161,6 +163,7 @@ export type Database = {
           amount?: number;
           date?: string;
           created_at?: string;
+          idempotency_key?: string | null;
         };
         Relationships: [
           {
@@ -535,6 +538,7 @@ export type Database = {
           p_date?: string;
           p_out_items?: { phone_model_id: string; qty: number }[];
           p_in_items?: Record<string, unknown>[];
+          p_idempotency_key?: string | null;
         };
         Returns: string;
       };

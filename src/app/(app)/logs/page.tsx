@@ -10,6 +10,7 @@ const ACTION_LABEL: Record<string, string> = {
   update_model: "Edited product",
   adjust_stock: "Adjusted stock",
   bulk_create: "Bulk added models",
+  delete_transaction: "Deleted transaction",
 };
 
 function stockDetails(action: string, details: unknown): string {
@@ -26,6 +27,14 @@ function stockDetails(action: string, details: unknown): string {
     return `Opening stock ${opening}`;
   }
   if (action === "bulk_create") return "";
+  if (action === "delete_transaction") {
+    const snap = (d as Record<string, unknown>)?.deleted_transaction as
+      | { transaction?: { type?: string; customer_name?: string; amount?: number } | null; items?: { phone_model_id: string }[] } | null;
+    if (!snap?.transaction) return "";
+    const t = snap.transaction;
+    const items = snap.items?.length ?? 0;
+    return `Deleted ${t.type ?? "tx"} for ${t.customer_name ?? "customer"} · GHS ${Number(t.amount ?? 0).toLocaleString()} · ${items} item${items === 1 ? "" : "s"}`;
+  }
   return "";
 }
 
@@ -113,7 +122,9 @@ export default async function LogsPage() {
                             : "red"
                           : l.action === "create_model"
                             ? "blue"
-                            : "gray"
+                            : l.action === "delete_transaction"
+                              ? "red"
+                              : "gray"
                       }
                     >
                       {ACTION_LABEL[l.action] ?? l.action}
