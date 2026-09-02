@@ -1,12 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import type { PhoneModel, StockAdjustment } from "@/lib/data";
 import { formatMoney } from "@/lib/format";
 import { Badge, EmptyState, Input } from "@/components/ui";
 import { ProductEditModal } from "@/components/product-edit-modal";
 
 type CondFilter = "all" | "new" | "used";
+
+// How many rows render before the "Load more" button appears. Rendering
+// hundreds of rows at once made the DOM heavy on low-end phones.
+const PAGE_SIZE = 50;
 
 export function StockTable({
   stock,
@@ -19,9 +24,27 @@ export function StockTable({
   canEditStock: boolean;
   adjustments: StockAdjustment[];
 }) {
-  const [q, setQ] = useState("");
-  const [cond, setCond] = useState<CondFilter>("all");
-  const [lowOnly, setLowOnly] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Filter state lives in the URL (?q=&cond=&low=1) so refresh and back-nav
+  // preserve it, and a filtered view can be shared.
+  const q = searchParams.get("q") ?? "";
+  const cond = (searchParams.get("cond") as CondFilter) || "all";
+  const lowOnly = searchParams.get("low") === "1";
+  const [visible, setVisible] = useState(PAGE_SIZE);
+
+  const setParam = (key: string, value: string | null) => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (value == null || value === "" || (key === "cond" && value === "all")) {
+      next.delete(key);
+    } else {
+      next.set(key, value);
+    }
+    setVisible(PAGE_SIZE); // filter change resets pagination
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+  };
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -44,6 +67,8 @@ export function StockTable({
     }
     return { units, cost, retail };
   }, [filtered]);
+
+  const shown = filtered.slice(0, visible);
 
   if (stock.length === 0) {
     return <EmptyState>No models yet. Add the first one above.</EmptyState>;
@@ -70,7 +95,7 @@ export function StockTable({
           </svg>
           <Input
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => setParam("q", e.target.value)}
             placeholder="Search models…"
             className="pl-9"
           />
@@ -81,8 +106,8 @@ export function StockTable({
               <button
                 key={c}
                 type="button"
-                onClick={() => setCond(c)}
-                className={`h-8 rounded-md px-3 text-xs font-medium capitalize transition-colors ${
+                onClick={() => setParam("cond", c)}
+                className={`h-11 rounded-md px-3 text-xs font-medium capitalize transition-colors ${
                   cond === c
                     ? "bg-ink text-white"
                     : "text-mute hover:text-ink"
@@ -94,8 +119,9 @@ export function StockTable({
           </div>
           <button
             type="button"
-            onClick={() => setLowOnly((v) => !v)}
-            className={`h-8 rounded-lg border px-3 text-xs font-medium transition-colors ${
+            onClick={() => setParam("low", lowOnly ? null : "1")}
+            aria-pressed={lowOnly}
+            className={`h-11 rounded-lg border px-3 text-xs font-medium transition-colors ${
               lowOnly
                 ? "border-brand bg-brand-tint text-brand"
                 : "border-line text-mute hover:text-ink"
@@ -144,7 +170,7 @@ export function StockTable({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((m) => {
+                {shown.map((m) => {
                   const low = m.available <= m.low_stock_threshold;
                   return (
                     <tr key={m.id} className="border-b border-paper">
@@ -185,7 +211,7 @@ export function StockTable({
             </table>
           </div>
           <ul className="space-y-2 sm:hidden">
-            {filtered.map((m) => {
+            {shown.map((m) => {
               const low = m.available <= m.low_stock_threshold;
               return (
                 <li key={m.id} className="rounded-lg border border-line bg-paper p-3">
@@ -210,15 +236,15 @@ export function StockTable({
                   </div>
                   <div className="mt-2 grid grid-cols-3 gap-2 text-center">
                     <div className="rounded-lg bg-white px-2 py-1.5">
-                      <div className="text-[11px] font-medium uppercase tracking-wide text-mute">Opening</div>
+                      <div className="text-xs font-medium uppercase tracking-wide text-mute">Opening</div>
                       <div className="text-sm font-semibold text-ink">{m.opening_stock}</div>
                     </div>
                     <div className="rounded-lg bg-white px-2 py-1.5">
-                      <div className="text-[11px] font-medium uppercase tracking-wide text-mute">Bought</div>
+                      <div className="text-xs font-medium uppercase tracking-wide text-mute">Bought</div>
                       <div className="text-sm font-semibold text-ink">{m.bought_in}</div>
                     </div>
                     <div className={`rounded-lg bg-white px-2 py-1.5 ${low ? "ring-1 ring-lowstock" : ""}`}>
-                      <div className="text-[11px] font-medium uppercase tracking-wide text-mute">Available</div>
+                      <div className="text-xs font-medium uppercase tracking-wide text-mute">Available</div>
                       <div className={`text-sm font-bold ${low ? "text-lowstock" : "text-ink"}`}>{m.available}</div>
                     </div>
                   </div>
@@ -226,6 +252,15 @@ export function StockTable({
               );
             })}
           </ul>
+          {visible < filtered.length && (
+            <button
+              type="button"
+              onClick={() => setVisible((v) => v + PAGE_SIZE)}
+              className="inline-flex h-11 w-full items-center justify-center rounded-lg border border-line bg-white text-sm font-medium text-ink transition-colors hover:bg-paper"
+            >
+              Load more ({filtered.length - visible} remaining)
+            </button>
+          )}
         </>
       )}
     </div>

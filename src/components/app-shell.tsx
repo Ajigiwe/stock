@@ -365,7 +365,7 @@ export function AppShell({
             <Link
               key={t.href}
               href={t.href}
-              className={`flex flex-col items-center gap-0.5 px-1 pb-1.5 pt-2 text-[10px] leading-tight transition-colors ${
+              className={`flex flex-col items-center gap-0.5 px-1 pb-1.5 pt-2 text-xs leading-tight transition-colors ${
                 isActive(t.href)
                   ? "font-bold text-brand"
                   : "font-medium text-mute hover:text-ink"

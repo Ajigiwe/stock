@@ -25,14 +25,24 @@ export function ChangePasswordForm() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-3">
+      <Field label="Current password">
+        <Input
+          name="currentPassword"
+          type="password"
+          required
+          autoComplete="current-password"
+          placeholder="your current password"
+        />
+      </Field>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="New password">
           <Input
             name="password"
             type="password"
             required
+            minLength={8}
             autoComplete="new-password"
-            placeholder="min 6 characters"
+            placeholder="min 8 characters"
           />
         </Field>
         <Field label="Confirm new password">
@@ -40,6 +50,7 @@ export function ChangePasswordForm() {
             name="confirm"
             type="password"
             required
+            minLength={8}
             autoComplete="new-password"
             placeholder="re-enter password"
           />

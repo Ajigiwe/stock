@@ -86,11 +86,16 @@ export async function getSession(): Promise<SessionUser | null> {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: profile } = await supabase
+  const { data: profile, error } = await supabase
     .from("users")
     .select("*")
     .eq("id", user.id)
     .maybeSingle();
+
+  // A failed profile read must not silently yield `profile: null`. Callers gate
+  // access on `profile.role` / `profile.shop_id`, so a null profile turns those
+  // checks into no-ops and the page falls open. Fail closed instead.
+  if (error) throw new Error(`Could not load your profile: ${error.message}`);
 
   return { id: user.id, email: user.email, profile };
 }
@@ -101,6 +106,25 @@ export async function requireSession(): Promise<SessionUser> {
     throw new Error("Not authenticated");
   }
   return session;
+}
+
+// The session plus a resolved role, for pages that must fail closed. Anything
+// other than a confirmed owner is treated as an attendant scoped to one shop.
+export type ScopedSession = SessionUser & {
+  isOwner: boolean;
+  shopId: string | null;
+};
+
+export async function requireScopedSession(): Promise<ScopedSession> {
+  const session = await requireSession();
+  if (!session.profile) {
+    throw new Error("Your account has no profile. Ask the owner to re-add you.");
+  }
+  return {
+    ...session,
+    isOwner: session.profile.role === "owner",
+    shopId: session.profile.shop_id,
+  };
 }
 
 export async function getShops(): Promise<Shop[]> {
@@ -126,6 +150,12 @@ export async function getStock(shopId?: string): Promise<PhoneModel[]> {
 }
 
 export type CacheTags = (typeof DATA_CACHE_TAGS)[number];
+
+// Upper bound on how many transactions any single query will load. Every caller
+// either passes a narrow date range or renders a recent list, so nothing legit
+// comes close — the cap only stops an unfiltered query from dragging the whole
+// history into memory.
+export const TX_READ_LIMIT = 2000;
 
 // ---------------------------------------------------------------------------
 // Cached owner / global reads
@@ -188,6 +218,7 @@ export const getCachedTransactions = unstable_cache(
         opts.paymentMethod as Database["public"]["Enums"]["payment_method"],
       );
     if (opts.limit) q = q.limit(opts.limit);
+    else q = q.limit(TX_READ_LIMIT);
 
     const { data: txs, error } = await q;
     if (error) throw new Error(error.message);
@@ -439,13 +470,22 @@ export type DeviceRow = {
 export type DevicesData = {
   shops: Shop[];
   rows: DeviceRow[];
+  /** Start of the sales window the `sold` / `sales` figures cover. */
+  salesFrom: string;
 };
 
+// How much sales history the Devices page loads. This used to be every
+// transaction ever recorded, hydrated in full and kept in memory — it grew
+// without bound. Stock figures are still live; only the sold-history is windowed.
+export const DEVICES_SALES_WINDOW_DAYS = 180;
+const DEVICES_MAX_SALES_PER_MODEL = 200;
+
 export async function getDevicesData(): Promise<DevicesData> {
+  const salesFrom = addDays(todayISO(), -DEVICES_SALES_WINDOW_DAYS);
   const [shops, stock, txs] = await Promise.all([
     getCachedShops(),
     getCachedStock(),
-    getCachedTransactions({}),
+    getCachedTransactions({ from: salesFrom }),
   ]);
   const shopIndex = new Map(shops.map((s, i) => [s.id, i]));
 
@@ -510,6 +550,11 @@ export async function getDevicesData(): Promise<DevicesData> {
 
   for (const row of map.values()) {
     row.sales.sort((a, b) => b.date.localeCompare(a.date));
+    // The detail modal only ever shows the most recent sales; keeping every one
+    // in memory is what made this page grow without bound.
+    if (row.sales.length > DEVICES_MAX_SALES_PER_MODEL) {
+      row.sales.length = DEVICES_MAX_SALES_PER_MODEL;
+    }
   }
 
   const rows = [...map.values()].sort(
@@ -518,7 +563,7 @@ export async function getDevicesData(): Promise<DevicesData> {
       a.condition.localeCompare(b.condition),
   );
 
-  return { shops, rows };
+  return { shops, rows, salesFrom };
 }
 
 export async function getTransactions(opts: {
@@ -537,7 +582,7 @@ export async function getTransactions(opts: {
   if (opts.to) q = q.lt("date", `${addDays(opts.to, 1)}T00:00:00Z`);
   if (opts.type) q = q.eq("type", opts.type as "sale" | "swap" | "repair");
   if (opts.paymentMethod) q = q.eq("payment_method", opts.paymentMethod as Database["public"]["Enums"]["payment_method"]);
-  if (opts.limit) q = q.limit(opts.limit);
+  q = q.limit(opts.limit ?? TX_READ_LIMIT);
 
   const { data: txs, error } = await q;
   if (error) throw new Error(error.message);
@@ -597,23 +642,31 @@ async function hydrateTransactions(
     (modelsRes.data ?? []).map((m) => [m.id, m]),
   );
 
+  // Group items by transaction once. Filtering the full item list inside the map
+  // below made this O(transactions × items), which dominates on the devices and
+  // reports pages.
+  const itemsByTx = new Map<string, TransactionItem[]>();
+  for (const i of items) {
+    const list = itemsByTx.get(i.transaction_id);
+    if (list) list.push(i);
+    else itemsByTx.set(i.transaction_id, [i]);
+  }
+
   return txs.map((t) => ({
     ...t,
     shop_name: shopName.get(t.shop_id) ?? null,
     staff_name: staffName.get(t.staff_id) ?? null,
-    items: items
-      .filter((i) => i.transaction_id === t.id)
-      .map((i) => {
-        const m = modelInfo.get(i.phone_model_id);
-        return {
-          id: i.id,
-          direction: i.direction,
-          qty: i.qty,
-          model_name: m?.model_name ?? "Unknown model",
-          condition: m?.condition ?? "used",
-          cost_price: m?.cost_price ?? null,
-        };
-      }),
+    items: (itemsByTx.get(t.id) ?? []).map((i) => {
+      const m = modelInfo.get(i.phone_model_id);
+      return {
+        id: i.id,
+        direction: i.direction,
+        qty: i.qty,
+        model_name: m?.model_name ?? "Unknown model",
+        condition: m?.condition ?? "used",
+        cost_price: m?.cost_price ?? null,
+      };
+    }),
   }));
 }
 

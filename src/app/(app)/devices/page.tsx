@@ -1,5 +1,9 @@
 import { redirect } from "next/navigation";
-import { getSession, getDevicesData } from "@/lib/data";
+import {
+  getSession,
+  getDevicesData,
+  DEVICES_SALES_WINDOW_DAYS,
+} from "@/lib/data";
 import { DevicesTable } from "@/components/devices-table";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +25,7 @@ export default async function DevicesPage() {
         <h1 className="text-xl font-bold text-ink">Devices</h1>
         <p className="text-sm text-mute">
           Available pieces per model across every shop, plus who sold them
+          {" — "}sales from the last {DEVICES_SALES_WINDOW_DAYS} days
         </p>
       </div>
 

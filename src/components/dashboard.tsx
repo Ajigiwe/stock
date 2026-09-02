@@ -159,7 +159,7 @@ function StatCards({
           key={it.label}
           className="flex min-h-[84px] flex-col gap-1 rounded-2xl border border-line bg-white px-4 py-3.5"
         >
-          <span className="text-[10.5px] font-semibold uppercase tracking-wider text-mute">
+          <span className="text-xs font-semibold uppercase tracking-wider text-mute">
             {it.label}
           </span>
           <span
@@ -202,7 +202,7 @@ function LowStockAlert({
           <div className="text-[13.5px] font-bold text-ink">
             {items.length === 1 ? "Model running low" : "Models running low"}
           </div>
-          <div className="mt-0.5 truncate text-[11.5px] text-mute">
+          <div className="mt-0.5 truncate text-xs text-mute">
             {first.model.model_name} · {first.model.available} left
             {isOwner ? ` · ${first.shop.name}` : ""}
             {items.length > 1 ? ` · +${items.length - 1} more` : ""}

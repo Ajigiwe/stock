@@ -12,7 +12,7 @@ export function Button({
 }: ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
-      className={`inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-brand px-4 text-sm font-medium text-white transition-colors hover:bg-brand-deep disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+      className={`inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-brand px-4 text-sm font-medium text-white transition-colors hover:bg-brand-deep disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
       {...props}
     />
   );
@@ -24,7 +24,7 @@ export function ButtonSecondary({
 }: ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
-      className={`inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-line bg-white px-4 text-sm font-medium text-ink/80 transition-colors hover:bg-paper disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+      className={`inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-white px-4 text-sm font-medium text-ink/80 transition-colors hover:bg-paper disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
       {...props}
     />
   );
@@ -36,7 +36,7 @@ export function ButtonDanger({
 }: ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
-      className={`inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-lowstock px-4 text-sm font-medium text-white transition-colors hover:bg-lowstock/80 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+      className={`inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-lowstock px-4 text-sm font-medium text-white transition-colors hover:bg-lowstock/80 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
       {...props}
     />
   );
@@ -45,7 +45,7 @@ export function ButtonDanger({
 export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      className={`h-10 w-full rounded-lg border border-line bg-white px-3 text-sm text-ink placeholder:text-mute focus:border-mute focus:outline-none ${className}`}
+      className={`h-11 w-full rounded-lg border border-line bg-white px-3 text-[15px] text-ink placeholder:text-mute focus:border-mute focus:outline-none ${className}`}
       {...props}
     />
   );
@@ -57,7 +57,7 @@ export function Select({
 }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
-      className={`h-10 w-full rounded-lg border border-line bg-white px-3 text-sm text-ink focus:border-mute focus:outline-none ${className}`}
+      className={`h-11 w-full rounded-lg border border-line bg-white px-3 text-[15px] text-ink focus:border-mute focus:outline-none ${className}`}
       {...props}
     />
   );
@@ -206,7 +206,7 @@ export function Modal({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-mute transition-colors hover:bg-paper hover:text-mute"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-mute transition-colors hover:bg-paper hover:text-mute"
           >
             ✕
           </button>

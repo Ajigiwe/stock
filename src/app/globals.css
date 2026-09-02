@@ -14,8 +14,9 @@
   --color-paper: #f4f5fa;
   /* line — hairline borders */
   --color-line: #e4e5ef;
-  /* mute — secondary text */
-  --color-mute: #767b94;
+  /* mute — secondary text. Darkened from #767b94 to hit WCAG AA (4.5:1)
+     against paper #f4f5fa and white cards. */
+  --color-mute: #5b607a;
   /* brand — primary action */
   --color-brand: #4338ca;
   --color-brand-deep: #312896;
@@ -41,6 +42,27 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Step transition for the record-transaction wizard (and any keyed panel). */
+@keyframes step-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.step-panel {
+  animation: step-in 160ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .step-panel {
+    animation: none;
+  }
 }
 
 @media print {

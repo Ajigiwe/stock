@@ -105,7 +105,7 @@ export function BulkStockModal({
                 {changes.length} change{changes.length === 1 ? "" : "s"}
               </span>
             </div>
-            <div className="mb-2 grid grid-cols-[minmax(0,1fr)_120px] items-center gap-3 px-3 text-[11px] font-medium uppercase tracking-wide text-mute">
+            <div className="mb-2 grid grid-cols-[minmax(0,1fr)_120px] items-center gap-3 px-3 text-xs font-medium uppercase tracking-wide text-mute">
               <span>Model</span>
               <span className="text-right">Target</span>
             </div>

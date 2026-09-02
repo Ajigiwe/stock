@@ -25,11 +25,12 @@ Built with [Next.js](https://nextjs.org) (App Router, React 19) and [Supabase](h
 
 ```
 available = opening_stock + bought_in + Σ(swap-ins) − Σ(sales + swap-outs)
+          + Σ(restocks) − Σ(corrections)        where bought_in = Σ(restocks)
 ```
 
 - Sales and swap-outs decrease stock; swap-ins increase it; repairs move nothing.
-- Restocking and corrections go through an audited `stock_adjustments` table.
-- Transactions are recorded atomically via a Postgres RPC — a swap can never leave a half-written transaction.
+- Restocking and corrections go through an audited `stock_adjustments` table — positive deltas increment `bought_in`, negative deltas do not. No client role can write the derived columns (`available`, `opening_stock`, `bought_in`) directly.
+- Transactions are recorded atomically via a Postgres RPC — a swap can never leave a half-written transaction. A client-generated idempotency key prevents double-submit duplicates.
 
 ## Tech Stack
 

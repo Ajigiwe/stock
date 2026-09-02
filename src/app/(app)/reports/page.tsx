@@ -29,10 +29,16 @@ export default async function ReportsPage({
   if (!session) redirect("/login");
 
   const sp = await searchParams;
-  const shops = await getCachedShops();
 
   const isOwner = session.profile?.role === "owner";
+  // Only the owner needs the shop list (for the filter dropdown), and only the
+  // owner may read it — this call uses the service-role client.
+  const shops = isOwner ? await getCachedShops() : [];
   const shopId = isOwner ? sp.shop : session.profile?.shop_id;
+
+  // Attendants without a shop have nothing to report on. Fail closed rather
+  // than falling through to an unscoped query.
+  if (!isOwner && !shopId) redirect("/");
 
   const txs = isOwner
     ? await getCachedTransactions({

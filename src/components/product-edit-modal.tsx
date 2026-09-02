@@ -123,19 +123,19 @@ export function ProductEditModal({
       >
         <div className="grid grid-cols-3 gap-2 rounded-xl border border-line bg-paper p-3 text-center">
           <div>
-            <div className="text-[11px] font-medium uppercase tracking-wide text-mute">
+            <div className="text-xs font-medium uppercase tracking-wide text-mute">
               Opening
             </div>
             <div className="text-sm font-bold text-ink">{model.opening_stock}</div>
           </div>
           <div>
-            <div className="text-[11px] font-medium uppercase tracking-wide text-mute">
+            <div className="text-xs font-medium uppercase tracking-wide text-mute">
               Bought in
             </div>
             <div className="text-sm font-bold text-ink">{model.bought_in}</div>
           </div>
           <div>
-            <div className="text-[11px] font-medium uppercase tracking-wide text-mute">
+            <div className="text-xs font-medium uppercase tracking-wide text-mute">
               Available
             </div>
             <div className={`text-sm font-bold ${low ? "text-lowstock" : "text-ink"}`}>

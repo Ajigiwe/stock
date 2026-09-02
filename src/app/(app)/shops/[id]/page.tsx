@@ -34,9 +34,14 @@ export default async function ShopPage({
   const session = await getSession();
   if (!session) redirect("/login");
 
-  // Attendants may only view their own shop.
-  if (session.profile?.role === "attendant" && session.profile.shop_id !== id) {
-    redirect(`/shops/${session.profile.shop_id}`);
+  // Fail closed: anyone who is not a confirmed owner is scoped to their own
+  // shop. Gating on `role === "attendant"` instead would skip the check entirely
+  // for a session whose profile failed to load.
+  const isOwner = session.profile?.role === "owner";
+  if (!isOwner) {
+    const ownShop = session.profile?.shop_id;
+    if (!ownShop) redirect("/");
+    if (ownShop !== id) redirect(`/shops/${ownShop}`);
   }
 
   const date = /^\d{4}-\d{2}-\d{2}$/.test(dateParam ?? "")
@@ -57,7 +62,6 @@ export default async function ShopPage({
       getCachedSwappedPhones({ shopId: id }),
     ]);
 
-  const isOwner = session.profile?.role === "owner";
   const canEditStock =
     isOwner || session.profile?.can_edit_stock === true;
 

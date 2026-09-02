@@ -556,6 +556,14 @@ export type Database = {
         };
         Returns: string;
       };
+      bulk_adjust_stock: {
+        Args: {
+          p_shop_id: string;
+          p_items: { phone_model_id: string; target_qty: number }[];
+          p_reason?: string | null;
+        };
+        Returns: number;
+      };
       current_user_profile: {
         Args: Record<PropertyKey, never>;
         Returns: {
@@ -564,9 +572,17 @@ export type Database = {
           shop_id: string | null;
         }[];
       };
+      current_user_can_edit_stock: {
+        Args: Record<PropertyKey, never>;
+        Returns: boolean;
+      };
       restore_backup: {
         Args: { p_data: unknown };
-        Returns: { restored?: boolean; transactions?: number } | null;
+        Returns: {
+          restored?: boolean;
+          transactions?: number;
+          stock_repaired?: number;
+        } | null;
       };
       approve_stock_request: {
         Args: { p_request_id: string };

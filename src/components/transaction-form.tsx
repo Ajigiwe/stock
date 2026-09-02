@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { recordTransaction } from "@/lib/actions";
 import type { Shop, PhoneModel } from "@/lib/data";
@@ -35,6 +35,12 @@ type OutLine = { key: number; modelId: string; qty: string };
 type SwapLine = { key: number; name: string };
 let nextKey = 1;
 
+// Count of meaningfully filled out-lines, used for the dirty check before the
+// `validOut` memo exists (it runs during render of the same component).
+function validOutDraft(lines: OutLine[]): number {
+  return lines.filter((l) => l.modelId && Number(l.qty) > 0).length;
+}
+
 function StepDots({ step, count }: { step: number; count: number }) {
   return (
     <div className="flex gap-1.5">
@@ -50,15 +56,27 @@ function StepDots({ step, count }: { step: number; count: number }) {
   );
 }
 
-function QtyStepper({ value, onInc, onDec }: { value: string; onInc: () => void; onDec: () => void }) {
+// Quantity can now be typed directly ("5") as well as stepped — tapping + four
+// times behind the counter was slower than typing.
+function QtyStepper({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const v = Math.max(1, Number(value) || 1);
   return (
     <div className="inline-flex items-center overflow-hidden rounded-[10px] border border-line">
-      <button type="button" onClick={onDec}
-        className="flex h-[38px] w-9 items-center justify-center bg-paper text-ink transition-colors hover:bg-line/50">−</button>
-      <span className="w-9 text-center font-mono text-sm font-bold tabular-nums text-ink">{v}</span>
-      <button type="button" onClick={onInc}
-        className="flex h-[38px] w-9 items-center justify-center bg-paper text-ink transition-colors hover:bg-line/50">+</button>
+      <button type="button" aria-label="Decrease quantity" onClick={() => onChange(String(Math.max(1, v - 1)))}
+        className="flex h-11 w-11 items-center justify-center bg-paper text-lg text-ink transition-colors hover:bg-line/50 active:bg-line">−</button>
+      <input
+        type="number"
+        inputMode="numeric"
+        min={1}
+        value={v}
+        onChange={(e) => {
+          const n = Number(e.target.value);
+          onChange(Number.isFinite(n) && n >= 1 ? String(Math.floor(n)) : "1");
+        }}
+        className="h-11 w-11 border-x border-line bg-white text-center font-mono text-sm font-bold tabular-nums text-ink [appearance:textfield] focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      />
+      <button type="button" aria-label="Increase quantity" onClick={() => onChange(String(v + 1))}
+        className="flex h-11 w-11 items-center justify-center bg-paper text-lg text-ink transition-colors hover:bg-line/50 active:bg-line">+</button>
     </div>
   );
 }
@@ -75,7 +93,7 @@ function Section({ title, sub, tone, children, action }: {
           <div className="flex items-start justify-between gap-2">
             <div>
               <div className="text-[13.5px] font-bold text-ink">{title}</div>
-              {sub && <div className="mt-0.5 text-[11px] text-mute">{sub}</div>}
+              {sub && <div className="mt-0.5 text-xs text-mute">{sub}</div>}
             </div>
             {action}
           </div>
@@ -95,7 +113,7 @@ function TypeCard({ label, sub, active, onClick }: {
         active ? "border-brand bg-brand-tint" : "border-line bg-white hover:border-brand/30"
       }`}>
       <div className="text-[13.5px] font-extrabold text-ink">{label}</div>
-      <div className="mt-0.5 text-[10.5px] leading-snug text-mute">{sub}</div>
+      <div className="mt-0.5 text-xs leading-snug text-mute">{sub}</div>
     </button>
   );
 }
@@ -119,6 +137,32 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
   const [outLines, setOutLines] = useState<OutLine[]>([{ key: nextKey++, modelId: "", qty: "1" }]);
   const [swapLines, setSwapLines] = useState<SwapLine[]>([{ key: nextKey++, name: "" }]);
   const [savedId, setSavedId] = useState<string | null>(null);
+
+  // Warn before leaving with a half-filled wizard. Back-swipe on mobile and
+  // refresh both route through beforeunload; in-app nav is covered in goBack.
+  const dirty =
+    savedId == null &&
+    (customerName.trim() !== "" ||
+      customerPhone.trim() !== "" ||
+      amount !== "" ||
+      validOutDraft(outLines) > 0);
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dirty]);
+
+  // One key per filled-in form, generated on the CLIENT. The DB dedupes on it,
+  // so a double-tap, a Server Action retry, or a dropped mobile connection that
+  // resends the request all resolve to the same transaction instead of deducting
+  // stock twice. Generating it server-side (as this used to) made every call
+  // unique and the dedupe unreachable. resetForm() issues a fresh key.
+  const [idempotencyKey, setIdempotencyKey] = useState<string>(() =>
+    crypto.randomUUID(),
+  );
 
   const shopModels = useMemo(() => stock.filter((m) => m.shop_id === shopId), [stock, shopId]);
   const shopName = shops.find((s) => s.id === shopId)?.name ?? "";
@@ -168,6 +212,8 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
     setSwapLines([{ key: nextKey++, name: "" }]);
     setSavedId(null);
     setError(null);
+    // A new form is a new transaction, so it needs a new key.
+    setIdempotencyKey(crypto.randomUUID());
   };
 
   const stepValid = () => {
@@ -194,6 +240,7 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
   const goBack = () => { setError(null); setRawStep((s) => Math.max(0, s - 1)); };
 
   const submit = () => {
+    if (pending) return;
     setError(null);
     if (type !== "repair" && validOut.length === 0) return setError("Add at least one phone going out.");
     if (type === "swap" && validSwap.length === 0) return setError("Add the old phone the customer is trading in.");
@@ -207,10 +254,13 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
     const swapIn = type === "swap" ? validSwap.map((l) => ({ name: l.name })) : [];
 
     startTransition(async () => {
-      const res = await recordTransaction({ shopId, customerName, customerPhone, type, paymentMethod, amount, date, outItems, swapIn });
+      const res = await recordTransaction({ shopId, customerName, customerPhone, type, paymentMethod, amount, date, outItems, swapIn, idempotencyKey });
       if (!res.ok) { setError(res.error ?? "Failed to record transaction."); return; }
       if (res.warning) toast.error(res.warning);
       else toast.success("Transaction recorded.");
+      // Light haptic tick on success — the phone is often in a pocket or the
+      // user is looking at the customer, not the screen.
+      try { navigator.vibrate?.(30); } catch { /* unsupported */ }
       setSavedId(res.id ?? null);
       if (res.id) router.push(`/transactions/${res.id}`);
       else router.push(`/shops/${shopId}`);
@@ -246,7 +296,7 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
         <h1 className="text-xl font-extrabold tracking-tight text-ink">Record transaction</h1>
         <div className="mt-2 flex items-center justify-between">
           <StepDots step={step} count={steps.length} />
-          <span className="text-[11px] font-semibold text-mute">
+          <span className="text-xs font-semibold text-mute">
             Step {step + 1} of {steps.length} · {steps[step]}
           </span>
         </div>
@@ -254,7 +304,7 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
 
       {/* Step 0: Type & shop */}
       {step === 0 && (
-        <div className="flex flex-col gap-3.5">
+        <div className="step-panel flex flex-col gap-3.5">
           <div className="flex gap-2">
             <TypeCard label="Sale" sub="Phone leaves the shop" active={type === "sale"} onClick={() => setType("sale")} />
             <TypeCard label="Swap" sub="Out + trade-in + top-up" active={type === "swap"} onClick={() => setType("swap")} />
@@ -274,7 +324,7 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
 
       {/* Step 1: Phones */}
       {step === 1 && type !== "repair" && (
-        <div className="flex flex-col gap-3">
+        <div className="step-panel flex flex-col gap-3">
           <Section
             title="Phones going out"
             sub="These leave the shop's stock"
@@ -300,11 +350,10 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
                         </Field>
                       </div>
                       <QtyStepper value={line.qty}
-                        onInc={() => setOutLines((ls) => ls.map((l) => l.key === line.key ? { ...l, qty: String(Number(l.qty) + 1) } : l))}
-                        onDec={() => setOutLines((ls) => ls.map((l) => l.key === line.key ? { ...l, qty: String(Math.max(1, Number(l.qty) - 1)) } : l))} />
+                        onChange={(qty) => setOutLines((ls) => ls.map((l) => l.key === line.key ? { ...l, qty } : l))} />
                       <button type="button" aria-label="Remove phone"
                         onClick={() => setOutLines((ls) => ls.length > 1 ? ls.filter((l) => l.key !== line.key) : [{ key: nextKey++, modelId: "", qty: "1" }])}
-                        className="mb-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-mute transition-colors hover:bg-lowstock-tint hover:text-lowstock">
+                        className="mb-0.5 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-mute transition-colors hover:bg-lowstock-tint hover:text-lowstock">
                         ✕
                       </button>
                     </div>
@@ -354,7 +403,7 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
                       </div>
                       <button type="button" aria-label="Remove"
                         onClick={() => setSwapLines((ls) => ls.length > 1 ? ls.filter((l) => l.key !== line.key) : [{ key: nextKey++, name: "" }])}
-                        className="mb-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-mute transition-colors hover:bg-lowstock-tint hover:text-lowstock">
+                        className="mb-0.5 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-mute transition-colors hover:bg-lowstock-tint hover:text-lowstock">
                         ✕
                       </button>
                     </div>
@@ -367,14 +416,14 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
       )}
 
       {step === 1 && type === "repair" && (
-        <div className="rounded-2xl border border-line bg-white p-4 text-sm text-mute">
+        <div className="step-panel rounded-2xl border border-line bg-white p-4 text-sm text-mute">
           Repairs are service-only: the phone comes in and goes back with the customer. No stock moves — only the charge is recorded.
         </div>
       )}
 
       {/* Step 2: Customer & pay */}
       {step === steps.length - 1 && (
-        <div className="flex flex-col gap-3">
+        <div className="step-panel flex flex-col gap-3">
           <Section title="Customer" tone="mid">
             <div className="flex flex-col gap-2.5 sm:flex-row">
               <div className="flex-1">
