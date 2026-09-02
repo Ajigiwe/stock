@@ -8,6 +8,11 @@ import { todayISO } from "@/lib/format";
 import { Badge, ErrorNote, Field, Input, Select } from "@/components/ui";
 import { ModelPicker } from "@/components/model-picker";
 import { useToast } from "@/components/feedback";
+import {
+  enqueueTransaction,
+  queueLength,
+} from "@/lib/offline-queue";
+import { notifyQueueChanged } from "@/components/offline-sync";
 
 type TxType = "sale" | "swap" | "repair";
 
@@ -137,6 +142,8 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
   const [outLines, setOutLines] = useState<OutLine[]>([{ key: nextKey++, modelId: "", qty: "1" }]);
   const [swapLines, setSwapLines] = useState<SwapLine[]>([{ key: nextKey++, name: "" }]);
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [savedOffline, setSavedOffline] = useState(false);
+  const [pendingQueueLen, setPendingQueueLen] = useState(0);
 
   // Warn before leaving with a half-filled wizard. Back-swipe on mobile and
   // refresh both route through beforeunload; in-app nav is covered in goBack.
@@ -211,6 +218,8 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
     setOutLines([{ key: nextKey++, modelId: "", qty: "1" }]);
     setSwapLines([{ key: nextKey++, name: "" }]);
     setSavedId(null);
+    setSavedOffline(false);
+    setPendingQueueLen(0);
     setError(null);
     // A new form is a new transaction, so it needs a new key.
     setIdempotencyKey(crypto.randomUUID());
@@ -253,8 +262,57 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
     const outItems = validOut.map((l) => ({ modelId: l.modelId, qty: Number(l.qty) }));
     const swapIn = type === "swap" ? validSwap.map((l) => ({ name: l.name })) : [];
 
+    const submitInput = {
+      shopId,
+      customerName,
+      customerPhone,
+      type,
+      paymentMethod,
+      amount,
+      date,
+      outItems,
+      swapIn,
+      idempotencyKey,
+    };
+
+    // Offline (or the request never left): queue the transaction locally and
+    // confirm to the user. The idempotency key stays with the queued entry, so
+    // syncing later is dedupe-safe even if the server also received the call.
+    const goOfflineQueue = () => {
+      try {
+        enqueueTransaction({
+          idempotencyKey,
+          recordedAt: Date.now(),
+          shopName,
+          summary:
+            (outItems.length > 0
+              ? outItems.reduce((a, i) => `${a}${a ? ", " : ""}${i.qty}× ${shopModels.find((m) => m.id === i.modelId)?.model_name ?? "phone"}`, "")
+              : type) + ` — ${type}`,
+          input: submitInput,
+        });
+      } catch (e) {
+        setError((e as Error).message);
+        return;
+      }
+      notifyQueueChanged();
+      try { navigator.vibrate?.(30); } catch { /* unsupported */ }
+      setPendingQueueLen(queueLength());
+      setSavedOffline(true);
+    };
+
     startTransition(async () => {
-      const res = await recordTransaction({ shopId, customerName, customerPhone, type, paymentMethod, amount, date, outItems, swapIn, idempotencyKey });
+      if (!navigator.onLine) {
+        goOfflineQueue();
+        return;
+      }
+      let res;
+      try {
+        res = await recordTransaction(submitInput);
+      } catch {
+        // Server Action network failure (dropped connection mid-request).
+        goOfflineQueue();
+        return;
+      }
       if (!res.ok) { setError(res.error ?? "Failed to record transaction."); return; }
       if (res.warning) toast.error(res.warning);
       else toast.success("Transaction recorded.");
@@ -267,6 +325,33 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
       router.refresh();
     });
   };
+
+  // Queued-offline screen: distinct from the online success screen so the
+  // attendant knows it will sync automatically, not that it's already saved.
+  if (savedOffline) {
+    return (
+      <div className="mx-auto flex max-w-2xl flex-col items-center gap-3.5 pb-16 pt-20 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-tint">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-brand">
+            <path d="M12 5v14M5 12l7 7 7-7" />
+          </svg>
+        </div>
+        <div className="text-lg font-extrabold text-ink">Saved on this device</div>
+        <div className="max-w-xs text-[12.5px] text-mute">
+          You&rsquo;re offline — the transaction is stored safely and will sync
+          automatically when the connection returns.
+          {pendingQueueLen > 1
+            ? ` ${pendingQueueLen - 1} other transaction${pendingQueueLen - 1 === 1 ? " is" : "s are"} also waiting.`
+            : ""}
+        </div>
+        <div className="mt-2 flex gap-2.5">
+          <button onClick={resetForm} className="h-11 rounded-[10px] border border-line bg-white px-5 text-[13px] font-bold text-ink transition-colors hover:bg-paper">
+            Record another
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Success screen
   if (savedId) {

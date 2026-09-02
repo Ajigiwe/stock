@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession, getCachedShops } from "@/lib/data";
 import { AppShell } from "@/components/app-shell";
+import { OfflineSync } from "@/components/offline-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export default async function AppLayout({
       userName={profile?.name ?? session.email ?? null}
     >
       {children}
+      <OfflineSync />
     </AppShell>
   );
 }
