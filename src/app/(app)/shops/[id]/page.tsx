@@ -10,6 +10,8 @@ import {
   getCachedSwappedPhones,
   getDailyClose,
   getLatestStockCount,
+  getCachedStockRecon,
+  getStockCountForDate,
 } from "@/lib/data";
 import { formatMoney, formatDateTime, todayISO, addDays } from "@/lib/format";
 import { Badge, Button, Card, EmptyState } from "@/components/ui";
@@ -22,6 +24,7 @@ import { ShareSummaryButton } from "@/components/share-summary-button";
 import { SwappedPhonesList } from "@/components/swapped-phones-list";
 import { DailyClosePanel } from "@/components/daily-close-panel";
 import { StockCountPanel } from "@/components/stock-count-panel";
+import { StockReconPanel } from "@/components/stock-recon-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +59,7 @@ export default async function ShopPage({
     ? "Today"
     : new Date(date + "T00:00:00").toDateString();
 
-  const [summary, stock, transactions, adjustments, pendingRequests, swappedPhones, dailyClose, latestStockCount] =
+  const [summary, stock, transactions, adjustments, pendingRequests, swappedPhones, dailyClose, latestStockCount, stockRecon, stockCountForDate] =
     await Promise.all([
       getCachedShopSummary(id, date, date),
       getCachedStock(id),
@@ -66,6 +69,8 @@ export default async function ShopPage({
       getCachedSwappedPhones({ shopId: id }),
       getDailyClose(id, date),
       getLatestStockCount(id),
+      getCachedStockRecon(id, date),
+      getStockCountForDate(id, date),
     ]);
 
   // Stock editing is owner-only; staff submit requests via the approval flow.
@@ -207,6 +212,13 @@ export default async function ShopPage({
             </ul>
           </>
         )}
+      </Card>
+
+      <Card
+        title="End-of-day stock reconciliation"
+        subtitle={`Morning stock → bought today → left · ${dateLabel}`}
+      >
+        <StockReconPanel recon={stockRecon} count={stockCountForDate} />
       </Card>
 
       <Card

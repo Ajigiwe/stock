@@ -873,6 +873,210 @@ export async function getLatestStockCount(shopId: string): Promise<StockCountWit
   };
 }
 
+export async function getStockCountForDate(
+  shopId: string,
+  date: string,
+): Promise<StockCountWithItems | null> {
+  const supabase = await createClient();
+  const { data: count, error } = await supabase
+    .from("stock_counts")
+    .select("*")
+    .eq("shop_id", shopId)
+    .eq("count_date", date)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!count) return null;
+
+  const { data: items, error: itemsError } = await supabase
+    .from("stock_count_items")
+    .select("*")
+    .eq("count_id", count.id);
+  if (itemsError) throw new Error(itemsError.message);
+  const modelIds = (items ?? []).map((item) => item.phone_model_id);
+  const { data: models, error: modelsError } = modelIds.length
+    ? await supabase.from("phone_models").select("id, model_name").in("id", modelIds)
+    : { data: [], error: null };
+  if (modelsError) throw new Error(modelsError.message);
+  const names = new Map((models ?? []).map((model) => [model.id, model.model_name]));
+  return {
+    ...count,
+    items: (items ?? []).map((item) => ({
+      ...item,
+      model_name: names.get(item.phone_model_id) ?? "Unknown model",
+    })),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// End-of-day stock reconciliation: morning → bought → left, per model
+//
+// No snapshot table is needed — the morning balance is derived from the ledger
+// exactly: closing = available now − (net movement after that day), and opening
+// = closing − (net movement during that day). Only completed transactions count
+// as "bought"; pending-review units are shown separately so an unapproved sale
+// can never hide inside the confirmed totals.
+// ---------------------------------------------------------------------------
+
+export type StockReconRow = {
+  phone_model_id: string;
+  model_name: string;
+  condition: "new" | "used";
+  /** Ledger stock at the start of the day. */
+  opening: number;
+  /** Units out on completed sales/swaps that day. */
+  sold: number;
+  /** Units out on transactions still awaiting owner review. */
+  pending: number;
+  /** Trade-ins brought in by swaps that day (completed). */
+  trade_in: number;
+  /** Positive adjustments (restock) recorded that day. */
+  restocked: number;
+  /** Negative adjustments (removed/lost/damaged) that day, absolute value. */
+  removed: number;
+  /** Ledger stock at the end of that day. */
+  closing: number;
+};
+
+export type StockRecon = {
+  date: string;
+  rows: StockReconRow[];
+  totalOpening: number;
+  totalSold: number;
+  totalClosing: number;
+};
+
+export const getCachedStockRecon = unstable_cache(
+  async (shopId: string, date: string): Promise<StockRecon> => {
+    const a = getCachedAdminClient();
+    const dayStartMs = Date.parse(`${date}T00:00:00Z`);
+    const nextDayMs = Date.parse(`${addDays(date, 1)}T00:00:00Z`);
+
+    const [modelsRes, txsRes, adjRes] = await Promise.all([
+      a
+        .from("phone_models")
+        .select("id, model_name, condition, available")
+        .eq("shop_id", shopId),
+      a
+        .from("transactions")
+        .select("id, type, status, date")
+        .eq("shop_id", shopId)
+        .gte("date", new Date(dayStartMs).toISOString())
+        .limit(TX_READ_LIMIT),
+      a
+        .from("stock_adjustments")
+        .select("phone_model_id, delta, date")
+        .eq("shop_id", shopId)
+        .gte("date", new Date(dayStartMs).toISOString())
+        .limit(TX_READ_LIMIT),
+    ]);
+    if (modelsRes.error) throw new Error(modelsRes.error.message);
+    if (txsRes.error) throw new Error(txsRes.error.message);
+    if (adjRes.error) throw new Error(adjRes.error.message);
+
+    const txs = txsRes.data ?? [];
+    const txIds = txs.map((t) => t.id);
+    const itemsRes = txIds.length
+      ? await a
+          .from("transaction_items")
+          .select("transaction_id, phone_model_id, direction, qty")
+          .in("transaction_id", txIds)
+      : { data: [] as TransactionItem[], error: null };
+    if (itemsRes.error) throw new Error(itemsRes.error.message);
+
+    const txDate = new Map(txs.map((t) => [t.id, Date.parse(t.date)]));
+    const txStatus = new Map(txs.map((t) => [t.id, t.status]));
+
+    type ReconAccum = StockReconRow & {
+      available: number;
+      dayNet: number; // net units in/out during the day
+      afterNet: number; // net units in/out after the day
+    };
+    const rows = new Map<string, ReconAccum>();
+    for (const m of modelsRes.data ?? []) {
+      rows.set(m.id, {
+        phone_model_id: m.id,
+        model_name: m.model_name,
+        condition: m.condition,
+        opening: 0,
+        sold: 0,
+        pending: 0,
+        trade_in: 0,
+        restocked: 0,
+        removed: 0,
+        closing: 0,
+        available: m.available,
+        dayNet: 0,
+        afterNet: 0,
+      });
+    }
+
+    for (const i of itemsRes.data ?? []) {
+      const row = rows.get(i.phone_model_id);
+      const ts = txDate.get(i.transaction_id);
+      if (!row || ts == null) continue;
+      const contrib = i.direction === "in" ? i.qty : -i.qty;
+      if (ts >= nextDayMs) {
+        row.afterNet += contrib;
+        continue;
+      }
+      row.dayNet += contrib;
+      const status = txStatus.get(i.transaction_id);
+      if (status === "completed") {
+        if (i.direction === "out") row.sold += i.qty;
+        else row.trade_in += i.qty;
+      } else if (status === "pending_review" && i.direction === "out") {
+        row.pending += i.qty;
+      }
+    }
+
+    for (const adj of adjRes.data ?? []) {
+      const row = rows.get(adj.phone_model_id);
+      if (!row) continue;
+      const ts = Date.parse(adj.date);
+      if (ts >= nextDayMs) row.afterNet += adj.delta;
+      else {
+        row.dayNet += adj.delta;
+        if (adj.delta > 0) row.restocked += adj.delta;
+        else row.removed += -adj.delta;
+      }
+    }
+
+    const list = [...rows.values()]
+      .map((r) => {
+        const closing = r.available - r.afterNet;
+        return {
+          phone_model_id: r.phone_model_id,
+          model_name: r.model_name,
+          condition: r.condition,
+          sold: r.sold,
+          pending: r.pending,
+          trade_in: r.trade_in,
+          restocked: r.restocked,
+          removed: r.removed,
+          closing,
+          opening: closing - r.dayNet,
+        };
+      })
+      .sort(
+        (x, y) =>
+          x.model_name.localeCompare(y.model_name) ||
+          x.condition.localeCompare(y.condition),
+      );
+
+    return {
+      date,
+      rows: list,
+      totalOpening: list.reduce((s, r) => s + r.opening, 0),
+      totalSold: list.reduce((s, r) => s + r.sold, 0),
+      totalClosing: list.reduce((s, r) => s + r.closing, 0),
+    };
+  },
+  ["stock-recon"],
+  revalidateOpts(["stock", "transactions", "adjustments"]),
+);
+
 export async function getStockRequests(opts: {
   shopId?: string;
   status?: "pending" | "approved" | "rejected";
