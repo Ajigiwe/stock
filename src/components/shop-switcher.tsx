@@ -14,9 +14,11 @@ export function ShopSwitcher({ shops }: { shops: Shop[] }) {
       }}
       value=""
     >
-      <option value="">Shops…</option>
+      <option value="" className="text-white">
+        Shops…
+      </option>
       {shops.map((s) => (
-        <option key={s.id} value={s.id}>
+        <option key={s.id} value={s.id} className="text-ink">
           {s.name}
         </option>
       ))}
