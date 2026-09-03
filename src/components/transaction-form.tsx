@@ -95,24 +95,24 @@ function QtyStepper({ value, onChange }: { value: string; onChange: (v: string) 
 function Section({ title, sub, tone, children, action }: {
   title: string; sub?: string; tone: "out" | "in" | "mid"; children: React.ReactNode; action?: React.ReactNode;
 }) {
-  const bar =
-    tone === "out" ? "bg-lowstock"
-    : tone === "in" ? "bg-instock"
-    : "bg-brand";
+  // The accent is a colored left border (not an overflow-clipped strip):
+  // sections must never clip absolutely-positioned dropdowns such as the
+  // model picker, and border-l still follows the card's border radius.
+  const edge =
+    tone === "out" ? "border-l-lowstock"
+    : tone === "in" ? "border-l-instock"
+    : "border-l-brand";
   return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-white shadow-[0_1px_2px_rgba(20,22,43,0.04)]">
-      <div className="flex">
-        <div className={`w-[3px] shrink-0 ${bar}`} />
-        <div className="w-full p-4 sm:p-5">
-          <div className="mb-3.5 flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h2 className="text-[15px] font-bold tracking-tight text-ink">{title}</h2>
-              {sub && <p className="mt-0.5 text-[12.5px] text-mute">{sub}</p>}
-            </div>
-            {action}
+    <section className={`rounded-2xl border border-line bg-white shadow-[0_1px_2px_rgba(20,22,43,0.04)] ${edge} border-l-4`}>
+      <div className="w-full p-4 sm:p-5">
+        <div className="mb-3.5 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-[15px] font-bold tracking-tight text-ink">{title}</h2>
+            {sub && <p className="mt-0.5 text-[12.5px] text-mute">{sub}</p>}
           </div>
-          <div>{children}</div>
+          {action}
         </div>
+        <div>{children}</div>
       </div>
     </section>
   );
