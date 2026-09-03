@@ -66,8 +66,7 @@ Key decisions:
 ### shops
 id uuid PK, name text, location text, phone text, created_at timestamptz
 
-### users
-id uuid PK -> auth.users(id) CASCADE, name text, role user_role, shop_id uuid -> shops(id) SET NULL, can_edit_stock boolean default false, created_at timestamptz
+### users  id uuid PK -> auth.users(id) CASCADE, name text, role user_role, shop_id uuid -> shops(id) SET NULL, can_edit_stock boolean default false (deprecated: no longer grants stock editing), created_at timestamptz
 Trigger: handle_new_user() auto-creates row on auth.users insert
 
 ### phone_models
@@ -130,7 +129,7 @@ INSERT: checks stock for negative deltas, updates available + bought_in. DELETE:
 Atomic: creates transaction + items. Enforces shop scope. Checks stock. Auto-creates new models for in_items. Returns uuid.
 
 ### adjust_stock
-Checks owner or can_edit_stock. Validates model belongs to shop. Creates adjustment row.
+Owner only. Validates model belongs to shop. Creates adjustment row.
 
 ### delete_transaction
 Owner only. Cascading delete reverses stock via triggers.
@@ -181,7 +180,7 @@ Helper: current_user_profile() returns (id, role, shop_id)
 - Created by owner in Settings > Staff
 - Assigned to one shop
 - Records transactions for own shop only
-- can_edit_stock: true = direct stock editing; false = stock_requests approval flow
+- All stock editing is owner-only: attendants always use the stock_requests approval flow (the old per-staff can_edit_stock privilege has been removed)
 - Access: Dashboard (own shop), Record, Shop page, Account
 
 ---
@@ -294,7 +293,6 @@ Helper: current_user_profile() returns (id, role, shop_id)
 ### Admin
 - createShop(), deleteShop()
 - createStaff(), removeStaff(), resetStaffPassword()
-- setStaffStockPrivilege(): Toggle can_edit_stock
 - restoreBackup(): Call RPC
 - bulkCreateModels(): Batch insert models (owner)
 

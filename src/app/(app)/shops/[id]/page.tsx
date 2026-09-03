@@ -62,8 +62,8 @@ export default async function ShopPage({
       getCachedSwappedPhones({ shopId: id }),
     ]);
 
-  const canEditStock =
-    isOwner || session.profile?.can_edit_stock === true;
+  // Stock editing is owner-only; staff submit requests via the approval flow.
+  const canEditStock = isOwner;
 
   const summaryText = [
     `*${summary.shop.name}* — ${dateLabel}`,

@@ -663,15 +663,13 @@ export async function updateSwappedPhoneStatus(
 // Stock
 // ---------------------------------------------------------------------------
 
-// Who may edit stock directly: the owner, or a staff member the owner granted
-// stock-editing privileges to. Everyone else goes through the approval flow.
+// Who may edit stock directly: only the owner. Staff submit stock requests
+// which the owner approves — the old per-staff can_edit_stock privilege no
+// longer grants anything.
 async function canEditStock(
   session: Awaited<ReturnType<typeof requireSession>>,
 ): Promise<boolean> {
-  return (
-    session.profile?.role === "owner" ||
-    session.profile?.can_edit_stock === true
-  );
+  return session.profile?.role === "owner";
 }
 
 type StockLogInput = {
@@ -818,7 +816,7 @@ export async function updateModel(input: UpdateModelInput): Promise<ActionResult
   if (!(await canEditStock(session))) {
     return {
       ok: false,
-      error: "Only the owner or staff with stock privileges can edit products.",
+      error: "Only the owner can edit products.",
     };
   }
 
@@ -1273,26 +1271,9 @@ export async function resetStaffPassword(
   return { ok: true };
 }
 
-export async function setStaffStockPrivilege(
-  id: string,
-  canEditStock: boolean,
-): Promise<ActionResult> {
-  const session = await requireSession();
-  if (session.profile?.role !== "owner") {
-    return { ok: false, error: "Only the owner can change staff privileges." };
-  }
-  if (id === session.id) {
-    return { ok: false, error: "You cannot change your own privileges." };
-  }
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("users")
-    .update({ can_edit_stock: canEditStock })
-    .eq("id", id);
-  if (error) return { ok: false, error: error.message };
-  invalidateAllData();
-  return { ok: true };
-}
+// The old setStaffStockPrivilege action was removed: the can_edit_stock flag
+// no longer grants anything (stock editing is owner-only), so there is nothing
+// to toggle.
 
 // ---------------------------------------------------------------------------
 // Backup & restore (owner only)

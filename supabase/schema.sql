@@ -84,7 +84,7 @@ create table public.users (
   name        text not null default '',
   role        user_role not null default 'attendant',
   shop_id     uuid references public.shops (id) on delete set null, -- null for owner
-  can_edit_stock boolean not null default false, -- staff granted direct stock-editing by the owner
+  can_edit_stock boolean not null default false, -- DEPRECATED: no longer grants stock editing; kept for backup compatibility
   created_at  timestamptz not null default now()
 );
 
@@ -587,9 +587,8 @@ grant execute on function public.record_transaction(uuid, text, text, public.tx_
 
 -- ---------------------------------------------------------------------------
 -- RPC: adjust_stock  (restock / manual correction)
--- Allowed for the owner and for staff the owner granted stock-editing
--- privileges to (users.can_edit_stock). Everyone else must request stock
--- changes and the owner approves them via approve_stock_request.
+-- Owner only. Staff (even privileged) must request stock changes and the owner
+-- approves them via approve_stock_request.
 -- ---------------------------------------------------------------------------
 create or replace function public.adjust_stock(
   p_shop_id uuid,
@@ -606,15 +605,8 @@ declare
 begin
   v_me := public.require_profile();
 
-  if v_me.role is distinct from 'owner'::public.user_role
-     and not coalesce(v_me.can_edit_stock, false) then
-    raise exception 'Only owners or staff with stock privileges can adjust stock directly' using errcode = 'P0001';
-  end if;
-
-  -- Privileged attendants are still confined to their own shop.
-  if v_me.role is distinct from 'owner'::public.user_role
-     and p_shop_id is distinct from v_me.shop_id then
-    raise exception 'Not allowed to adjust stock for this shop' using errcode = 'P0001';
+  if v_me.role is distinct from 'owner'::public.user_role then
+    raise exception 'Only the owner can adjust stock directly' using errcode = 'P0001';
   end if;
 
   if p_delta is null or p_delta = 0 then
@@ -641,6 +633,7 @@ grant execute on function public.adjust_stock(uuid, uuid, int, public.adjustment
 -- RPC: bulk_adjust_stock  (set target quantities for many models atomically)
 -- p_items: jsonb array of {"phone_model_id", "target_qty"}
 --
+-- Owner only; staff request stock changes via stock_requests instead.
 -- Replaces the previous app-side loop, which read `available`, computed deltas,
 -- then fired one adjust_stock per model: a sale landing mid-loop made the
 -- result wrong, and a mid-loop failure left earlier deltas committed with no
@@ -665,14 +658,8 @@ declare
 begin
   v_me := public.require_profile();
 
-  if v_me.role is distinct from 'owner'::public.user_role
-     and not coalesce(v_me.can_edit_stock, false) then
-    raise exception 'Only owners or staff with stock privileges can adjust stock directly' using errcode = 'P0001';
-  end if;
-
-  if v_me.role is distinct from 'owner'::public.user_role
-     and p_shop_id is distinct from v_me.shop_id then
-    raise exception 'Not allowed to adjust stock for this shop' using errcode = 'P0001';
+  if v_me.role is distinct from 'owner'::public.user_role then
+    raise exception 'Only the owner can adjust stock directly' using errcode = 'P0001';
   end if;
 
   -- Ordered lock acquisition keeps concurrent bulk edits from deadlocking.
@@ -1192,14 +1179,15 @@ as $$
   select id, role, shop_id from public.users where id = auth.uid()
 $$;
 
--- Whether the current user may edit stock directly (owner, or staff the owner
--- granted the privilege to).
+-- Whether the current user may edit stock directly. Owner only: the per-staff
+-- can_edit_stock privilege was removed — staff request stock changes via
+-- stock_requests and the owner approves.
 create or replace function public.current_user_can_edit_stock()
 returns boolean
 language sql stable security definer set search_path = ''
 as $$
   select coalesce(
-    (select u.role = 'owner' or u.can_edit_stock
+    (select u.role = 'owner'
        from public.users u where u.id = auth.uid()),
     false)
 $$;
@@ -1241,12 +1229,12 @@ revoke all on public.stock_requests    from authenticated;
 
 grant select, insert, update, delete on public.shops to authenticated;
 grant select, insert, delete         on public.users to authenticated;
--- `role` is deliberately excluded: no client role may ever change a user's role,
--- not even the owner's session. Role assignment happens only through the
--- service-role admin client (setupOwner / createStaff), so a stolen owner
--- session cannot mint another owner, and RLS is not the only thing standing
--- between an attendant and `role = 'owner'`.
-grant update (name, shop_id, can_edit_stock) on public.users to authenticated;
+-- `role` and `can_edit_stock` are deliberately excluded: no client role may
+-- ever change a user's role or stock privilege, not even the owner's session.
+-- Role/privilege assignment happens only through the service-role admin client
+-- (setupOwner / createStaff), so a stolen owner session cannot mint another
+-- owner, and RLS is not the only thing standing between an attendant and
+-- `role = 'owner'`.
 grant select, insert, delete         on public.phone_models to authenticated;
 grant update (model_name, condition, cost_price, sale_price, low_stock_threshold)
   on public.phone_models to authenticated;
@@ -1306,24 +1294,14 @@ create policy "phone_models: owner full access" on public.phone_models
 create policy "phone_models: attendant reads own shop" on public.phone_models
   for select using (((select public.current_user_profile())).shop_id = shop_id);
 
--- Only staff the owner granted stock privileges to may add or edit models, and
--- only in their own shop. The column grant above still prevents them from
--- touching the stock counters.
-create policy "phone_models: privileged staff adds own shop" on public.phone_models
-  for insert with check (
-    ((select public.current_user_profile())).shop_id = shop_id
-    and (select public.current_user_can_edit_stock())
-  );
+-- Owner-only: stock models may only be added or edited by the owner. The
+-- column grant above still prevents anyone from touching the stock counters.
+create policy "phone_models: owner-only insert" on public.phone_models
+  for insert with check (((select public.current_user_profile())).role = 'owner');
 
-create policy "phone_models: privileged staff edits own shop" on public.phone_models
-  for update using (
-    ((select public.current_user_profile())).shop_id = shop_id
-    and (select public.current_user_can_edit_stock())
-  )
-  with check (
-    ((select public.current_user_profile())).shop_id = shop_id
-    and (select public.current_user_can_edit_stock())
-  );
+create policy "phone_models: owner-only update" on public.phone_models
+  for update using (((select public.current_user_profile())).role = 'owner')
+  with check (((select public.current_user_profile())).role = 'owner');
 
 -- ---------- transactions ----------
 create policy "transactions: owner full access" on public.transactions

@@ -6,7 +6,6 @@ import {
   createStaff,
   removeStaff,
   resetStaffPassword,
-  setStaffStockPrivilege,
 } from "@/lib/actions";
 import type { Shop, UserProfile } from "@/lib/data";
 import { Button, ButtonDanger, ButtonSecondary, ErrorNote, Field, Input, Select } from "@/components/ui";
@@ -66,18 +65,6 @@ export function StaffManager({ shops, staff }: { shops: Shop[]; staff: UserProfi
       setNewPassword("");
     });
 
-  const onTogglePrivilege = (s: UserProfile) =>
-    startTransition(async () => {
-      const res = await setStaffStockPrivilege(s.id, !s.can_edit_stock);
-      if (!res.ok) return toast.error(res.error ?? "Could not change privilege.");
-      toast.success(
-        s.can_edit_stock
-          ? `Stock-editing removed from ${s.name}.`
-          : `${s.name} can now edit stock.`,
-      );
-      router.refresh();
-    });
-
   return (
     <div className="space-y-4">
       {!open ? (
@@ -132,21 +119,9 @@ export function StaffManager({ shops, staff }: { shops: Shop[]; staff: UserProfi
                     {shopName ?? "No shop"} · {s.role}
                   </div>
                   {s.role === "attendant" && (
-                    <label className="mt-1.5 inline-flex cursor-pointer items-center gap-1.5 text-xs text-mute">
-                      <input
-                        type="checkbox"
-                        checked={s.can_edit_stock}
-                        disabled={pending}
-                        onChange={() => onTogglePrivilege(s)}
-                        className="h-3.5 w-3.5 accent-brand"
-                      />
-                      Can edit stock
-                      {s.can_edit_stock && (
-                        <span className="rounded-full bg-instock-tint px-1.5 py-0.5 text-[10px] font-semibold text-instock">
-                          granted
-                        </span>
-                      )}
-                    </label>
+                    <div className="mt-1.5 text-xs text-mute">
+                      Stock edits go through your approval — no direct access.
+                    </div>
                   )}
                 </div>
                 <div className="flex shrink-0 gap-2">
