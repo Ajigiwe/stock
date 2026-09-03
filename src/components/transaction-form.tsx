@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { recordTransaction } from "@/lib/actions";
 import type { Shop, PhoneModel } from "@/lib/data";
-import { todayISO } from "@/lib/format";
+import { todayISO, formatMoney } from "@/lib/format";
 import { Badge, ErrorNote, Field, Input, Select } from "@/components/ui";
 import { ModelPicker } from "@/components/model-picker";
 import { useToast } from "@/components/feedback";
@@ -46,14 +46,35 @@ function validOutDraft(lines: OutLine[]): number {
   return lines.filter((l) => l.modelId && Number(l.qty) > 0).length;
 }
 
+const ICON_SALE = (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+    <path d="M3 6h18" />
+    <path d="M16 10a4 4 0 0 1-8 0" />
+  </svg>
+);
+const ICON_SWAP = (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 1 21 5l-4 4" />
+    <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+    <path d="M7 23 3 19l4-4" />
+    <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+  </svg>
+);
+const ICON_REPAIR = (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+  </svg>
+);
+
 // Quantity can now be typed directly ("5") as well as stepped — tapping + four
 // times behind the counter was slower than typing.
 function QtyStepper({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const v = Math.max(1, Number(value) || 1);
   return (
-    <div className="inline-flex items-center overflow-hidden rounded-[10px] border border-line">
+    <div className="inline-flex shrink-0 items-center overflow-hidden rounded-[10px] border border-line bg-white">
       <button type="button" aria-label="Decrease quantity" onClick={() => onChange(String(Math.max(1, v - 1)))}
-        className="flex h-11 w-11 items-center justify-center bg-paper text-lg text-ink transition-colors hover:bg-line/50 active:bg-line">−</button>
+        className="flex h-11 w-10 items-center justify-center bg-paper text-lg text-ink transition-colors hover:bg-line/50 active:bg-line">−</button>
       <input
         type="number"
         inputMode="numeric"
@@ -63,10 +84,10 @@ function QtyStepper({ value, onChange }: { value: string; onChange: (v: string) 
           const n = Number(e.target.value);
           onChange(Number.isFinite(n) && n >= 1 ? String(Math.floor(n)) : "1");
         }}
-        className="h-11 w-11 border-x border-line bg-white text-center font-mono text-sm font-bold tabular-nums text-ink [appearance:textfield] focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        className="h-11 w-10 border-x border-line bg-white text-center font-mono text-sm font-bold tabular-nums text-ink [appearance:textfield] focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
       />
       <button type="button" aria-label="Increase quantity" onClick={() => onChange(String(v + 1))}
-        className="flex h-11 w-11 items-center justify-center bg-paper text-lg text-ink transition-colors hover:bg-line/50 active:bg-line">+</button>
+        className="flex h-11 w-10 items-center justify-center bg-paper text-lg text-ink transition-colors hover:bg-line/50 active:bg-line">+</button>
     </div>
   );
 }
@@ -74,36 +95,46 @@ function QtyStepper({ value, onChange }: { value: string; onChange: (v: string) 
 function Section({ title, sub, tone, children, action }: {
   title: string; sub?: string; tone: "out" | "in" | "mid"; children: React.ReactNode; action?: React.ReactNode;
 }) {
-  const bar = tone === "out" ? "bg-lowstock" : tone === "in" ? "bg-instock" : "bg-brand";
+  const bar =
+    tone === "out" ? "bg-lowstock"
+    : tone === "in" ? "bg-instock"
+    : "bg-brand";
   return (
-    <div className="rounded-2xl border border-line bg-white">
+    <section className="overflow-hidden rounded-2xl border border-line bg-white shadow-[0_1px_2px_rgba(20,22,43,0.04)]">
       <div className="flex">
-        <div className={`w-1 shrink-0 rounded-l-2xl ${bar}`} />
-        <div className="flex-1 p-3.5">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <div className="text-[13.5px] font-bold text-ink">{title}</div>
-              {sub && <div className="mt-0.5 text-xs text-mute">{sub}</div>}
+        <div className={`w-[3px] shrink-0 ${bar}`} />
+        <div className="w-full p-4 sm:p-5">
+          <div className="mb-3.5 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-[15px] font-bold tracking-tight text-ink">{title}</h2>
+              {sub && <p className="mt-0.5 text-[12.5px] text-mute">{sub}</p>}
             </div>
             {action}
           </div>
-          <div className="mt-2.5">{children}</div>
+          <div>{children}</div>
         </div>
       </div>
-    </div>
+    </section>
   );
 }
 
-function TypeCard({ label, sub, active, onClick }: {
-  label: string; sub: string; active: boolean; onClick: () => void;
+function TypeCard({ icon, label, sub, active, onClick }: {
+  icon: React.ReactNode; label: string; sub: string; active: boolean; onClick: () => void;
 }) {
   return (
     <button type="button" onClick={onClick}
-      className={`flex-1 rounded-xl border-[1.5px] px-3 py-3 text-left transition-colors ${
-        active ? "border-brand bg-brand-tint" : "border-line bg-white hover:border-brand/30"
+      className={`group flex min-h-[84px] flex-col items-center justify-center gap-1.5 rounded-2xl border-[1.5px] px-3 py-4 text-center transition-all ${
+        active
+          ? "border-brand bg-brand-tint shadow-[0_4px_14px_rgba(67,56,202,0.18)]"
+          : "border-line bg-white hover:border-brand/40 hover:bg-brand-tint/40"
       }`}>
-      <div className="text-[13.5px] font-extrabold text-ink">{label}</div>
-      <div className="mt-0.5 text-xs leading-snug text-mute">{sub}</div>
+      <span className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${
+        active ? "bg-brand text-white" : "bg-paper text-mute group-hover:bg-brand/10 group-hover:text-brand"
+      }`}>
+        {icon}
+      </span>
+      <span className="text-[13.5px] font-extrabold tracking-tight text-ink">{label}</span>
+      <span className="text-[11px] leading-tight text-mute">{sub}</span>
     </button>
   );
 }
@@ -174,20 +205,21 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
   const validOut = outLines.filter((l) => l.modelId && Number(l.qty) > 0);
   const validSwap = swapLines.filter((l) => l.name.trim());
   const unitsOut = validOut.reduce((a, l) => a + Number(l.qty), 0);
+  const dateLabel = new Date(date + "T12:00:00").toLocaleDateString("en-GB", {
+    weekday: "short", day: "numeric", month: "short",
+  });
 
-  const suggested = useMemo(() => {
-    if (type !== "sale") return null;
-    return validOut.reduce((sum, l) => {
-      const m = shopModels.find((x) => x.id === l.modelId);
-      return sum + (m?.sale_price != null ? m.sale_price * Number(l.qty) : 0);
-    }, 0);
-  }, [type, validOut, shopModels]);
+  const suggested =
+    type === "sale"
+      ? validOut.reduce((sum, l) => {
+          const m = shopModels.find((x) => x.id === l.modelId);
+          return sum + (m?.sale_price != null ? m.sale_price * Number(l.qty) : 0);
+        }, 0)
+      : null;
 
-  const outTotal = useMemo(() =>
-    validOut.reduce((sum, l) => {
-      const m = shopModels.find((x) => x.id === l.modelId);
-      return sum + (m?.sale_price != null ? m.sale_price * Number(l.qty) : 0);
-    }, 0), [validOut, shopModels]);
+  const enteredAmount = Number(amount);
+  const amountValid = Number.isFinite(enteredAmount) && enteredAmount >= 0;
+  const belowList = suggested != null && suggested > 0 && enteredAmount < suggested;
 
   const switchShop = (id: string) => {
     setShopId(id);
@@ -216,14 +248,12 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const belowList = suggested != null && suggested > 0 && Number(amount) < suggested;
-
   const submit = () => {
     if (pending) return;
     setError(null);
     if (type !== "repair" && validOut.length === 0) return setError("Add at least one phone going out.");
     if (type === "swap" && validSwap.length === 0) return setError("Add the old phone the customer is trading in.");
-    if (!Number.isFinite(Number(amount)) || Number(amount) < 0) return setError("Enter a valid amount.");
+    if (!amountValid) return setError("Enter a valid amount.");
     if (!customerName.trim() || !customerPhone.trim()) return setError("Customer name and phone are required.");
     if (type === "sale" && belowList && !discountReason.trim()) {
       return setError("Add a reason for the discount before saving.");
@@ -307,11 +337,17 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
     : type === "repair" ? "Repair charge (GHS)"
     : "Total sale amount (GHS)";
 
+  const saveLabel =
+    pending ? "Saving…"
+    : type === "swap" ? "Record swap"
+    : type === "repair" ? "Record repair charge"
+    : "Record sale";
+
   // Queued-offline screen: distinct from the online success screen so the
   // attendant knows it will sync automatically, not that it's already saved.
   if (savedOffline) {
     return (
-      <div className="mx-auto flex max-w-2xl flex-col items-center gap-3.5 pb-16 pt-20 text-center">
+      <div className="mx-auto flex max-w-md flex-col items-center gap-3.5 px-4 pb-16 pt-20 text-center">
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-tint">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-brand">
             <path d="M12 5v14M5 12l7 7 7-7" />
@@ -337,7 +373,7 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
   // Success screen
   if (savedId) {
     return (
-      <div className="mx-auto flex max-w-2xl flex-col items-center gap-3.5 pb-16 pt-20 text-center">
+      <div className="mx-auto flex max-w-md flex-col items-center gap-3.5 px-4 pb-16 pt-20 text-center">
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-instock-tint">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-instock"><path d="M20 6L9 17l-5-5" /></svg>
         </div>
@@ -355,209 +391,275 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
     );
   }
 
-  return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-4 pb-24">
-      {/* Header */}
-      <div>
-        <h1 className="text-xl font-extrabold tracking-tight text-ink">Record transaction</h1>
-        <p className="mt-1 text-[12.5px] text-mute">
-          Pick a type, add the phones, then take payment — all on one page.
-        </p>
-      </div>
+  const selectedOut = validOut.map((l) => {
+    const m = shopModels.find((x) => x.id === l.modelId);
+    return { name: m?.model_name ?? "Phone", qty: Number(l.qty), price: m?.sale_price ?? 0 };
+  });
+  const hasOut = selectedOut.length > 0;
 
-      {/* Type & shop */}
-      <div className="step-panel flex flex-col gap-3.5">
-        <div className="flex gap-2">
-          <TypeCard label="Sale" sub="Phone leaves the shop" active={type === "sale"} onClick={() => setType("sale")} />
-          <TypeCard label="Swap" sub="Out + trade-in + top-up" active={type === "swap"} onClick={() => setType("swap")} />
-          <TypeCard label="Repair" sub="Logged for service" active={type === "repair"} onClick={() => setType("repair")} />
+  return (
+    <div className="mx-auto w-full max-w-5xl px-4 pb-24 sm:px-6 lg:px-8">
+      {/* Header */}
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-ink">Record transaction</h1>
+          <p className="mt-1 text-[13px] text-mute">
+            Pick a type, add the phones, then take payment — all on one page.
+          </p>
         </div>
-        {isOwner && (
-          <div>
-            <Field label="Shop">
-              <Select value={shopId} onChange={(e) => switchShop(e.target.value)}>
-                {shops.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
-              </Select>
-            </Field>
+        {shopName && (
+          <div className="flex items-center gap-2 rounded-full border border-line bg-white px-3.5 py-2 text-xs font-semibold text-ink/80">
+            <span className="h-1.5 w-1.5 rounded-full bg-instock" aria-hidden="true" />
+            {shopName}
+            <span className="text-line">|</span>
+            <span className="font-medium text-mute">{dateLabel}</span>
           </div>
         )}
       </div>
 
-      {/* Phones going out */}
-      {type !== "repair" && (
-        <Section
-          title="Phones going out"
-          sub="These leave the shop's stock"
-          tone="out"
-          action={
-            <button type="button" onClick={() => setOutLines((ls) => [...ls, { key: nextKey++, modelId: "", qty: "1" }])}
-              className="rounded-lg bg-brand-tint px-2.5 py-1 text-xs font-bold text-brand transition-colors hover:bg-brand/10">
-              + Add
-            </button>
-          }
-        >
-          <div className="space-y-2.5">
-            {outLines.map((line) => {
-              const model = shopModels.find((m) => m.id === line.modelId);
-              const low = model != null && model.available <= model.low_stock_threshold;
-              return (
-                <div key={line.key} className="rounded-xl border border-line bg-paper p-3">
-                  <div className="flex items-end gap-2">
-                    <div className="flex-1">
-                      <Field label="Phone model">
-                        <ModelPicker models={shopModels} value={line.modelId} showStock
-                          onChange={(id) => setOutLines((ls) => ls.map((l) => l.key === line.key ? { ...l, modelId: id } : l))} />
+      {/* Type */}
+      <div className="grid grid-cols-3 gap-2.5">
+        <TypeCard icon={ICON_SALE} label="Sale" sub="Phone leaves the shop" active={type === "sale"} onClick={() => setType("sale")} />
+        <TypeCard icon={ICON_SWAP} label="Swap" sub="Out + trade-in + top-up" active={type === "swap"} onClick={() => setType("swap")} />
+        <TypeCard icon={ICON_REPAIR} label="Repair" sub="Logged for service" active={type === "repair"} onClick={() => setType("repair")} />
+      </div>
+      {isOwner && (
+        <div className="mt-3 sm:max-w-xs">
+          <Field label="Shop">
+            <Select value={shopId} onChange={(e) => switchShop(e.target.value)}>
+              {shops.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+            </Select>
+          </Field>
+        </div>
+      )}
+
+      {/* Main two-column layout: pick on the left, settle on the right */}
+      <div className="mt-5 grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+        {/* ---- Left: phones ---- */}
+        <div className="min-w-0 space-y-4">
+          {type !== "repair" ? (
+            <Section
+              title="Phones going out"
+              sub="These leave the shop's stock"
+              tone="out"
+              action={
+                <button type="button" onClick={() => setOutLines((ls) => [...ls, { key: nextKey++, modelId: "", qty: "1" }])}
+                  className="shrink-0 rounded-lg bg-brand-tint px-3 py-1.5 text-xs font-bold text-brand transition-colors hover:bg-brand/10">
+                  + Add phone
+                </button>
+              }
+            >
+              <div className="space-y-2.5">
+                {outLines.map((line) => {
+                  const model = shopModels.find((m) => m.id === line.modelId);
+                  const low = model != null && model.available <= model.low_stock_threshold;
+                  return (
+                    <div key={line.key} className="rounded-xl border border-line bg-paper p-3">
+                      <div className="flex items-end gap-2.5">
+                        <div className="min-w-0 flex-1">
+                          <Field label="Phone model">
+                            <ModelPicker models={shopModels} value={line.modelId} showStock
+                              onChange={(id) => setOutLines((ls) => ls.map((l) => l.key === line.key ? { ...l, modelId: id } : l))} />
+                          </Field>
+                        </div>
+                        <QtyStepper value={line.qty}
+                          onChange={(qty) => setOutLines((ls) => ls.map((l) => l.key === line.key ? { ...l, qty } : l))} />
+                        <button type="button" aria-label="Remove phone"
+                          onClick={() => setOutLines((ls) => ls.length > 1 ? ls.filter((l) => l.key !== line.key) : [{ key: nextKey++, modelId: "", qty: "1" }])}
+                          className="mb-0.5 inline-flex h-11 w-10 shrink-0 items-center justify-center rounded-lg text-mute transition-colors hover:bg-lowstock-tint hover:text-lowstock">
+                          ✕
+                        </button>
+                      </div>
+                      {model && (
+                        <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                          <Badge tone={model.condition === "new" ? "blue" : "gray"}>{model.condition}</Badge>
+                          {model.sale_price != null && <span className="text-mute">Listed {formatMoney(model.sale_price)}</span>}
+                          <span className={low ? "text-lowstock" : "text-mute"}>
+                            {model.available} in stock{low ? " · low!" : ""}
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </Section>
+          ) : (
+            <div className="rounded-2xl border border-line bg-white p-5 shadow-[0_1px_2px_rgba(20,22,43,0.04)]">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-tint text-brand">{ICON_REPAIR}</span>
+                <div>
+                  <h2 className="text-[15px] font-bold tracking-tight text-ink">Service-only repair</h2>
+                  <p className="mt-1 text-[13px] leading-relaxed text-mute">
+                    The customer&rsquo;s phone comes in and goes back with them — no stock moves.
+                    Only the repair charge below is recorded, and an offline repair stays
+                    <span className="font-semibold text-brand"> awaiting sync </span> until the server confirms it.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {type === "swap" && (
+            <Section
+              title="Old iPhone received"
+              sub="The trade-in model — no need to enter its details"
+              tone="in"
+              action={
+                <button type="button" onClick={() => setSwapLines((ls) => [...ls, { key: nextKey++, name: "" }])}
+                  className="shrink-0 rounded-lg bg-instock-tint px-3 py-1.5 text-xs font-bold text-instock transition-colors hover:bg-instock/10">
+                  + Add phone
+                </button>
+              }
+            >
+              <div className="space-y-2.5">
+                {swapLines.map((line) => (
+                  <div key={line.key} className="flex items-end gap-2.5 rounded-xl border border-line bg-paper p-3">
+                    <div className="min-w-0 flex-1">
+                      <Field label="iPhone model">
+                        <Select value={line.name} onChange={(e) => setSwapLines((ls) => ls.map((l) => l.key === line.key ? { ...l, name: e.target.value } : l))}>
+                          <option value="">Select iPhone model…</option>
+                          {IPHONE_MODELS.map((m) => (<option key={m} value={m}>{m}</option>))}
+                        </Select>
                       </Field>
                     </div>
-                    <QtyStepper value={line.qty}
-                      onChange={(qty) => setOutLines((ls) => ls.map((l) => l.key === line.key ? { ...l, qty } : l))} />
-                    <button type="button" aria-label="Remove phone"
-                      onClick={() => setOutLines((ls) => ls.length > 1 ? ls.filter((l) => l.key !== line.key) : [{ key: nextKey++, modelId: "", qty: "1" }])}
-                      className="mb-0.5 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-mute transition-colors hover:bg-lowstock-tint hover:text-lowstock">
+                    <button type="button" aria-label="Remove"
+                      onClick={() => setSwapLines((ls) => ls.length > 1 ? ls.filter((l) => l.key !== line.key) : [{ key: nextKey++, name: "" }])}
+                      className="mb-0.5 inline-flex h-11 w-10 shrink-0 items-center justify-center rounded-lg text-mute transition-colors hover:bg-lowstock-tint hover:text-lowstock">
                       ✕
                     </button>
                   </div>
-                  {model && (
-                    <p className="mt-2 text-xs">
-                      <Badge tone={model.condition === "new" ? "blue" : "gray"}>{model.condition}</Badge>{" "}
-                      {model.sale_price != null && <span className="text-mute">Sale {model.sale_price.toLocaleString()} GHS · </span>}
-                      <span className={low ? "text-lowstock" : "text-mute"}>{model.available} in stock</span>
-                      {low && <span className="text-lowstock"> · low!</span>}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          {validOut.length > 0 && outTotal > 0 && (
-            <div className="mt-3 flex items-center justify-between rounded-xl border border-line bg-white px-3 py-2 text-[13px]">
-              <span className="text-mute">Total value going out</span>
-              <span className="font-mono font-semibold tabular-nums text-ink">{outTotal.toLocaleString()} GHS</span>
-            </div>
+                ))}
+              </div>
+            </Section>
           )}
-        </Section>
-      )}
+        </div>
 
-      {/* Trade-in for swaps */}
-      {type === "swap" && (
-        <Section
-          title="Old iPhone received (trade-in)"
-          sub="Pick the model — no need to enter its details"
-          tone="in"
-          action={
-            <button type="button" onClick={() => setSwapLines((ls) => [...ls, { key: nextKey++, name: "" }])}
-              className="rounded-lg bg-instock-tint px-2.5 py-1 text-xs font-bold text-instock transition-colors hover:bg-instock/10">
-              + Add
-            </button>
-          }
-        >
-          <div className="space-y-2.5">
-            {swapLines.map((line) => (
-              <div key={line.key} className="rounded-xl border border-line bg-paper p-3">
-                <div className="flex items-end gap-2">
-                  <div className="flex-1">
-                    <Field label="iPhone model">
-                      <Select value={line.name} onChange={(e) => setSwapLines((ls) => ls.map((l) => l.key === line.key ? { ...l, name: e.target.value } : l))}>
-                        <option value="">Select iPhone model…</option>
-                        {IPHONE_MODELS.map((m) => (<option key={m} value={m}>{m}</option>))}
-                      </Select>
-                    </Field>
+        {/* ---- Right: customer, payment, save ---- */}
+        <div className="min-w-0 space-y-4 lg:sticky lg:top-6">
+          <Section title="Customer" tone="mid">
+            <div className="flex flex-col gap-3">
+              <div>
+                <Field label="Name" required>
+                  <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Customer name" />
+                </Field>
+              </div>
+              <div>
+                <Field label="Phone" required>
+                  <Input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Customer phone" />
+                </Field>
+              </div>
+            </div>
+          </Section>
+
+          <Section title="Payment" sub={paymentSub} tone="mid">
+            <div className="space-y-3">
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[13px] font-bold text-mute">GHS</span>
+                <Input type="number" min="0" step="0.01" placeholder="0.00" value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="!h-14 !pl-12 font-mono text-lg font-bold text-ink" />
+              </div>
+
+              {suggested != null && suggested > 0 && (
+                <button type="button" onClick={() => setAmount(String(suggested))}
+                  className="text-xs font-bold text-brand underline underline-offset-2 hover:text-brand-deep">
+                  Use suggested amount — {formatMoney(suggested)}
+                </button>
+              )}
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Payment method">
+                  <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}>
+                    {PAYMENTS.map((p) => (<option key={p.value} value={p.value}>{p.label}</option>))}
+                  </Select>
+                </Field>
+                <Field label="Payment reference">
+                  <Input value={paymentReference} onChange={(e) => setPaymentReference(e.target.value)} placeholder={paymentMethod === "mobile_money" ? "MoMo reference" : "optional"} />
+                </Field>
+                <Field label="Date">
+                  <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                </Field>
+              </div>
+
+              {type === "sale" && belowList && (
+                <Field label="Discount reason" required>
+                  <Input value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} placeholder="Why is this below the listed price?" />
+                </Field>
+              )}
+
+              {type === "repair" && !online && (
+                <p className="rounded-lg border border-brand bg-brand-tint px-3 py-2 text-xs text-brand">
+                  Offline repair charges are saved as awaiting sync and do not count as completed revenue until the server receives them.
+                </p>
+              )}
+
+              {/* Order summary */}
+              <div className="overflow-hidden rounded-xl border border-line">
+                <div className="bg-paper px-3.5 py-2 text-[10.5px] font-bold uppercase tracking-wider text-mute">
+                  {type === "swap" ? "Swap summary" : type === "repair" ? "Repair summary" : "Order summary"}
+                </div>
+                <div className="divide-y divide-line/70">
+                  {!hasOut && type !== "repair" && (
+                    <p className="px-3.5 py-2.5 text-xs text-mute">No phones added yet.</p>
+                  )}
+                  {hasOut && selectedOut.map((o) => (
+                    <div key={o.name} className="flex items-center justify-between gap-3 px-3.5 py-2 text-[12.5px]">
+                      <span className="min-w-0 truncate text-ink/90">
+                        <b className="font-mono font-semibold text-mute">{o.qty}×</b> {o.name}
+                      </span>
+                      <span className="shrink-0 font-mono font-semibold tabular-nums text-ink">{formatMoney(o.price * o.qty)}</span>
+                    </div>
+                  ))}
+                  {type === "swap" && validSwap.map((s) => (
+                    <div key={s.key} className="flex items-center justify-between gap-3 px-3.5 py-2 text-[12.5px]">
+                      <span className="truncate text-ink/90">
+                        <b className="font-mono font-semibold text-mute">IN</b> {s.name} (trade-in)
+                      </span>
+                      <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-instock">+valued</span>
+                    </div>
+                  ))}
+                  {type === "repair" && (
+                    <p className="px-3.5 py-2.5 text-xs text-mute">Repair charge — no stock movement.</p>
+                  )}
+                  <div className="flex items-center justify-between gap-3 bg-white px-3.5 py-2.5">
+                    <span className="text-[12px] font-bold uppercase tracking-wide text-mute">Total {type === "swap" ? "top-up" : "due"}</span>
+                    <span className="font-mono text-base font-bold tabular-nums text-ink">
+                      {amountValid ? formatMoney(enteredAmount) : formatMoney(0)}
+                    </span>
                   </div>
-                  <button type="button" aria-label="Remove"
-                    onClick={() => setSwapLines((ls) => ls.length > 1 ? ls.filter((l) => l.key !== line.key) : [{ key: nextKey++, name: "" }])}
-                    className="mb-0.5 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-mute transition-colors hover:bg-lowstock-tint hover:text-lowstock">
-                    ✕
-                  </button>
                 </div>
               </div>
-            ))}
-          </div>
-        </Section>
-      )}
 
-      {/* Repairs are service-only */}
-      {type === "repair" && (
-        <div className="step-panel rounded-2xl border border-line bg-white p-4 text-sm text-mute">
-          Repairs are service-only: the phone comes in and goes back with the customer. No stock moves — only the charge is recorded.
+              {type === "sale" && belowList && (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                  Below list price — this sale will be saved for the owner&rsquo;s review before it counts as revenue.
+                </p>
+              )}
+            </div>
+          </Section>
+
+          <ErrorNote>{error}</ErrorNote>
+
+          <button type="button" disabled={pending} onClick={submit}
+            className={`flex h-12 w-full items-center justify-center gap-2 rounded-xl text-[14px] font-bold tracking-tight transition-all ${
+              pending
+                ? "cursor-wait bg-line text-mute"
+                : "bg-brand text-white shadow-[0_6px_16px_rgba(67,56,202,0.3)] hover:bg-brand-deep hover:shadow-[0_8px_20px_rgba(67,56,202,0.35)] active:translate-y-px"
+            }`}>
+            {pending ? (
+              "Saving…"
+            ) : (
+              <>
+                {saveLabel}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+              </>
+            )}
+          </button>
         </div>
-      )}
-
-      {/* Customer & payment */}
-      <Section title="Customer" tone="mid">
-        <div className="flex flex-col gap-2.5 sm:flex-row">
-          <div className="flex-1">
-            <Field label="Name" required>
-              <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Customer name" />
-            </Field>
-          </div>
-          <div className="flex-1">
-            <Field label="Phone" required>
-              <Input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Customer phone" />
-            </Field>
-          </div>
-        </div>
-      </Section>
-
-      <Section title="Payment" sub={paymentSub} tone="mid">
-        <div className="flex flex-col gap-2.5">
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-[13px] font-bold text-ledger">GHS</span>
-            <Input type="number" min="0" step="0.01" placeholder="0.00" value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="!pl-11 font-mono font-bold text-ink" />
-          </div>
-          {suggested != null && suggested > 0 && (
-            <button type="button" onClick={() => setAmount(String(suggested))}
-              className="self-start text-xs font-bold text-brand underline">
-              Suggested {suggested.toLocaleString()} GHS — use
-            </button>
-          )}
-          <div className="grid gap-2.5 sm:grid-cols-2">
-            <Field label="Payment method">
-              <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}>
-                {PAYMENTS.map((p) => (<option key={p.value} value={p.value}>{p.label}</option>))}
-              </Select>
-            </Field>
-            <Field label="Payment reference">
-              <Input value={paymentReference} onChange={(e) => setPaymentReference(e.target.value)} placeholder={paymentMethod === "mobile_money" ? "MoMo reference" : "optional"} />
-            </Field>
-            <Field label="Date">
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            </Field>
-          </div>
-          {type === "sale" && belowList && (
-            <Field label="Discount reason" required>
-              <Input value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} placeholder="Why is this below the listed price?" />
-            </Field>
-          )}
-          {type === "repair" && !online && (
-            <p className="rounded-lg border border-brand bg-brand-tint px-3 py-2 text-xs text-brand">
-              Offline repair charges are saved as awaiting sync and do not count as completed revenue until the server receives them.
-            </p>
-          )}
-        </div>
-      </Section>
-
-      {/* Summary + save */}
-      <div className="rounded-2xl border border-dashed border-line bg-paper px-3.5 py-2.5 text-[11.5px] text-mute">
-        {type !== "repair" && (
-          <span>Out: <b className="text-ink">{unitsOut}</b> × {validOut.map((l) => shopModels.find((m) => m.id === l.modelId)?.model_name).filter(Boolean).join(", ") || "—"}</span>
-        )}
-        {type === "swap" && <span className="ml-3">Trade-in: <b className="text-ink">{validSwap.length}</b></span>}
-        {type === "repair" && <span>Repair charge, no stock movement</span>}
-        <span className="float-right font-mono font-semibold tabular-nums text-ink">
-          {amount ? `${Number(amount).toLocaleString(undefined, { maximumFractionDigits: 2 })} GHS` : "0 GHS"}
-        </span>
       </div>
-
-      <ErrorNote>{error}</ErrorNote>
-
-      <button type="button" disabled={pending} onClick={submit}
-        className={`flex h-12 w-full items-center justify-center gap-1.5 rounded-[10px] text-[14px] font-bold transition-colors ${
-          pending ? "cursor-wait bg-line text-mute" : "bg-brand text-white hover:bg-brand-deep"
-        }`}>
-        {pending ? "Saving…" : `Save ${type}`}
-      </button>
     </div>
   );
 }
