@@ -1,10 +1,21 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { Shop } from "@/lib/data";
 
 export function ShopSwitcher({ shops }: { shops: Shop[] }) {
   const router = useRouter();
+
+  // Warm the pages the owner is most likely to open next. A native <select>
+  // can't prefetch on hover like a Link can, so prefetch every shop in the
+  // background as soon as the switcher mounts — the router cache then renders
+  // the target shop page instantly when it is picked.
+  useEffect(() => {
+    for (const s of shops) {
+      router.prefetch(`/shops/${s.id}`);
+    }
+  }, [router, shops]);
 
   return (
     <select

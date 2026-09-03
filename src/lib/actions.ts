@@ -1239,7 +1239,14 @@ export async function deactivateStaff(id: string): Promise<ActionResult> {
       .eq("id", id)
       .eq("role", "attendant");
     if (profileError) return { ok: false, error: profileError.message };
-    const { error } = await admin.auth.admin.updateUserById(id, { ban_duration: "876000h" });
+    // Flag the auth user too: the ban only blocks refresh tokens and new
+    // logins, so an in-flight access token would otherwise keep passing
+    // getUser() until it expires. Middleware reads this flag to sign the user
+    // out without an extra database query per request.
+    const { error } = await admin.auth.admin.updateUserById(id, {
+      ban_duration: "876000h",
+      app_metadata: { deactivated: true },
+    });
     if (error) return { ok: false, error: error.message };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
@@ -1256,7 +1263,10 @@ export async function reactivateStaff(id: string): Promise<ActionResult> {
   if (!isUuid(id)) return { ok: false, error: "Invalid staff account." };
   try {
     const admin = getAdminClient();
-    const { error } = await admin.auth.admin.updateUserById(id, { ban_duration: "none" });
+    const { error } = await admin.auth.admin.updateUserById(id, {
+      ban_duration: "none",
+      app_metadata: { deactivated: false },
+    });
     if (error) return { ok: false, error: error.message };
     const { error: profileError } = await admin
       .from("users")

@@ -226,6 +226,7 @@ export function AppShell({
           <Link
             key={l.href}
             href={l.href}
+            prefetch
             title={isCollapsed ? l.label : undefined}
             className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
               isCollapsed ? "justify-center" : ""
@@ -253,6 +254,7 @@ export function AppShell({
       <div className="shrink-0 border-t border-white/10 p-3">
         <Link
           href="/account"
+          prefetch
           title={isCollapsed ? userName || "Account" : undefined}
           className={`mb-2 flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-white/10 ${
             isCollapsed ? "justify-center" : ""
@@ -336,6 +338,7 @@ export function AppShell({
                 <Link
                   key={l.href}
                   href={l.href}
+                  prefetch
                   className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                     isActive(l.href)
                       ? "bg-brand text-white"
@@ -365,6 +368,7 @@ export function AppShell({
             <Link
               key={t.href}
               href={t.href}
+              prefetch
               className={`flex flex-col items-center gap-0.5 px-1 pb-1.5 pt-2 text-xs leading-tight transition-colors ${
                 isActive(t.href)
                   ? "font-bold text-brand"

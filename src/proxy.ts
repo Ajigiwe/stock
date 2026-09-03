@@ -31,16 +31,14 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  let inactive = false;
-  if (user) {
-    const { data: profile } = await supabase
-      .from("users")
-      .select("active")
-      .eq("id", user.id)
-      .maybeSingle();
-    inactive = profile?.active === false;
-    if (inactive) await supabase.auth.signOut();
-  }
+  // Deactivation is mirrored into the user's app_metadata by the owner's
+  // deactivateStaff action — the auth ban alone only kills refresh tokens and
+  // new logins, while an already-issued access token keeps passing getUser()
+  // until it expires. Reading the flag off the user we just fetched avoids a
+  // second Supabase round-trip on every single request (page loads, RSC
+  // navigations, prefetches, and server actions all pass through here).
+  const inactive = user?.app_metadata?.deactivated === true;
+  if (inactive) await supabase.auth.signOut();
 
   // /signup no longer exists: accounts are created by the owner only.
   if (pathname.startsWith("/signup")) {
