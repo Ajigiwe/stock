@@ -31,6 +31,8 @@ export type QueuedInput = {
   outItems: { modelId: string; qty: number }[];
   swapIn: { name: string }[];
   idempotencyKey: string;
+  discountReason?: string;
+  paymentReference?: string;
 };
 
 export type QueuedTransaction = {

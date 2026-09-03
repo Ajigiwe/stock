@@ -4,6 +4,7 @@ import { formatMoney, formatDateTime, todayISO } from "@/lib/format";
 import { Badge, Card, EmptyState } from "@/components/ui";
 import { RealtimeRefresher } from "@/components/realtime-refresher";
 import { StockRequestsPanel } from "@/components/stock-requests-panel";
+import { TransactionReviewPanel } from "@/components/transaction-review-panel";
 import { DashboardCharts } from "@/components/dashboard-charts";
 import { ShopFilter } from "@/components/shop-filter";
 
@@ -102,6 +103,15 @@ export function Dashboard({ data }: { data: DashboardData }) {
       {movers.length > 0 && <TopMovers movers={movers} />}
 
       <DashboardCharts data={data} />
+
+      {isOwner && data.reviewTransactions.length > 0 && (
+        <Card
+          title="Transactions needing review"
+          subtitle="Discounted sales do not count as finalized revenue until approved"
+        >
+          <TransactionReviewPanel transactions={data.reviewTransactions} isOwner={isOwner} />
+        </Card>
+      )}
 
       {data.pending.length > 0 && (
         <Card
@@ -284,8 +294,8 @@ function RecentTransactions({
                     {t.items.map((i) => (i.direction === "out" ? "−" : "+") + i.model_name).join(", ") ||
                       "—"}
                   </span>
-                  <Badge tone={t.type === "sale" ? "green" : t.type === "swap" ? "blue" : "gray"}>
-                    {t.type}
+                  <Badge tone={t.status === "pending_review" ? "amber" : t.status === "voided" || t.status === "rejected" ? "red" : t.type === "sale" ? "green" : t.type === "swap" ? "blue" : "gray"}>
+                    {t.status === "completed" ? t.type : t.status.replace("_", " ")}
                   </Badge>
                 </div>
                 <div className="text-xs text-mute">

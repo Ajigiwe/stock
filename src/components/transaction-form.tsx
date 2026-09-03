@@ -138,12 +138,26 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
   const [customerPhone, setCustomerPhone] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<(typeof PAYMENTS)[number]["value"]>("cash");
   const [amount, setAmount] = useState("");
+  const [discountReason, setDiscountReason] = useState("");
+  const [paymentReference, setPaymentReference] = useState("");
   const [date, setDate] = useState(todayISO());
   const [outLines, setOutLines] = useState<OutLine[]>([{ key: nextKey++, modelId: "", qty: "1" }]);
   const [swapLines, setSwapLines] = useState<SwapLine[]>([{ key: nextKey++, name: "" }]);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [savedOffline, setSavedOffline] = useState(false);
   const [pendingQueueLen, setPendingQueueLen] = useState(0);
+  const [online, setOnline] = useState(true);
+
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    update();
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
 
   // Warn before leaving with a half-filled wizard. Back-swipe on mobile and
   // refresh both route through beforeunload; in-app nav is covered in goBack.
@@ -214,6 +228,8 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
     setCustomerPhone("");
     setPaymentMethod("cash");
     setAmount("");
+    setDiscountReason("");
+    setPaymentReference("");
     setDate(todayISO());
     setOutLines([{ key: nextKey++, modelId: "", qty: "1" }]);
     setSwapLines([{ key: nextKey++, name: "" }]);
@@ -255,8 +271,8 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
     if (type === "swap" && validSwap.length === 0) return setError("Add the old phone the customer is trading in.");
     if (!Number.isFinite(Number(amount)) || Number(amount) < 0) return setError("Enter a valid amount.");
     if (!customerName.trim() || !customerPhone.trim()) return setError("Customer name and phone are required.");
-    if (type === "sale" && suggested != null && suggested > 0 && Number(amount) < suggested) {
-      return setError(`Sale amount can't be less than the phone price (${suggested.toLocaleString()} GHS).`);
+    if (type === "sale" && suggested != null && suggested > 0 && Number(amount) < suggested && !discountReason.trim()) {
+      return setError("Add a reason for the discount before saving.");
     }
 
     const outItems = validOut.map((l) => ({ modelId: l.modelId, qty: Number(l.qty) }));
@@ -273,12 +289,18 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
       outItems,
       swapIn,
       idempotencyKey,
+      discountReason,
+      paymentReference,
     };
 
     // Offline (or the request never left): queue the transaction locally and
     // confirm to the user. The idempotency key stays with the queued entry, so
     // syncing later is dedupe-safe even if the server also received the call.
     const goOfflineQueue = () => {
+      if (type !== "repair") {
+        setError("Sales and swaps need a live connection. Reconnect before saving.");
+        return;
+      }
       try {
         enqueueTransaction({
           idempotencyKey,
@@ -301,7 +323,7 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
     };
 
     startTransition(async () => {
-      if (!navigator.onLine) {
+      if (!online) {
         goOfflineQueue();
         return;
       }
@@ -544,10 +566,23 @@ export function TransactionForm({ shops, stock, defaultShopId, isOwner }: {
                     {PAYMENTS.map((p) => (<option key={p.value} value={p.value}>{p.label}</option>))}
                   </Select>
                 </Field>
+                <Field label="Payment reference">
+                  <Input value={paymentReference} onChange={(e) => setPaymentReference(e.target.value)} placeholder={paymentMethod === "mobile_money" ? "MoMo reference" : "optional"} />
+                </Field>
                 <Field label="Date">
                   <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
                 </Field>
               </div>
+              {type === "sale" && suggested != null && Number(amount) < suggested && (
+                <Field label="Discount reason" required>
+                  <Input value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} placeholder="Why is this below the listed price?" />
+                </Field>
+              )}
+              {type === "repair" && !online && (
+                <p className="rounded-lg border border-brand bg-brand-tint px-3 py-2 text-xs text-brand">
+                  Offline repair charges are saved as awaiting sync and do not count as completed revenue until the server receives them.
+                </p>
+              )}
             </div>
           </Section>
 

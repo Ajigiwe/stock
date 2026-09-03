@@ -47,6 +47,9 @@ export type Database = {
           role: UserRole;
           shop_id: string | null;
           can_edit_stock: boolean;
+          active: boolean;
+          deactivated_at: string | null;
+          deactivated_by: string | null;
           created_at: string;
         };
         Insert: {
@@ -55,6 +58,9 @@ export type Database = {
           role?: UserRole;
           shop_id?: string | null;
           can_edit_stock?: boolean;
+          active?: boolean;
+          deactivated_at?: string | null;
+          deactivated_by?: string | null;
           created_at?: string;
         };
         Update: {
@@ -63,6 +69,9 @@ export type Database = {
           role?: UserRole;
           shop_id?: string | null;
           can_edit_stock?: boolean;
+          active?: boolean;
+          deactivated_at?: string | null;
+          deactivated_by?: string | null;
           created_at?: string;
         };
         Relationships: [
@@ -138,6 +147,16 @@ export type Database = {
           date: string;
           created_at: string;
           idempotency_key: string | null;
+          status: "completed" | "pending_review" | "voided" | "rejected";
+          review_reason: string | null;
+          listed_amount: number | null;
+          discount_reason: string | null;
+          payment_reference: string | null;
+          reviewed_by: string | null;
+          reviewed_at: string | null;
+          voided_by: string | null;
+          voided_at: string | null;
+          void_reason: string | null;
         };
         Insert: {
           id?: string;
@@ -151,6 +170,16 @@ export type Database = {
           date?: string;
           created_at?: string;
           idempotency_key?: string | null;
+          status?: "completed" | "pending_review" | "voided" | "rejected";
+          review_reason?: string | null;
+          listed_amount?: number | null;
+          discount_reason?: string | null;
+          payment_reference?: string | null;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          voided_by?: string | null;
+          voided_at?: string | null;
+          void_reason?: string | null;
         };
         Update: {
           id?: string;
@@ -164,6 +193,16 @@ export type Database = {
           date?: string;
           created_at?: string;
           idempotency_key?: string | null;
+          status?: "completed" | "pending_review" | "voided" | "rejected";
+          review_reason?: string | null;
+          listed_amount?: number | null;
+          discount_reason?: string | null;
+          payment_reference?: string | null;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          voided_by?: string | null;
+          voided_at?: string | null;
+          void_reason?: string | null;
         };
         Relationships: [
           {
@@ -439,6 +478,147 @@ export type Database = {
           },
         ];
       };
+      transaction_events: {
+        Row: {
+          id: string;
+          transaction_id: string;
+          actor_id: string;
+          action: "created" | "approved" | "rejected" | "voided";
+          details: Json | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          transaction_id: string;
+          actor_id: string;
+          action: "created" | "approved" | "rejected" | "voided";
+          details?: Json | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          transaction_id?: string;
+          actor_id?: string;
+          action?: "created" | "approved" | "rejected" | "voided";
+          details?: Json | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      daily_closes: {
+        Row: {
+          id: string;
+          shop_id: string;
+          close_date: string;
+          status: "open" | "locked";
+          expected_cash: number;
+          expected_mobile_money: number;
+          expected_other: number;
+          counted_cash: number | null;
+          counted_mobile_money: number | null;
+          counted_other: number | null;
+          notes: string | null;
+          submitted_by: string;
+          submitted_at: string;
+          locked_by: string | null;
+          locked_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          close_date: string;
+          status?: "open" | "locked";
+          expected_cash?: number;
+          expected_mobile_money?: number;
+          expected_other?: number;
+          counted_cash?: number | null;
+          counted_mobile_money?: number | null;
+          counted_other?: number | null;
+          notes?: string | null;
+          submitted_by: string;
+          submitted_at?: string;
+          locked_by?: string | null;
+          locked_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          close_date?: string;
+          status?: "open" | "locked";
+          expected_cash?: number;
+          expected_mobile_money?: number;
+          expected_other?: number;
+          counted_cash?: number | null;
+          counted_mobile_money?: number | null;
+          counted_other?: number | null;
+          notes?: string | null;
+          submitted_by?: string;
+          submitted_at?: string;
+          locked_by?: string | null;
+          locked_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      stock_counts: {
+        Row: {
+          id: string;
+          shop_id: string;
+          count_date: string;
+          status: "submitted" | "approved" | "applied";
+          submitted_by: string;
+          approved_by: string | null;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          shop_id: string;
+          count_date: string;
+          status?: "submitted" | "approved" | "applied";
+          submitted_by: string;
+          approved_by?: string | null;
+          notes?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          shop_id?: string;
+          count_date?: string;
+          status?: "submitted" | "approved" | "applied";
+          submitted_by?: string;
+          approved_by?: string | null;
+          notes?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      stock_count_items: {
+        Row: {
+          id: string;
+          count_id: string;
+          phone_model_id: string;
+          expected_qty: number;
+          counted_qty: number;
+        };
+        Insert: {
+          id?: string;
+          count_id: string;
+          phone_model_id: string;
+          expected_qty: number;
+          counted_qty: number;
+        };
+        Update: {
+          id?: string;
+          count_id?: string;
+          phone_model_id?: string;
+          expected_qty?: number;
+          counted_qty?: number;
+        };
+        Relationships: [];
+      };
       stock_requests: {
         Row: {
           id: string;
@@ -539,8 +719,50 @@ export type Database = {
           p_out_items?: { phone_model_id: string; qty: number }[];
           p_in_items?: Record<string, unknown>[];
           p_idempotency_key?: string | null;
+          p_swap_in?: Record<string, unknown>[];
+          p_discount_reason?: string | null;
+          p_payment_reference?: string | null;
         };
         Returns: string;
+      };
+      review_transaction: {
+        Args: { p_transaction_id: string; p_decision: string; p_reason?: string | null };
+        Returns: undefined;
+      };
+      void_transaction: {
+        Args: { p_transaction_id: string; p_reason: string };
+        Returns: undefined;
+      };
+      update_swapped_phone_status: {
+        Args: { p_id: string; p_status: string };
+        Returns: undefined;
+      };
+      submit_daily_close: {
+        Args: {
+          p_shop_id: string;
+          p_close_date: string;
+          p_counted_cash: number;
+          p_counted_mobile_money: number;
+          p_counted_other?: number;
+          p_notes?: string | null;
+        };
+        Returns: string;
+      };
+      lock_daily_close: {
+        Args: { p_close_id: string };
+        Returns: undefined;
+      };
+      submit_stock_count: {
+        Args: { p_shop_id: string; p_count_date: string; p_items: Record<string, unknown>[]; p_notes?: string | null };
+        Returns: string;
+      };
+      approve_stock_count: {
+        Args: { p_count_id: string };
+        Returns: undefined;
+      };
+      apply_stock_count_correction: {
+        Args: { p_count_id: string; p_reason: string };
+        Returns: number;
       };
       delete_transaction: {
         Args: { p_transaction_id: string };

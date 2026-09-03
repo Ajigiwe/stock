@@ -53,7 +53,9 @@ available = opening_stock + bought_in + Σ(swap-ins) − Σ(sales + swap-outs)
 
 Open the Supabase Dashboard → **SQL Editor** → **New query**, then paste and run the contents of `supabase/schema.sql`.
 
-This creates the tables, RLS policies, triggers, and helper RPCs (`record_transaction`, `adjust_stock`, `delete_transaction`, etc.).
+This creates the tables, RLS policies, triggers, and helper RPCs (`record_transaction`, `adjust_stock`, etc.). Then paste and run `supabase/migrations/0004_fraud_controls_and_reconciliation.sql` — it adds the fraud controls (transaction lifecycle & audit events, owner review/void, daily closes, physical stock counts, staff deactivation) and is required for the app to work.
+
+> **Existing projects:** do *not* re-run schema.sql (it drops all data). Migrations 0001–0003 are only for databases created from an older schema; if you have been applying the numbered migrations, upgrade with `0004_fraud_controls_and_reconciliation.sql` alone.
 
 ### 2. Configure environment variables
 
@@ -98,9 +100,10 @@ npm run lint    # Lint with ESLint
 |---|---|---|
 | View all shops | Yes | No (own shop only) |
 | Record transactions | Yes | Yes (own shop only) |
-| Edit / delete past transactions | Yes | No |
-| Add / remove shops & staff | Yes | No |
-| Restock / adjust stock | Yes | Yes (own shop only) |
+| Approve discounted sales / void transactions | Yes | No |
+| Add / deactivate staff, manage shops | Yes | No |
+| Adjust stock / approve stock requests | Yes | No (requests only) |
+| Lock daily closes / approve stock counts | Yes | No (submit evidence only) |
 
 ## Project Structure
 

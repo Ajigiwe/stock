@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSession, getTransaction, getSwappedPhones } from "@/lib/data";
+import { getSession, getTransaction, getTransactionEvents, getSwappedPhones } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
 import { formatMoney, formatDateTime } from "@/lib/format";
 import { Badge } from "@/components/ui";
@@ -44,13 +44,14 @@ export default async function ReceiptPage({
   }
 
   const supabase = await createClient();
-  const [{ data: shop }, swaps] = await Promise.all([
+  const [{ data: shop }, swaps, events] = await Promise.all([
     supabase
       .from("shops")
       .select("name, location, phone")
       .eq("id", tx.shop_id)
       .maybeSingle(),
     getSwappedPhones({ transactionId: id }),
+    session.profile?.role === "owner" ? getTransactionEvents(id) : Promise.resolve([]),
   ]);
 
   const out = tx.items.filter((i) => i.direction === "out");
@@ -112,9 +113,12 @@ export default async function ReceiptPage({
 
         <div className="flex items-center justify-between text-xs text-mute">
           <span>Receipt #{receiptNo}</span>
-          <Badge tone={tx.type === "sale" ? "green" : tx.type === "swap" ? "blue" : "gray"}>
-            {TYPE_LABELS[tx.type] ?? tx.type}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge tone={tx.type === "sale" ? "green" : tx.type === "swap" ? "blue" : "gray"}>
+              {TYPE_LABELS[tx.type] ?? tx.type}
+            </Badge>
+            {tx.status !== "completed" && <Badge tone={tx.status === "pending_review" ? "amber" : "red"}>{tx.status.replace("_", " ")}</Badge>}
+          </div>
         </div>
         <div className="mt-1 text-xs text-mute">{formatDateTime(tx.date)}</div>
         {tx.staff_name && (
@@ -170,7 +174,27 @@ export default async function ReceiptPage({
         </div>
         <div className="mt-0.5 text-right text-xs text-mute">
           Paid by {PAYMENT_LABELS[tx.payment_method] ?? tx.payment_method}
+          {tx.payment_reference ? ` · Ref ${tx.payment_reference}` : ""}
         </div>
+        {tx.discount_reason && <p className="mt-2 text-right text-xs text-brand">Discount reason: {tx.discount_reason}</p>}
+        {tx.void_reason && <p className="mt-2 text-right text-xs text-lowstock">Void reason: {tx.void_reason}</p>}
+
+        {session.profile?.role === "owner" && events.length > 0 && (
+          <div className="no-print mt-5 rounded-lg border border-line bg-paper p-3">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-mute">Audit history</div>
+            <ul className="mt-2 space-y-2">
+              {events.map((event) => (
+                <li key={event.id} className="flex items-start justify-between gap-3 text-xs">
+                  <span className="text-ink">
+                    <b>{event.action === "created" ? "Recorded" : event.action === "approved" ? "Approved" : event.action === "rejected" ? "Rejected" : "Voided"}</b>
+                    {event.actor_name ? ` by ${event.actor_name}` : ""}
+                  </span>
+                  <span className="shrink-0 text-mute">{formatDateTime(event.created_at)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <p className="mt-5 text-center text-xs text-mute">
           Thank you for your business!

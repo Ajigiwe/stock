@@ -96,6 +96,7 @@ export async function getSession(): Promise<SessionUser | null> {
   // access on `profile.role` / `profile.shop_id`, so a null profile turns those
   // checks into no-ops and the page falls open. Fail closed instead.
   if (error) throw new Error(`Could not load your profile: ${error.message}`);
+  if (profile && !profile.active) return null;
 
   return { id: user.id, email: user.email, profile };
 }
@@ -204,6 +205,7 @@ export const getCachedTransactions = unstable_cache(
     to?: string;
     type?: string;
     paymentMethod?: string;
+    status?: "completed" | "pending_review" | "voided" | "rejected" | "all";
     limit?: number;
   }): Promise<TransactionWithDetails[]> => {
     const a = getCachedAdminClient();
@@ -217,6 +219,9 @@ export const getCachedTransactions = unstable_cache(
         "payment_method",
         opts.paymentMethod as Database["public"]["Enums"]["payment_method"],
       );
+    q = opts.status === "all"
+      ? q
+      : q.eq("status", opts.status ?? "completed");
     if (opts.limit) q = q.limit(opts.limit);
     else q = q.limit(TX_READ_LIMIT);
 
@@ -572,6 +577,7 @@ export async function getTransactions(opts: {
   to?: string; // YYYY-MM-DD inclusive
   type?: string;
   paymentMethod?: string;
+  status?: "completed" | "pending_review" | "voided" | "rejected" | "all";
   limit?: number;
 }): Promise<TransactionWithDetails[]> {
   const supabase = await createClient();
@@ -582,6 +588,9 @@ export async function getTransactions(opts: {
   if (opts.to) q = q.lt("date", `${addDays(opts.to, 1)}T00:00:00Z`);
   if (opts.type) q = q.eq("type", opts.type as "sale" | "swap" | "repair");
   if (opts.paymentMethod) q = q.eq("payment_method", opts.paymentMethod as Database["public"]["Enums"]["payment_method"]);
+  q = opts.status === "all"
+    ? q
+    : q.eq("status", opts.status ?? "completed");
   q = q.limit(opts.limit ?? TX_READ_LIMIT);
 
   const { data: txs, error } = await q;
@@ -603,6 +612,37 @@ export async function getTransaction(
   if (!data) return null;
   const [tx] = await hydrateTransactions(supabase, [data]);
   return tx ?? null;
+}
+
+export type TransactionEventWithActor =
+  Database["public"]["Tables"]["transaction_events"]["Row"] & {
+    actor_name: string | null;
+  };
+
+export async function getTransactionEvents(
+  transactionId: string,
+): Promise<TransactionEventWithActor[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("transaction_events")
+    .select("*")
+    .eq("transaction_id", transactionId)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  const events = data ?? [];
+  if (events.length === 0) return [];
+
+  const actorIds = [...new Set(events.map((event) => event.actor_id))];
+  const { data: actors, error: actorsError } = await supabase
+    .from("users")
+    .select("id, name")
+    .in("id", actorIds);
+  if (actorsError) throw new Error(actorsError.message);
+  const names = new Map((actors ?? []).map((actor) => [actor.id, actor.name]));
+  return events.map((event) => ({
+    ...event,
+    actor_name: names.get(event.actor_id) ?? null,
+  }));
 }
 
 async function hydrateTransactions(
@@ -779,6 +819,60 @@ export type StockRequestWithDetails = StockRequest & {
   model_name_display: string | null;
 };
 
+export type DailyClose = Database["public"]["Tables"]["daily_closes"]["Row"];
+export type StockCount = Database["public"]["Tables"]["stock_counts"]["Row"];
+export type StockCountWithItems = StockCount & {
+  items: (Database["public"]["Tables"]["stock_count_items"]["Row"] & {
+    model_name: string;
+  })[];
+};
+
+export async function getDailyClose(
+  shopId: string,
+  date: string,
+): Promise<DailyClose | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("daily_closes")
+    .select("*")
+    .eq("shop_id", shopId)
+    .eq("close_date", date)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ?? null;
+}
+
+export async function getLatestStockCount(shopId: string): Promise<StockCountWithItems | null> {
+  const supabase = await createClient();
+  const { data: count, error: countError } = await supabase
+    .from("stock_counts")
+    .select("*")
+    .eq("shop_id", shopId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (countError) throw new Error(countError.message);
+  if (!count) return null;
+  const { data: items, error: itemsError } = await supabase
+    .from("stock_count_items")
+    .select("*")
+    .eq("count_id", count.id);
+  if (itemsError) throw new Error(itemsError.message);
+  const modelIds = (items ?? []).map((item) => item.phone_model_id);
+  const { data: models, error: modelsError } = modelIds.length
+    ? await supabase.from("phone_models").select("id, model_name").in("id", modelIds)
+    : { data: [], error: null };
+  if (modelsError) throw new Error(modelsError.message);
+  const names = new Map((models ?? []).map((model) => [model.id, model.model_name]));
+  return {
+    ...count,
+    items: (items ?? []).map((item) => ({
+      ...item,
+      model_name: names.get(item.phone_model_id) ?? "Unknown model",
+    })),
+  };
+}
+
 export async function getStockRequests(opts: {
   shopId?: string;
   status?: "pending" | "approved" | "rejected";
@@ -861,6 +955,7 @@ export type DashboardData = {
   series: DailyPoint[];
   recent: TransactionWithDetails[];
   pending: StockRequestWithDetails[];
+  reviewTransactions: TransactionWithDetails[];
   totals: DashboardTotals;
 };
 
@@ -926,7 +1021,7 @@ export async function getDashboardData(
     const shopId =
       shopFilter && shops.some((s) => s.id === shopFilter) ? shopFilter : undefined;
 
-    const [summaries, recent, pending, rangeTxs] = await Promise.all([
+    const [summaries, recent, pending, reviewTransactions, rangeTxs] = await Promise.all([
       Promise.all(
         shops
           .filter((s) => !shopId || s.id === shopId)
@@ -935,6 +1030,9 @@ export async function getDashboardData(
       getCachedTransactions(shopId ? { shopId, limit: 10 } : { limit: 10 }),
       getCachedStockRequests(
         shopId ? { shopId, status: "pending" } : { status: "pending" },
+      ),
+      getCachedTransactions(
+        shopId ? { shopId, status: "pending_review", limit: 100 } : { status: "pending_review", limit: 100 },
       ),
       getCachedTransactions(shopId ? { shopId, from, to } : { from, to }),
     ]);
@@ -948,6 +1046,7 @@ export async function getDashboardData(
       series: buildSeries(rangeTxs, from, to),
       recent,
       pending,
+      reviewTransactions,
       totals: aggregateTotals(summaries),
     };
   }
@@ -958,18 +1057,21 @@ export async function getDashboardData(
   let shop: Shop | null = null;
   let recent: TransactionWithDetails[] = [];
   let pending: StockRequestWithDetails[] = [];
+  let reviewTransactions: TransactionWithDetails[] = [];
   let rangeTxs: TransactionWithDetails[] = [];
   if (shopId) {
-    const [summary, r, p, rt] = await Promise.all([
+    const [summary, r, p, rv, rt] = await Promise.all([
       getShopSummary(shopId, from, to),
       getTransactions({ shopId, limit: 10 }),
       getStockRequests({ shopId, status: "pending" }),
+      getTransactions({ shopId, status: "pending_review", limit: 100 }),
       getTransactions({ shopId, from, to }),
     ]);
     summaries = [summary];
     shop = summary.shop;
     recent = r;
     pending = p;
+    reviewTransactions = rv;
     rangeTxs = rt;
   }
   return {
@@ -982,6 +1084,7 @@ export async function getDashboardData(
     series: buildSeries(rangeTxs, from, to),
     recent,
     pending,
+    reviewTransactions,
     totals: aggregateTotals(summaries),
   };
 }

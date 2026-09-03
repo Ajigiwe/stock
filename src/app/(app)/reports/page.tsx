@@ -23,7 +23,7 @@ const PAYMENT_LABELS: Record<string, string> = {
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ shop?: string; from?: string; to?: string; type?: string; payment?: string }>;
+  searchParams: Promise<{ shop?: string; from?: string; to?: string; type?: string; payment?: string; status?: string }>;
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -47,6 +47,7 @@ export default async function ReportsPage({
         to: sp.to,
         type: sp.type,
         paymentMethod: sp.payment,
+        status: sp.status === "all" || sp.status === "pending_review" || sp.status === "voided" || sp.status === "rejected" ? sp.status : undefined,
       })
     : await getTransactions({
         shopId: shopId || undefined,
@@ -54,6 +55,7 @@ export default async function ReportsPage({
         to: sp.to,
         type: sp.type,
         paymentMethod: sp.payment,
+        status: sp.status === "all" || sp.status === "pending_review" || sp.status === "voided" || sp.status === "rejected" ? sp.status : undefined,
       });
 
   const revenue = txs.reduce((a, t) => a + (t.amount ?? 0), 0);
@@ -69,6 +71,7 @@ export default async function ReportsPage({
   if (sp.to) qs.set("to", sp.to);
   if (sp.type) qs.set("type", sp.type);
   if (sp.payment) qs.set("payment", sp.payment);
+  if (sp.status) qs.set("status", sp.status);
   const exportHref = `/reports/export?${qs.toString()}`;
 
   return (
@@ -127,6 +130,16 @@ export default async function ReportsPage({
                   {v}
                 </option>
               ))}
+            </Select>
+          </div>
+          <div>
+            <Label>Status</Label>
+            <Select name="status" defaultValue={sp.status ?? ""}>
+              <option value="">Completed only</option>
+              <option value="all">All statuses</option>
+              <option value="pending_review">Pending review</option>
+              <option value="voided">Voided</option>
+              <option value="rejected">Rejected</option>
             </Select>
           </div>
           <div className="sm:col-span-5">
@@ -247,8 +260,8 @@ function ReportRow({ t, isOwner }: { t: TransactionWithDetails; isOwner: boolean
       {isOwner && <td className="py-2 pr-4">{t.shop_name ?? "—"}</td>}
       <td className="py-2 pr-4 text-mute">{t.staff_name ?? "—"}</td>
       <td className="py-2 pr-4">
-        <Badge tone={t.type === "sale" ? "green" : t.type === "swap" ? "blue" : "gray"}>
-          {t.type}
+        <Badge tone={t.status === "pending_review" ? "amber" : t.status === "voided" || t.status === "rejected" ? "red" : t.type === "sale" ? "green" : t.type === "swap" ? "blue" : "gray"}>
+          {t.status === "pending_review" ? "review" : t.status}
         </Badge>
       </td>
       <td className="py-2 pr-4 text-ink/80">

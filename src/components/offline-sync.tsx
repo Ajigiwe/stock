@@ -70,6 +70,11 @@ export function OfflineSync() {
     // idempotency key makes each attempt safe to repeat.
     for (const tx of queue) {
       try {
+        if (tx.input.type !== "repair") {
+          dequeueTransaction(tx.idempotencyKey);
+          lastError = "Only repair charges may remain in the offline queue.";
+          continue;
+        }
         const res = await recordTransaction(tx.input);
         if (res.ok) {
           dequeueTransaction(tx.idempotencyKey);
@@ -157,10 +162,10 @@ export function OfflineSync() {
         />
         <span className="min-w-0 flex-1 truncate text-xs font-medium">
           {!online
-            ? "Offline — transactions are saved on this device"
+            ? "Offline — only repair charges can be saved on this device"
             : syncing
               ? "Syncing queued transactions…"
-              : `${queueLen} queued transaction${queueLen === 1 ? "" : "s"} waiting to sync`}
+              : `${queueLen} repair${queueLen === 1 ? "" : "s"} awaiting sync`}
         </span>
         {online && queueLen > 0 && !syncing && (
           <button

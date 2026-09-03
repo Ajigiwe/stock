@@ -85,7 +85,10 @@ create table public.users (
   role        user_role not null default 'attendant',
   shop_id     uuid references public.shops (id) on delete set null, -- null for owner
   can_edit_stock boolean not null default false, -- DEPRECATED: no longer grants stock editing; kept for backup compatibility
-  created_at  timestamptz not null default now()
+  active                boolean not null default true,
+  deactivated_at        timestamptz,
+  deactivated_by        uuid references public.users(id) on delete set null,
+  created_at           timestamptz not null default now()
 );
 
 -- Hit by current_user_profile(), which every RLS policy calls.
@@ -196,12 +199,23 @@ create table public.transactions (
   amount            numeric(12,2) not null default 0 check (amount >= 0), -- sale: full price; swap: top-up; repair: charge
   date              timestamptz not null default now(),
   created_at        timestamptz not null default now(),
-  idempotency_key   uuid unique  -- client-generated; prevents double-submit duplicates
+  idempotency_key   uuid unique, -- client-generated; prevents double-submit duplicates
+  status            text not null default 'completed' check (status in ('completed', 'pending_review', 'voided', 'rejected')),
+  listed_amount     numeric(12,2),
+  review_reason     text,
+  discount_reason   text,
+  payment_reference text,
+  reviewed_by       uuid references public.users(id) on delete set null,
+  reviewed_at       timestamptz,
+  voided_by         uuid references public.users(id) on delete set null,
+  voided_at         timestamptz,
+  void_reason       text
 );
 
 create index transactions_shop_date_idx on public.transactions (shop_id, date desc);
 create index transactions_type_idx     on public.transactions (type);
 create index transactions_staff_idx    on public.transactions (staff_id);
+create index transactions_status_date_idx on public.transactions (status, date desc);
 
 -- ---------------------------------------------------------------------------
 -- transaction_items  (line items; lets a swap move stock both ways)
@@ -705,27 +719,6 @@ revoke all on function public.bulk_adjust_stock(uuid, jsonb, text) from anon;
 grant execute on function public.bulk_adjust_stock(uuid, jsonb, text) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- RPC: delete_transaction  (owner only — stock side-effects are reversed)
--- ---------------------------------------------------------------------------
-create or replace function public.delete_transaction(p_transaction_id uuid)
-returns void
-language plpgsql security definer set search_path = ''
-as $$
-begin
-  perform public.require_owner();
-
-  delete from public.transactions where id = p_transaction_id;
-  if not found then
-    raise exception 'Transaction not found' using errcode = 'P0001';
-  end if;
-end;
-$$;
-
-revoke all on function public.delete_transaction(uuid) from public;
-revoke all on function public.delete_transaction(uuid) from anon;
-grant execute on function public.delete_transaction(uuid) to authenticated;
-
--- ---------------------------------------------------------------------------
 -- RPC: restore_backup  (owner only — full data restore from a backup file)
 -- Replaces ALL data with the contents of the backup. Stock triggers are
 -- disabled while loading so the saved `available` values are preserved (they
@@ -801,6 +794,9 @@ begin
   delete from public.login_logs where true;
   delete from public.stock_requests where true;
   delete from public.swapped_phones where true;
+  delete from public.transaction_events where true;
+  delete from public.daily_closes where true;
+  delete from public.stock_counts where true; -- stock_count_items cascade
   delete from public.transaction_items where true;
   delete from public.transactions where true;
   delete from public.stock_adjustments where true;
@@ -1238,9 +1234,9 @@ grant select, insert, delete         on public.users to authenticated;
 grant select, insert, delete         on public.phone_models to authenticated;
 grant update (model_name, condition, cost_price, sale_price, low_stock_threshold)
   on public.phone_models to authenticated;
-grant select, insert, update, delete on public.transactions to authenticated;
-grant select, insert, update, delete on public.transaction_items to authenticated;
-grant select, insert, update, delete on public.stock_adjustments to authenticated;
+grant select on public.transactions to authenticated;
+grant select on public.transaction_items to authenticated;
+grant select on public.stock_adjustments to authenticated;
 grant select, insert, update, delete on public.stock_requests to authenticated;
 
 -- New models always start consistent: available is derived, never client-supplied.
@@ -1364,6 +1360,9 @@ create policy "stock_requests: attendant reads own shop" on public.stock_request
   for select using (((select public.current_user_profile())).shop_id = shop_id);
 
 -- ---------------------------------------------------------------------------
+-- daily closes and physical stock evidence are controlled by RPCs in migration
+-- 0004. Fresh installs should run the fraud-control migration after schema.sql.
+-- ---------------------------------------------------------------------------
 -- swapped_phones  (old phones taken in during a swap; a separate list, NOT
 -- merged into sellable stock). Populated by the swap flow in the app.
 -- ---------------------------------------------------------------------------
@@ -1388,8 +1387,19 @@ create index swapped_phones_staff_idx on public.swapped_phones (staff_id);
 alter table public.swapped_phones enable row level security;
 revoke all on public.swapped_phones from anon;
 revoke all on public.swapped_phones from authenticated;
-grant select, insert, update, delete on public.swapped_phones to authenticated;
+-- Trade-ins are created atomically by record_transaction and can only be
+-- changed through the owner-only status RPC. No client role receives DML.
+grant select on public.swapped_phones to authenticated;
 
+create policy "swapped_phones: owner reads all" on public.swapped_phones
+  for select using (((select public.current_user_profile())).role = 'owner');
+
+create policy "swapped_phones: attendant reads own shop" on public.swapped_phones
+  for select using (((select public.current_user_profile())).shop_id = shop_id);
+
+/* Legacy policies intentionally removed; migration 0004 adds the controlled
+   update_swapped_phone_status RPC and keeps this table read-only to clients. */
+/*
 create policy "swapped_phones: owner full access" on public.swapped_phones
   for all using (((select public.current_user_profile())).role = 'owner')
   with check (((select public.current_user_profile())).role = 'owner');
@@ -1400,9 +1410,7 @@ create policy "swapped_phones: attendant insert own shop" on public.swapped_phon
     and ((select public.current_user_profile())).shop_id = shop_id
     and staff_id = auth.uid()
   );
-
-create policy "swapped_phones: attendant reads own shop" on public.swapped_phones
-  for select using (((select public.current_user_profile())).shop_id = shop_id);
+*/
 
 -- ---------------------------------------------------------------------------
 -- login_logs  (who signed in, from where, when — seen by the owner)
@@ -1469,6 +1477,87 @@ create policy "stock_logs: attendant reads own shop" on public.stock_logs
   for select using (((select public.current_user_profile())).shop_id = shop_id);
 
 -- ---------------------------------------------------------------------------
+-- Fraud-control tables. Migration 0004 adds their controlled RPCs and the
+-- transaction lifecycle/event logic; defining the tables here keeps fresh
+-- installs structurally compatible before that migration is run.
+-- ---------------------------------------------------------------------------
+create table public.transaction_events (
+  id uuid primary key default gen_random_uuid(),
+  transaction_id uuid not null references public.transactions(id) on delete cascade,
+  actor_id uuid not null references public.users(id) on delete restrict,
+  action text not null check (action in ('created', 'approved', 'rejected', 'voided')),
+  details jsonb,
+  created_at timestamptz not null default now()
+);
+create index transaction_events_tx_idx on public.transaction_events(transaction_id, created_at);
+create index transaction_events_actor_idx on public.transaction_events(actor_id, created_at desc);
+alter table public.transaction_events enable row level security;
+revoke all on public.transaction_events from anon, authenticated;
+grant select on public.transaction_events to authenticated;
+create policy "transaction_events: owner reads all" on public.transaction_events
+  for select using (((select public.current_user_profile())).role = 'owner');
+
+create table public.daily_closes (
+  id uuid primary key default gen_random_uuid(),
+  shop_id uuid not null references public.shops(id) on delete cascade,
+  close_date date not null,
+  status text not null default 'open' check (status in ('open', 'locked')),
+  expected_cash numeric(12,2) not null default 0,
+  expected_mobile_money numeric(12,2) not null default 0,
+  expected_other numeric(12,2) not null default 0,
+  counted_cash numeric(12,2),
+  counted_mobile_money numeric(12,2),
+  counted_other numeric(12,2),
+  notes text,
+  submitted_by uuid not null references public.users(id) on delete restrict,
+  submitted_at timestamptz not null default now(),
+  locked_by uuid references public.users(id) on delete set null,
+  locked_at timestamptz,
+  created_at timestamptz not null default now(),
+  unique(shop_id, close_date)
+);
+create index daily_closes_shop_date_idx on public.daily_closes(shop_id, close_date desc);
+alter table public.daily_closes enable row level security;
+revoke all on public.daily_closes from anon, authenticated;
+grant select on public.daily_closes to authenticated;
+create policy "daily_closes: owner reads all" on public.daily_closes for select
+  using (((select public.current_user_profile())).role = 'owner');
+create policy "daily_closes: attendant reads own shop" on public.daily_closes for select
+  using (((select public.current_user_profile())).shop_id = shop_id);
+
+create table public.stock_counts (
+  id uuid primary key default gen_random_uuid(),
+  shop_id uuid not null references public.shops(id) on delete cascade,
+  count_date date not null,
+  status text not null default 'submitted' check (status in ('submitted', 'approved', 'applied')),
+  submitted_by uuid not null references public.users(id) on delete restrict,
+  approved_by uuid references public.users(id) on delete set null,
+  notes text,
+  created_at timestamptz not null default now()
+);
+create index stock_counts_shop_date_idx on public.stock_counts(shop_id, count_date desc);
+create table public.stock_count_items (
+  id uuid primary key default gen_random_uuid(),
+  count_id uuid not null references public.stock_counts(id) on delete cascade,
+  phone_model_id uuid not null references public.phone_models(id) on delete restrict,
+  expected_qty int not null check (expected_qty >= 0),
+  counted_qty int not null check (counted_qty >= 0),
+  unique(count_id, phone_model_id)
+);
+alter table public.stock_counts enable row level security;
+alter table public.stock_count_items enable row level security;
+revoke all on public.stock_counts, public.stock_count_items from anon, authenticated;
+grant select on public.stock_counts, public.stock_count_items to authenticated;
+create policy "stock_counts: owner reads all" on public.stock_counts for select
+  using (((select public.current_user_profile())).role = 'owner');
+create policy "stock_counts: attendant reads own shop" on public.stock_counts for select
+  using (((select public.current_user_profile())).shop_id = shop_id);
+create policy "stock_count_items: owner reads all" on public.stock_count_items for select
+  using (exists (select 1 from public.stock_counts c where c.id = count_id and ((select public.current_user_profile())).role = 'owner'));
+create policy "stock_count_items: attendant reads own shop" on public.stock_count_items for select
+  using (exists (select 1 from public.stock_counts c where c.id = count_id and c.shop_id = ((select public.current_user_profile())).shop_id));
+
+-- ---------------------------------------------------------------------------
 -- Catch-all privilege lockdown
 --
 -- Postgres grants EXECUTE to PUBLIC on every CREATE FUNCTION, and Supabase's
@@ -1493,11 +1582,12 @@ begin
 end;
 $$;
 
--- Re-grant only the RPCs the app actually calls.
-grant execute on function public.record_transaction(uuid, text, text, public.tx_type, public.payment_method, numeric, timestamptz, jsonb, jsonb, uuid) to authenticated;
+-- Re-grant only the RPCs the app actually calls. Reversals of recorded
+-- transactions happen through void_transaction / review_transaction from
+-- migration 0004 (transaction deletion no longer exists).
+grant execute on function public.record_transaction(uuid, text, text, public.tx_type, public.payment_method, numeric, timestamptz, jsonb, jsonb, uuid, jsonb) to authenticated;
 grant execute on function public.adjust_stock(uuid, uuid, int, public.adjustment_type, text) to authenticated;
 grant execute on function public.bulk_adjust_stock(uuid, jsonb, text) to authenticated;
-grant execute on function public.delete_transaction(uuid) to authenticated;
 grant execute on function public.restore_backup(jsonb) to authenticated;
 grant execute on function public.approve_stock_request(uuid) to authenticated;
 grant execute on function public.reject_stock_request(uuid) to authenticated;

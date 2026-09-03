@@ -31,6 +31,16 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
+  let inactive = false;
+  if (user) {
+    const { data: profile } = await supabase
+      .from("users")
+      .select("active")
+      .eq("id", user.id)
+      .maybeSingle();
+    inactive = profile?.active === false;
+    if (inactive) await supabase.auth.signOut();
+  }
 
   // /signup no longer exists: accounts are created by the owner only.
   if (pathname.startsWith("/signup")) {
@@ -43,14 +53,14 @@ export async function proxy(request: NextRequest) {
   // Public routes: /login and /setup (one-time owner bootstrap).
   const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/setup");
 
-  if (!user && !isAuthPage) {
+  if ((inactive || !user) && !isAuthPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
 
-  if (user && isAuthPage) {
+  if (user && !inactive && isAuthPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     url.search = "";

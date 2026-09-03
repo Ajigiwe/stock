@@ -8,6 +8,8 @@ import {
   getCachedAdjustments,
   getCachedStockRequests,
   getCachedSwappedPhones,
+  getDailyClose,
+  getLatestStockCount,
 } from "@/lib/data";
 import { formatMoney, formatDateTime, todayISO, addDays } from "@/lib/format";
 import { Badge, Button, Card, EmptyState } from "@/components/ui";
@@ -18,6 +20,8 @@ import { StockRequestsPanel } from "@/components/stock-requests-panel";
 import { StockTable } from "@/components/stock-table";
 import { ShareSummaryButton } from "@/components/share-summary-button";
 import { SwappedPhonesList } from "@/components/swapped-phones-list";
+import { DailyClosePanel } from "@/components/daily-close-panel";
+import { StockCountPanel } from "@/components/stock-count-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +56,7 @@ export default async function ShopPage({
     ? "Today"
     : new Date(date + "T00:00:00").toDateString();
 
-  const [summary, stock, transactions, adjustments, pendingRequests, swappedPhones] =
+  const [summary, stock, transactions, adjustments, pendingRequests, swappedPhones, dailyClose, latestStockCount] =
     await Promise.all([
       getCachedShopSummary(id, date, date),
       getCachedStock(id),
@@ -60,6 +64,8 @@ export default async function ShopPage({
       getCachedAdjustments(id, 200),
       getCachedStockRequests({ shopId: id, status: "pending" }),
       getCachedSwappedPhones({ shopId: id }),
+      getDailyClose(id, date),
+      getLatestStockCount(id),
     ]);
 
   // Stock editing is owner-only; staff submit requests via the approval flow.
@@ -204,6 +210,20 @@ export default async function ShopPage({
       </Card>
 
       <Card
+        title="Daily close"
+        subtitle={`${dateLabel} · cash and mobile-money reconciliation`}
+      >
+        <DailyClosePanel shopId={id} date={date} close={dailyClose} isOwner={isOwner} />
+      </Card>
+
+      <Card
+        title="Physical stock count"
+        subtitle="Evidence first — corrections require owner approval"
+      >
+        <StockCountPanel shopId={id} stock={stock} latest={latestStockCount} date={date} isOwner={isOwner} />
+      </Card>
+
+      <Card
         title={isOwner ? "Pending stock changes" : "Your pending changes"}
         subtitle={
           pendingRequests.length === 0
@@ -283,7 +303,7 @@ export default async function ShopPage({
                     Receipt
                   </Link>
                   <span className="font-semibold text-ink">{formatMoney(t.amount)}</span>
-                  {isOwner && <DeleteTransactionButton id={t.id} />}
+                  {isOwner && t.status !== "voided" && t.status !== "rejected" && <DeleteTransactionButton id={t.id} />}
                 </div>
               </li>
             ))}

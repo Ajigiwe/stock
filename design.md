@@ -61,13 +61,13 @@ Key decisions:
 
 ---
 
-## 4. Database Schema (10 tables)
+## 4. Database Schema (14 tables)
 
 ### shops
 id uuid PK, name text, location text, phone text, created_at timestamptz
 
-### users  id uuid PK -> auth.users(id) CASCADE, name text, role user_role, shop_id uuid -> shops(id) SET NULL, can_edit_stock boolean default false (deprecated: no longer grants stock editing), created_at timestamptz
-Trigger: handle_new_user() auto-creates row on auth.users insert
+### users  id uuid PK -> auth.users(id) CASCADE, name text, role user_role, shop_id uuid -> shops(id) SET NULL, can_edit_stock boolean default false (deprecated: no longer grants stock editing), active boolean default true, deactivated_at, deactivated_by, created_at timestamptz
+Trigger: handle_new_user() auto-creates row on auth.users insert. Staff are deactivated (not deleted) so their history stays intact; deactivated profiles are invisible to RLS and signed out on their next request.
 
 ### phone_models
 id uuid PK, shop_id uuid FK CASCADE, model_name text, condition phone_condition, cost_price numeric(12,2), sale_price numeric(12,2), opening_stock int, bought_in int, available int CHECK>=0 (computed by triggers), low_stock_threshold int default 5, created_at timestamptz
@@ -75,8 +75,9 @@ UNIQUE (shop_id, model_name, condition)
 Stock invariant: available = opening_stock + bought_in + SUM(in) - SUM(out)
 
 ### transactions
-id uuid PK, shop_id uuid FK, staff_id uuid FK, customer_name text, customer_phone text, type tx_type, payment_method, amount numeric(12,2), date timestamptz, created_at timestamptz
-INDEXES: (shop_id, date DESC), (type)
+id uuid PK, shop_id uuid FK, staff_id uuid FK, customer_name, customer_phone, type tx_type, payment_method, amount numeric(12,2), date timestamptz, created_at timestamptz, idempotency_key uuid UNIQUE, status text (completed/pending_review/voided/rejected) default 'completed', listed_amount numeric, discount_reason, payment_reference, review_reason, reviewed_by, reviewed_at, voided_by, voided_at, void_reason
+INDEXES: (shop_id, date DESC), (type), (status, date DESC)
+Lifecycle: completed transactions are the only ones that count toward revenue/closing totals. Below-list-price sales are recorded as pending_review until the owner approves or rejects them (rejection reverses stock). Voided/rejected rows are kept for audit.
 
 ### transaction_items
 id uuid PK, transaction_id uuid FK CASCADE, phone_model_id uuid FK RESTRICT, direction item_direction, qty int CHECK>0
@@ -95,6 +96,15 @@ id uuid PK, user_id uuid FK, email, name, ip, user_agent, device (iPhone/iPad/An
 
 ### stock_logs
 id uuid PK, shop_id uuid FK, phone_model_id uuid FK SET NULL, staff_id uuid FK, action text (create_model/update_model/adjust_stock/bulk_create), model_name, condition, details jsonb, created_at
+
+### transaction_events (append-only history; migration 0004)
+id uuid PK, transaction_id uuid FK CASCADE, actor_id uuid FK, action text (created/approved/rejected/voided), details jsonb, created_at. Written only inside the controlled RPCs; owners see it as the receipt's Audit history block.
+
+### daily_closes (migration 0004)
+id uuid PK, shop_id FK CASCADE, close_date date, status (open/locked), expected_cash/mobile_money/other numeric, counted_cash/mobile_money/other numeric, notes, submitted_by FK, submitted_at, locked_by, locked_at, created_at. UNIQUE (shop_id, close_date). Expected totals are computed by submit_daily_close from completed transactions only; locking is owner-only and freezes the row.
+
+### stock_counts + stock_count_items (migration 0004)
+Evidence only — never mutate stock directly. stock_counts: id, shop_id, count_date, status (submitted/approved/applied), submitted_by, approved_by, notes, created_at. stock_count_items: count_id, phone_model_id, expected_qty (system), counted_qty (physical), UNIQUE (count_id, phone_model_id). Owner approves a submitted count, then optionally applies the variance as audited stock_adjustments with a required reason.
 
 ---
 
@@ -123,28 +133,31 @@ INSERT: checks stock for negative deltas, updates available + bought_in. DELETE:
 
 ---
 
-## 7. RPC Functions (7)
+## 7. RPC Functions (14)
 
-### record_transaction
-Atomic: creates transaction + items. Enforces shop scope. Checks stock. Auto-creates new models for in_items. Returns uuid.
+### record_transaction (hardened in migration 0004)
+Atomic: validates shop scope + active staff + date window, enforces that sale/swap have outgoing phones and swaps have trade-ins, rejects repairs moving stock, rejects sellable "in" stock (it must come through stock controls), requires a MoMo/card/bank-transfer reference, and computes the list-price floor. Below-price sales without a reason are refused; with a reason they are recorded as pending_review. Creates the transaction, its items, swapped_phones rows, and a created event in one call. Returns uuid.
 
-### adjust_stock
-Owner only. Validates model belongs to shop. Creates adjustment row.
+### review_transaction / void_transaction (owner only)
+Approve or reject a pending_review transaction (rejection reverses stock via child-line deletes and returns trade-ins), or void any completed transaction with a required reason. The original transaction row and the appended event history are always preserved.
 
-### delete_transaction
-Owner only. Cascading delete reverses stock via triggers.
+### adjust_stock / bulk_adjust_stock
+Owner only. Validate model belongs to shop and create adjustment row(s).
 
-### approve_stock_request
-Owner only. Creates model or applies adjustment. Updates status.
+### approve_stock_request / reject_stock_request / approve_all_stock_requests
+Owner only. Approve/reject staff stock-change requests; bulk variant applies each pending request with per-request error capture.
 
-### reject_stock_request
-Owner only. Sets status to rejected.
+### submit_daily_close / lock_daily_close
+submit: attendant or owner records counted cash/mobile-money/other and recomputes expected totals from completed transactions (upsert while open). lock: owner freezes the close.
 
-### approve_all_stock_requests
-Owner only. Iterates pending, applies each, catches errors per-request.
+### submit_stock_count / approve_stock_count / apply_stock_count_correction
+submit: records physical counts as evidence (never mutates stock). approve: owner marks it approved. apply: owner applies approved variances as stock_adjustments with a required reason and marks the count applied.
+
+### update_swapped_phone_status
+Owner only. Moves a trade-in between in_stock/sold/returned.
 
 ### restore_backup
-Owner only. Disables triggers, deletes all data, re-inserts from backup JSON, re-enables triggers.
+Owner only. Disables triggers, clears all data (including the fraud-control tables), re-inserts from backup JSON, re-enables triggers and reconciles `available`.
 
 ---
 
@@ -155,15 +168,20 @@ Helper: current_user_profile() returns (id, role, shop_id)
 | Table | Owner | Attendant |
 |---|---|---|
 | shops | full access | SELECT own shop |
-| users | full access | read own + read same shop |
-| phone_models | full access | full access own shop |
-| transactions | full access | INSERT + SELECT own shop |
-| transaction_items | full access | via parent transaction shop |
-| stock_adjustments | full access | INSERT + SELECT own shop |
+| users | read all (service role writes) | read own + read same shop |
+| phone_models | full access | SELECT own shop |
+| transactions | SELECT all (writes via RPC) | SELECT own shop |
+| transaction_items | SELECT all (writes via RPC) | via parent transaction shop |
+| stock_adjustments | SELECT all (writes via RPC) | SELECT own shop |
 | stock_requests | full access | INSERT + SELECT own shop |
-| swapped_phones | full access | INSERT + SELECT own shop |
-| login_logs | SELECT all | SELECT own + INSERT own |
-| stock_logs | full access | INSERT + SELECT own shop |
+| swapped_phones | SELECT all (writes via RPC) | SELECT own shop |
+| transaction_events | SELECT all | — |
+| daily_closes | SELECT all (writes via RPC) | SELECT own shop |
+| stock_counts / items | SELECT all (writes via RPC) | SELECT own shop |
+| login_logs | SELECT all | SELECT own |
+| stock_logs | SELECT all | SELECT own shop |
+
+Direct table mutations were removed from every client role in migration 0004 — all business writes go through the RPCs above, and RLS is the second layer of defense (attendants can never bypass the shop scope or staff_id pinning).
 
 ---
 
@@ -172,15 +190,18 @@ Helper: current_user_profile() returns (id, role, shop_id)
 ### Owner
 - Single account via /setup with OWNER_SETUP_SECRET
 - Full CRUD on all data
-- Manages shops, staff, stock privileges
-- Approves/rejects stock requests
+- Manages shops and staff (deactivate/reactivate, password reset)
+- Approves/rejects stock requests and below-price (discounted) transactions
+- Voids mistakes with a recorded reason (never deletes history)
+- Submits/locks daily closes and approves/applies physical stock counts
 - Access: Dashboard (all), Devices, Reports, Logs, Settings, Account
 
 ### Attendant
-- Created by owner in Settings > Staff
+- Created by owner in Settings > Staff; may be deactivated (never deleted)
 - Assigned to one shop
-- Records transactions for own shop only
-- All stock editing is owner-only: attendants always use the stock_requests approval flow (the old per-staff can_edit_stock privilege has been removed)
+- Records transactions for own shop only (sales/swaps need a live connection; only repair charges queue offline)
+- Submits daily counted cash and physical stock evidence — the owner reviews variances
+- All stock editing is owner-only: attendants always use the stock_requests approval flow
 - Access: Dashboard (own shop), Record, Shop page, Account
 
 ---
@@ -243,7 +264,7 @@ Helper: current_user_profile() returns (id, role, shop_id)
 
 ### Receipt
 - receipt-actions.tsx: WhatsApp share + copy + print
-- delete-transaction-button.tsx: Owner-only delete
+- delete-transaction-button.tsx: Owner-only void (with reason; history kept)
 
 ### Auth
 - auth-forms.tsx: Login form component
@@ -277,9 +298,14 @@ Helper: current_user_profile() returns (id, role, shop_id)
 - setupOwner(): Create owner account with secret
 
 ### Transactions
-- recordTransaction(): Validate + call RPC + log swap phones + invalidate cache
-- deleteTransaction(): Call RPC + invalidate cache
-- updateSwappedPhoneStatus(): Update trade-in status (owner)
+- recordTransaction(): Validate + call hardened RPC (discount reason, payment reference) + invalidate cache
+- reviewTransaction(): Owner approves/rejects discounted (pending_review) sales
+- voidTransaction(): Owner voids with a required reason (history preserved)
+- updateSwappedPhoneStatus(): Update trade-in status via owner-only RPC
+
+### Reconciliation (owner)
+- lockDailyClose(), approveStockCount(), applyStockCountCorrection()
+- Staff can submitDailyClose() and submitStockCount() for their shop; the panels live on each shop page and the review queue on the dashboard
 
 ### Stock
 - createModel(): Direct insert or stock_request for non-privileged
@@ -292,7 +318,7 @@ Helper: current_user_profile() returns (id, role, shop_id)
 
 ### Admin
 - createShop(), deleteShop()
-- createStaff(), removeStaff(), resetStaffPassword()
+- createStaff(), deactivateStaff()/reactivateStaff(), resetStaffPassword()
 - restoreBackup(): Call RPC
 - bulkCreateModels(): Batch insert models (owner)
 

@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   createStaff,
-  removeStaff,
+  deactivateStaff,
+  reactivateStaff,
   resetStaffPassword,
 } from "@/lib/actions";
 import type { Shop, UserProfile } from "@/lib/data";
@@ -42,15 +43,15 @@ export function StaffManager({ shops, staff }: { shops: Shop[]; staff: UserProfi
   const onRemove = async (s: UserProfile) => {
     const ok = await confirm({
       title: `Remove ${s.name}?`,
-      message: "Their login account will be permanently deleted.",
-      confirmLabel: "Remove staff",
+      message: "They will be signed out and unable to log in. Their transaction and audit history will be preserved.",
+      confirmLabel: "Deactivate staff",
       danger: true,
     });
     if (!ok) return;
     startTransition(async () => {
-      const res = await removeStaff(s.id);
-      if (!res.ok) return toast.error(res.error ?? "Could not remove staff.");
-      toast.success(`${s.name} removed.`);
+      const res = await deactivateStaff(s.id);
+      if (!res.ok) return toast.error(res.error ?? "Could not deactivate staff.");
+      toast.success(`${s.name} deactivated.`);
       router.refresh();
     });
   };
@@ -116,7 +117,7 @@ export function StaffManager({ shops, staff }: { shops: Shop[]; staff: UserProfi
                 <div>
                   <div className="text-sm font-medium text-ink">{s.name}</div>
                   <div className="text-xs text-mute">
-                    {shopName ?? "No shop"} · {s.role}
+                    {shopName ?? "No shop"} · {s.role} · {s.active ? "active" : "deactivated"}
                   </div>
                   {s.role === "attendant" && (
                     <div className="mt-1.5 text-xs text-mute">
@@ -134,12 +135,26 @@ export function StaffManager({ shops, staff }: { shops: Shop[]; staff: UserProfi
                   >
                     Reset password
                   </ButtonSecondary>
-                  <ButtonDanger
-                    className="h-8 px-2 text-xs"
-                    onClick={() => onRemove(s)}
-                  >
-                    Remove
-                  </ButtonDanger>
+                  {s.active ? (
+                    <ButtonDanger
+                      className="h-8 px-2 text-xs"
+                      onClick={() => onRemove(s)}
+                    >
+                      Deactivate
+                    </ButtonDanger>
+                  ) : (
+                    <ButtonSecondary
+                      className="h-8 px-2 text-xs"
+                      onClick={() => startTransition(async () => {
+                        const res = await reactivateStaff(s.id);
+                        if (!res.ok) return toast.error(res.error ?? "Could not reactivate staff.");
+                        toast.success(`${s.name} reactivated.`);
+                        router.refresh();
+                      })}
+                    >
+                      Reactivate
+                    </ButtonSecondary>
+                  )}
                 </div>
               </div>
               {resetFor === s.id && (
