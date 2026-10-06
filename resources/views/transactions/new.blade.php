@@ -269,8 +269,8 @@
 
                                 <div>
                                     <p class="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-mute">Payment method</p>
-                                    <div class="grid grid-cols-5 gap-1.5">
-                                        <template x-for="opt in [['cash','Cash'],['mobile_money','MoMo'],['card','Card'],['bank_transfer','Bank'],['other','Other']]" :key="opt[0]">
+                                    <div class="grid grid-cols-2 gap-1.5">
+                                        <template x-for="opt in [['cash','Cash'],['mobile_money','MoMo']]" :key="opt[0]">
                                             <button type="button" @click="paymentMethod = opt[0]" x-text="opt[1]"
                                                     :class="paymentMethod === opt[0]
                                                         ? 'border-brand bg-brand text-white shadow-[0_2px_8px_rgba(67,56,202,0.35)]'
