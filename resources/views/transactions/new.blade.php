@@ -98,7 +98,8 @@
             <input type="hidden" name="type" :value="type">
             <input type="hidden" name="idempotencyKey" :value="idempotencyKey">
 
-            <div class="mt-5 grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+            {{-- Everything below stacks full-width: phones, then customer/payment side-by-side, then the totals bar. --}}
+            <div class="mt-5 space-y-4">
                 {{-- Left: phones going out / repair note / trade-ins --}}
                 <div class="min-w-0 space-y-4">
                     <template x-if="type !== 'repair'">
@@ -243,16 +244,16 @@
                     </template>
                 </div>
 
-                {{-- Right: customer, payment, save --}}
-                <div class="min-w-0 space-y-4 lg:sticky lg:top-6">
-                    <section class="rounded-2xl border border-l-4 border-line border-l-brand bg-white shadow-[0_1px_2px_rgba(20,22,43,0.04)]">
-                        <div class="w-full p-4 sm:p-5">
+                {{-- Customer + payment, side by side on desktop --}}
+                <div class="grid items-stretch gap-4 lg:grid-cols-2">
+                    <section class="flex h-full flex-col rounded-2xl border border-l-4 border-line border-l-brand bg-white shadow-[0_1px_2px_rgba(20,22,43,0.04)]">
+                        <div class="flex w-full flex-1 flex-col p-4 sm:p-5">
                             <div class="mb-3.5 flex items-start justify-between gap-3">
                                 <div class="min-w-0">
                                     <h2 class="text-[15px] font-bold tracking-tight text-ink">Customer</h2>
                                 </div>
                             </div>
-                            <div class="flex flex-col gap-3">
+                            <div class="grid gap-3 sm:grid-cols-2">
                                 <div>
                                     <label class="label" for="customerName">Name <span class="ml-0.5 text-lowstock">*</span></label>
                                     <input id="customerName" name="customerName" class="input" x-model="customerName"
@@ -264,10 +265,13 @@
                                            placeholder="Customer phone" autocomplete="off">
                                 </div>
                             </div>
+                            <p class="mt-auto pt-3 text-[11.5px] leading-relaxed text-mute">
+                                Name and phone are required for every sale — they print on the receipt.
+                            </p>
                         </div>
                     </section>
 
-                    <section class="rounded-2xl border border-l-4 border-line border-l-brand bg-white shadow-[0_1px_2px_rgba(20,22,43,0.04)]">
+                    <section class="h-full rounded-2xl border border-l-4 border-line border-l-brand bg-white shadow-[0_1px_2px_rgba(20,22,43,0.04)]">
                         <div class="w-full p-4 sm:p-5">
                             <div class="mb-3.5 flex items-start justify-between gap-3">
                                 <div class="min-w-0">
@@ -324,44 +328,6 @@
                                     Offline repair charges are saved as awaiting sync and do not count as completed revenue until the server receives them.
                                 </p>
 
-                                <div class="overflow-hidden rounded-xl border border-line">
-                                    <div class="bg-paper px-3.5 py-2 text-[10.5px] font-bold uppercase tracking-wider text-mute"
-                                         x-text="summaryTitle()"></div>
-                                    <div class="divide-y divide-line/70">
-                                        <p class="px-3.5 py-2.5 text-xs text-mute" x-show="validOut().length === 0 && type !== 'repair'">
-                                            No phones added yet.
-                                        </p>
-                                        <template x-for="line in validOut()" :key="line.key">
-                                            <div class="flex items-center justify-between gap-3 px-3.5 py-2 text-[12.5px]">
-                                                <span class="min-w-0 truncate text-ink/90">
-                                                    <b class="font-mono font-semibold text-mute" x-text="line.qty + '\u00d7'"></b>
-                                                    <span x-text="model(line.modelId).model_name"></span>
-                                                </span>
-                                                <span class="shrink-0 font-mono font-semibold tabular-nums text-ink"
-                                                      x-text="money(model(line.modelId).sale_price * Number(line.qty))"></span>
-                                            </div>
-                                        </template>
-                                        <template x-for="line in summarySwaps()" :key="line.key">
-                                            <div class="flex items-center justify-between gap-3 px-3.5 py-2 text-[12.5px]">
-                                                <span class="truncate text-ink/90">
-                                                    <b class="font-mono font-semibold text-mute">IN</b>
-                                                    <span x-text="line.name"></span> (trade-in)
-                                                </span>
-                                                <span class="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-instock">+valued</span>
-                                            </div>
-                                        </template>
-                                        <p class="px-3.5 py-2.5 text-xs text-mute" x-show="type === 'repair'">
-                                            Repair charge — no stock movement.
-                                        </p>
-                                        <div class="flex items-center justify-between gap-3 bg-white px-3.5 py-2.5">
-                                            <span class="text-[12px] font-bold uppercase tracking-wide text-mute"
-                                                  x-text="type === 'swap' ? 'Total top-up' : 'Total due'"></span>
-                                            <span class="font-mono text-base font-bold tabular-nums text-ink"
-                                                  x-text="money(amountValid() ? enteredAmount() : 0)"></span>
-                                        </div>
-                                    </div>
-                                </div>
-
                                 <p x-show="type === 'sale' && belowList()" x-cloak
                                    class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
                                     Below list price — this sale will be saved for the owner&rsquo;s review before it counts as revenue.
@@ -370,19 +336,71 @@
                         </div>
                     </section>
 
-                    <div x-show="error !== ''" x-cloak
-                         class="rounded-lg border border-lowstock bg-lowstock-tint px-3 py-2 text-sm text-lowstock" x-text="error"></div>
+                </div>
 
-                    <button type="submit"
-                            class="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-[14px] font-bold tracking-tight transition-all"
-                            :class="saving
-                                ? 'cursor-wait bg-line text-mute'
-                                : 'bg-brand text-white shadow-[0_6px_16px_rgba(67,56,202,0.3)] hover:bg-brand-deep hover:shadow-[0_8px_20px_rgba(67,56,202,0.35)] active:translate-y-px'">
-                        <span x-text="saving ? 'Saving…' : saveLabel()"></span>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M5 12h14M12 5l7 7-7 7" />
-                        </svg>
-                    </button>
+                {{-- Totals bar: the running ticket on the left, save on the right --}}
+                <div class="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+                    <section class="min-w-0 rounded-2xl border border-line bg-white shadow-[0_1px_2px_rgba(20,22,43,0.04)]">
+                        <div class="w-full p-4 sm:p-5">
+                            <div class="mb-3.5">
+                                <h2 class="text-[15px] font-bold tracking-tight text-ink">Order summary</h2>
+                                <p class="mt-0.5 text-[12.5px] text-mute">What this transaction records</p>
+                            </div>
+                            <div class="overflow-hidden rounded-xl border border-line">
+                                <div class="bg-paper px-3.5 py-2 text-[10.5px] font-bold uppercase tracking-wider text-mute"
+                                     x-text="summaryTitle()"></div>
+                                <div class="divide-y divide-line/70">
+                                    <p class="px-3.5 py-2.5 text-xs text-mute" x-show="validOut().length === 0 && type !== 'repair'">
+                                        No phones added yet.
+                                    </p>
+                                    <template x-for="line in validOut()" :key="line.key">
+                                        <div class="flex items-center justify-between gap-3 px-3.5 py-2 text-[12.5px]">
+                                            <span class="min-w-0 truncate text-ink/90">
+                                                <b class="font-mono font-semibold text-mute" x-text="line.qty + '\u00d7'"></b>
+                                                <span x-text="model(line.modelId).model_name"></span>
+                                            </span>
+                                            <span class="shrink-0 font-mono font-semibold tabular-nums text-ink"
+                                                  x-text="money(model(line.modelId).sale_price * Number(line.qty))"></span>
+                                        </div>
+                                    </template>
+                                    <template x-for="line in summarySwaps()" :key="line.key">
+                                        <div class="flex items-center justify-between gap-3 px-3.5 py-2 text-[12.5px]">
+                                            <span class="truncate text-ink/90">
+                                                <b class="font-mono font-semibold text-mute">IN</b>
+                                                <span x-text="line.name"></span> (trade-in)
+                                            </span>
+                                            <span class="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-instock">+valued</span>
+                                        </div>
+                                    </template>
+                                    <p class="px-3.5 py-2.5 text-xs text-mute" x-show="type === 'repair'">
+                                        Repair charge — no stock movement.
+                                    </p>
+                                    <div class="flex items-center justify-between gap-3 bg-white px-3.5 py-2.5">
+                                        <span class="text-[12px] font-bold uppercase tracking-wide text-mute"
+                                              x-text="type === 'swap' ? 'Total top-up' : 'Total due'"></span>
+                                        <span class="font-mono text-base font-bold tabular-nums text-ink"
+                                              x-text="money(amountValid() ? enteredAmount() : 0)"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <div class="min-w-0 space-y-3">
+                        <div x-show="error !== ''" x-cloak
+                             class="rounded-lg border border-lowstock bg-lowstock-tint px-3 py-2 text-sm text-lowstock" x-text="error"></div>
+
+                        <button type="submit"
+                                class="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-[14px] font-bold tracking-tight transition-all"
+                                :class="saving
+                                    ? 'cursor-wait bg-line text-mute'
+                                    : 'bg-brand text-white shadow-[0_6px_16px_rgba(67,56,202,0.3)] hover:bg-brand-deep hover:shadow-[0_8px_20px_rgba(67,56,202,0.35)] active:translate-y-px'">
+                            <span x-text="saving ? 'Saving…' : saveLabel()"></span>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M5 12h14M12 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
             </div>
         </form>
