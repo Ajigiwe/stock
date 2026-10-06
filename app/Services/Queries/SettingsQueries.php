@@ -58,7 +58,7 @@ final class SettingsQueries
     private static function staff(): array
     {
         return DB::table('users')
-            ->select(['id', 'name', 'email', 'role', 'shop_id', 'active', 'deactivated_at', 'created_at'])
+            ->select(['id', 'name', 'email', 'phone', 'role', 'shop_id', 'active', 'deactivated_at', 'created_at'])
             ->orderBy('name')
             ->get()
             ->map(static fn (object $row): array => [

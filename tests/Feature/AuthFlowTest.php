@@ -138,8 +138,78 @@ class AuthFlowTest extends TestCase
         $this->seedOwner();
 
         $this->post('/login', [])->assertSessionHasErrors([
-            'action' => 'Enter your email and password.',
+            'action' => 'Enter your email or phone number and password.',
         ]);
+    }
+
+    public function test_login_accepts_a_phone_number_instead_of_email(): void
+    {
+        $this->seedOwner();
+
+        $user = $this->makeUser(['email' => null, 'phone' => '0241234567']);
+
+        // Spacing/formatting differences must not lock anyone out.
+        $this->post('/login', [
+            'email' => '024 123 4567',
+            'password' => 'secret1234',
+        ])->assertRedirect(route('dashboard'));
+
+        $this->assertAuthenticatedAs($user);
+        $this->assertDatabaseHas('login_logs', ['user_id' => $user->id]);
+    }
+
+    public function test_staff_accounts_can_be_created_with_only_a_phone_number(): void
+    {
+        $owner = $this->seedOwner();
+
+        $this->actingAs($owner)
+            ->from('/settings')
+            ->post('/settings/staff', [
+                'name' => 'Ama Serwaa',
+                'phone' => '020 765 4321',
+                'password' => 'secret1234',
+            ])
+            ->assertRedirect('/settings')
+            ->assertSessionHas('success', 'Staff account for Ama Serwaa created.');
+
+        $this->assertDatabaseHas('users', [
+            'name' => 'Ama Serwaa',
+            'email' => null,
+            'phone' => '0207654321',
+            'role' => User::ROLE_ATTENDANT,
+        ]);
+
+        // And the new account signs straight in with that number.
+        $this->post('/login', [
+            'email' => '0207654321',
+            'password' => 'secret1234',
+        ])->assertRedirect(route('dashboard'));
+    }
+
+    public function test_staff_creation_rejects_a_taken_phone_number_and_a_bad_email(): void
+    {
+        $owner = $this->seedOwner();
+        $this->makeUser(['email' => null, 'phone' => '0241234567']);
+
+        $this->actingAs($owner)
+            ->from('/settings')
+            ->post('/settings/staff', [
+                'name' => 'Copy Cat',
+                'phone' => '0241234567',
+                'password' => 'secret1234',
+            ])
+            ->assertRedirect('/settings')
+            ->assertSessionHasErrors(['action' => 'That phone number is already in use.']);
+
+        $this->actingAs($owner)
+            ->from('/settings')
+            ->post('/settings/staff', [
+                'name' => 'Bad Mail',
+                'email' => 'not-an-email',
+                'password' => 'secret1234',
+            ])
+            ->assertRedirect('/settings')
+            ->assertSessionHasErrors(['action' => 'That email address is not valid.']);
     }
 
     public function test_login_signs_the_user_in_and_records_the_log(): void

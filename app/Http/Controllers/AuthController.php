@@ -97,18 +97,21 @@ class AuthController extends Controller
      */
     public function login(Request $request): RedirectResponse
     {
-        $email = Input::trimmed($request->input('email'));
+        // The sign-in box is one identifier: an email address or a phone
+        // number (see StaffService — attendants may have no email). The form
+        // field stays `email` so saved logins and the contract are untouched.
+        $login = Input::trimmed($request->input('email'));
         $password = (string) $request->input('password');
 
-        if ($email === '' || $password === '') {
+        if ($login === '' || $password === '') {
             return $this->respond($request, [
                 'ok' => false,
-                'error' => 'Enter your email and password.',
+                'error' => 'Enter your email or phone number and password.',
             ]);
         }
 
         $ip = $this->clientIp($request);
-        $bucket = sha1(($ip ?? 'noip').'|'.mb_strtolower($email));
+        $bucket = sha1(($ip ?? 'noip').'|'.mb_strtolower($login));
 
         if (RateLimiter::tooManyAttempts('mrjeff:login:'.$bucket, 8)) {
             return $this->respond($request, [
@@ -117,7 +120,13 @@ class AuthController extends Controller
             ]);
         }
 
-        if (! Auth::attempt(['email' => $email, 'password' => $password], remember: true)) {
+        if (Input::email($login)) {
+            $credential = ['email' => $login, 'password' => $password];
+        } else {
+            $credential = ['phone' => Input::phone($login), 'password' => $password];
+        }
+
+        if (($credential['phone'] ?? 'x') === '' || ! Auth::attempt($credential, remember: true)) {
             RateLimiter::hit('mrjeff:login:'.$bucket, 10 * 60);
 
             return $this->respond($request, [
@@ -142,7 +151,7 @@ class AuthController extends Controller
         RateLimiter::clear('mrjeff:login:'.$bucket);
         $request->session()->regenerate();
 
-        $this->logLogin($request, $user, $email, $ip);
+        $this->logLogin($request, $user, $login, $ip);
 
         return redirect()->intended(Input::safeNextPath($request->input('next')));
     }

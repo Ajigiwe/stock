@@ -138,6 +138,23 @@ class Input
     }
 
     /**
+     * Normalise a phone number for storage and login lookup: strip spaces,
+     * dashes, brackets and dots, keep a leading `+`. Anything left must be
+     * at least 7 digits (with an optional `+`); otherwise it is not a number
+     * at all and comes back as ''.
+     */
+    public static function phone(mixed $raw): string
+    {
+        if (! is_string($raw)) {
+            return '';
+        }
+
+        $cleaned = preg_replace('/[\s\-().]/', '', trim($raw)) ?? '';
+
+        return preg_match('/^\+?\d{7,15}$/', $cleaned) === 1 ? $cleaned : '';
+    }
+
+    /**
      * Deterministic fallback idempotency key — port of derivedIdempotencyKey():
      * a UUID-shaped SHA-256 of the whole submission, so a client that omits its
      * key still dedupes in the DB instead of deducting stock twice.

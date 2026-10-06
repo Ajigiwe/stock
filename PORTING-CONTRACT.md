@@ -191,6 +191,12 @@ read it produce matching names:
   `swapIn[0][name]`, and likewise for bulk-add/stock-count rows. Alpine adds
   and removes rows by index; PHP receives `$request->input('outItems')` as a
   list of assoc arrays in the same shape as `TxOutItem[]`/`TxInItem[]`.
+- **Staff accounts need no email.** `POST /settings/staff` takes `name` +
+  `password` (≥8 chars) with optional `email` and optional `phone`
+  (`Input::phone()` normalises spacing/dashes); either identifier signs in
+  at `/login` (the form field stays `email`). Duplicates are refused with
+  `That email address is already in use.` / `That phone number is already
+  in use.`
 - **Route-bound ids are NOT in the form.** `shopId`, `modelId`, `txId`,
   `requestId`… come from the URL; controllers merge them into the input array
   before calling the service (e.g. `$input['modelId'] = $model->id;`).

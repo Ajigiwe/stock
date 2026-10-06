@@ -173,10 +173,12 @@ RLS had no direct equivalent in Laravel, so the port is layered:
 
 ## 9. Authentication and Roles
 
-- Email + password (bcrypt) session login — the original was magic-link
-  passwordless; the cPanel host has no mail guarantee, so the port adds
-  credentials while keeping every role rule identical. `/setup` (guarded by
-  `OWNER_SETUP_SECRET`) creates the single owner.
+- Email-or-phone-number + password (bcrypt) session login — the original was
+  magic-link passwordless; the cPanel host has no mail guarantee, so the port
+  adds credentials while keeping every role rule identical. `/setup` (guarded by
+  `OWNER_SETUP_SECRET`) creates the single owner. Staff accounts need only a
+  name + password; email and phone are optional identifiers (`users.phone`,
+  unique, server-wins on restore like email).
 - Roles: **owner** — everything; **attendant** — own shop's stock, POS,
   own transactions; cannot see settings/logs/devices, cannot adjust stock
   directly (files a request instead), no cross-shop access.
@@ -290,14 +292,14 @@ write path runs after `DB::transaction()` commits.
 - `public/sw.js`: network-first navigations, precached shell/assets, downloads
   (CSV, backup) never cached. `manifest.webmanifest` + icons unchanged.
 
-## 17. Testing (61 tests / 327 assertions, real MySQL)
+## 17. Testing (65 tests / 364 assertions, real MySQL)
 
 `phpunit.xml` points `DB_DATABASE` at `mrjeff_test`; `RefreshDatabase`
 re-migrates per test because SQLite cannot run the triggers.
 
 | File | Covers |
 |---|---|
-| `Feature/AuthFlowTest` (14) | setup guard, login/logout, rate limit (8/10 min), deactivation mid-session, auth-page bounce, signup redirect |
+| `Feature/AuthFlowTest` (17) | setup guard, login/logout, rate limit (8/10 min), deactivation mid-session, auth-page bounce, signup redirect, phone-number sign-in, phone-only staff creation + duplicate guards |
 | `Feature/StockTriggerTest` (11) | every invariant: derived `available`, oversell SIGNAL texts, shop-match guards, idempotent restore flag, FK rules |
 | `Feature/TransactionFlowTest` (7) | POS form → stock moves → redirect+flash; JSON replay dedupe; oversell on both response shapes; attendant request vs owner adjust; approve; owner-only guard |
 | `Feature/ReportExportTest` (3) | CSV bytes (BOM, 10 columns, `esc()` formula prefix, LF joins, filename) + attendant scoping + 403 |

@@ -17,8 +17,9 @@
             <input type="hidden" name="next" value="{{ $next }}">
 
             <div>
-                <label for="email" class="mb-1 block text-sm font-medium">Email</label>
-                <input id="email" name="email" type="email" autocomplete="email" required
+                <label for="email" class="mb-1 block text-sm font-medium">Email or phone number</label>
+                <input id="email" name="email" type="text" autocomplete="username" required
+                       placeholder="you@example.com or 024 123 4567"
                        value="{{ old('email') }}"
                        class="w-full rounded-lg border border-line bg-paper px-3 py-2.5 text-sm outline-none focus:border-brand focus:bg-white">
             </div>

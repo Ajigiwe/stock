@@ -38,17 +38,33 @@ class StaffService
 
         $name = Input::trimmed($input['name'] ?? null);
         $email = Input::trimmed($input['email'] ?? null);
+        $phone = Input::phone($input['phone'] ?? null);
         $password = (string) ($input['password'] ?? '');
 
-        if ($name === '' || ! Input::email($email) || strlen($password) < 8) {
-            return ['ok' => false, 'error' => 'Name and a valid email required; password at least 8 characters.'];
+        if ($name === '' || strlen($password) < 8) {
+            return ['ok' => false, 'error' => 'Name required; password at least 8 characters.'];
+        }
+
+        // Email is optional, but when given it must be usable as a login.
+        if ($email !== '' && ! Input::email($email)) {
+            return ['ok' => false, 'error' => 'That email address is not valid.'];
+        }
+        if ($email !== '' && DB::table('users')->where('email', $email)->exists()) {
+            return ['ok' => false, 'error' => 'That email address is already in use.'];
+        }
+        if (($input['phone'] ?? null) !== null && trim((string) $input['phone']) !== '' && $phone === '') {
+            return ['ok' => false, 'error' => 'That phone number is not valid.'];
+        }
+        if ($phone !== '' && DB::table('users')->where('phone', $phone)->exists()) {
+            return ['ok' => false, 'error' => 'That phone number is already in use.'];
         }
 
         try {
             DB::table('users')->insert([
                 'id' => (string) Str::uuid(),
                 'name' => $name,
-                'email' => $email,
+                'email' => $email === '' ? null : $email,
+                'phone' => $phone === '' ? null : $phone,
                 'password' => Hash::make($password),
                 'role' => User::ROLE_ATTENDANT,
                 'shop_id' => $input['shopId'] ?? null,

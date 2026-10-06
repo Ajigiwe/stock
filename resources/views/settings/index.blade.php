@@ -103,8 +103,14 @@
                         <input id="staffName" name="name" type="text" class="input" autocomplete="off">
                     </div>
                     <div>
-                        <label class="label" for="staffEmail">Email</label>
-                        <input id="staffEmail" name="email" type="email" class="input" autocomplete="off">
+                        <label class="label" for="staffEmail">Email (optional)</label>
+                        <input id="staffEmail" name="email" type="email" class="input" autocomplete="off"
+                               placeholder="only if they need email sign-in">
+                    </div>
+                    <div>
+                        <label class="label" for="staffPhone">Phone number (optional)</label>
+                        <input id="staffPhone" name="phone" type="tel" class="input" autocomplete="off"
+                               placeholder="e.g. 024 123 4567">
                     </div>
                     <div>
                         <label class="label" for="staffPassword">Temporary password</label>
@@ -124,8 +130,8 @@
                         <button type="button" class="btn-secondary btn-sm h-8" @click="open = false">Cancel</button>
                     </div>
                     <p class="text-xs text-mute sm:col-span-2">
-                        The staff member signs in with this email and password, then can only
-                        see and record their own shop.
+                        The staff member signs in with this email or phone number and
+                        password, then can only see and record their own shop.
                     </p>
                 </form>
 
@@ -146,6 +152,11 @@
                                             {{ $member['active'] ? 'active' : 'deactivated' }}
                                         </span>
                                     </div>
+                                    @if (! empty($member['email']) || ! empty($member['phone']))
+                                        <p class="mt-1 text-xs text-mute">
+                                            {{ collect([$member['email'] ?? null, $member['phone'] ?? null])->filter()->join(' · ') }}
+                                        </p>
+                                    @endif
                                     @if ($member['role'] === 'attendant')
                                         <div class="mt-1.5 text-xs text-mute">
                                             Stock edits go through your approval — no direct access.
