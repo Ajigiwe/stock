@@ -71,6 +71,29 @@ class BackupService
     ];
 
     /**
+     * Wipe scope: DELETE_ORDER minus `users` — a data wipe clears the
+     * business tables but keeps login accounts, the same split backup and
+     * restore draw (credentials are server-side state, never in the file).
+     * Kept accounts come out with shop_id = NULL (users_shop_fk is ON DELETE
+     * SET NULL), ready for a fresh start.
+     */
+    private const WIPE_ORDER = [
+        'stock_logs',
+        'login_logs',
+        'stock_requests',
+        'swapped_phones',
+        'transaction_events',
+        'stock_count_items',
+        'stock_counts',
+        'daily_closes',
+        'transaction_items',
+        'transactions',
+        'stock_adjustments',
+        'phone_models',
+        'shops',
+    ];
+
+    /**
      * Full JSON backup of every business table (owner only).
      *
      * @return array{ok: bool, error?: string, backup?: array<string, mixed>}
@@ -183,6 +206,60 @@ class BackupService
         }
 
         return $result;
+    }
+
+    /**
+     * Delete every business row, keeping login accounts (owner + staff).
+     *
+     * The destructive counterpart of restore(): same transaction, same
+     * @mrjeff_no_stock_effects guard, same FK-safe order — but nothing is
+     * re-inserted. The typed `WIPE` confirmation is enforced here so no code
+     * path can reach the delete without it.
+     *
+     * @param  array{confirm?: mixed}  $input
+     * @return array{ok: bool, error?: string, deleted?: int}
+     */
+    public function wipe(array $input, User $actor): array
+    {
+        $me = $this->fresh($actor);
+        if (! ($me instanceof User)) {
+            return $me;
+        }
+        if ($me->role !== User::ROLE_OWNER) {
+            return ['ok' => false, 'error' => 'Only the owner can wipe data.'];
+        }
+
+        $confirm = $input['confirm'] ?? null;
+        if (! is_string($confirm) || trim($confirm) !== 'WIPE') {
+            return ['ok' => false, 'error' => 'Type WIPE to confirm.'];
+        }
+
+        try {
+            $deleted = DB::transaction(function (): int {
+                DB::unprepared('SET @mrjeff_no_stock_effects = 1');
+
+                $deleted = 0;
+                foreach (self::WIPE_ORDER as $table) {
+                    $deleted += (int) DB::table($table)->delete();
+                }
+
+                return $deleted;
+            });
+        } catch (QueryException|\PDOException $e) {
+            return $this->dbError($e);
+        } finally {
+            // Session variables are not transactional, so the flag has to be
+            // dropped on every path — including a rollback.
+            try {
+                DB::unprepared('SET @mrjeff_no_stock_effects = 0');
+            } catch (\Throwable) {
+                // Nothing useful left to do if the connection is already gone.
+            }
+        }
+
+        DataCache::flush();
+
+        return ['ok' => true, 'deleted' => $deleted];
     }
 
     /**

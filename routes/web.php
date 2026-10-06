@@ -84,8 +84,11 @@ Route::middleware(['auth', 'active'])->group(function (): void {
         Route::post('/staff/{user}/reactivate', [SettingsController::class, 'reactivate'])->name('staff.reactivate');
         Route::post('/staff/{user}/reset-password', [SettingsController::class, 'resetPassword'])->name('staff.reset-password');
         Route::post('/models/bulk', [SettingsController::class, 'bulkCreateModels'])->name('models.bulk');
+        Route::post('/models/import', [SettingsController::class, 'importModels'])->name('models.import');
+        Route::get('/models/import/template', [SettingsController::class, 'importTemplate'])->name('models.import.template');
         Route::get('/backup/download', [SettingsController::class, 'downloadBackup'])->name('backup.download');
         Route::post('/backup/restore', [SettingsController::class, 'restoreBackup'])->name('backup.restore');
+        Route::post('/wipe', [SettingsController::class, 'wipe'])->name('wipe');
     });
 
     // Audit trails (owner)

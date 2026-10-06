@@ -317,6 +317,43 @@
             </form>
         </section>
 
+        {{-- CSV import --}}
+        <section class="rounded-xl border border-line bg-white shadow-sm">
+            <div class="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+                <div>
+                    <h2 class="text-sm font-semibold text-ink">Import from CSV</h2>
+                    <p class="mt-0.5 text-xs text-mute">Upload a spreadsheet of products (up to 500 rows)</p>
+                </div>
+            </div>
+            <form method="POST" action="{{ route('settings.models.import') }}"
+                  enctype="multipart/form-data" class="space-y-4 p-4">
+                @csrf
+                <div class="flex flex-wrap items-end gap-3">
+                    <div class="min-w-48 flex-1">
+                        <label class="label" for="csvShop">Shop</label>
+                        <select id="csvShop" name="shopId" class="input" required>
+                            <option value="">Select a shop…</option>
+                            @foreach ($shops as $shop)
+                                <option value="{{ $shop['id'] }}">{{ $shop['name'] }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="min-w-48 flex-1">
+                        <label class="label" for="csvFile">CSV file</label>
+                        <input id="csvFile" type="file" name="csv" accept=".csv,text/csv" class="input" required>
+                    </div>
+                    <button type="submit" class="btn-primary btn-sm h-8">Import products</button>
+                </div>
+                <p class="text-xs text-mute">
+                    Columns:
+                    <code class="rounded bg-paper px-1 py-0.5">model_name, condition, cost_price, sale_price, opening_stock, low_stock_threshold</code>.
+                    <a href="{{ route('settings.models.import.template') }}" class="font-medium text-brand underline">Download the template</a>.
+                    Rows that already exist in the shop are skipped, and skipped or invalid rows are
+                    reported after the import. The shop above applies to every row.
+                </p>
+            </form>
+        </section>
+
         {{-- Backup & restore --}}
         <section class="rounded-xl border border-line bg-white shadow-sm">
             <div class="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
@@ -330,10 +367,16 @@
                      fileName: '',
                      error: '',
                      confirming: false,
+                     wipeConfirm: '',
                      askRestore() {
                          this.error = '';
                          if (!this.fileName) { this.error = 'Choose a backup file first.'; return; }
                          this.confirming = true;
+                     },
+                     askWipe() {
+                         this.error = '';
+                         if (this.wipeConfirm.trim() !== 'WIPE') { this.error = 'Type WIPE to confirm.'; return; }
+                         this.$refs.wipeForm.submit();
                      }
                  }">
                 <form method="POST" action="{{ route('settings.backup.restore') }}"
@@ -357,6 +400,25 @@
                     with the selected backup file. Staff login accounts are kept where the
                     account still exists.
                 </p>
+
+                <div class="border-t border-line pt-4">
+                    <h3 class="text-sm font-semibold text-ink">Data wipe</h3>
+                    <p class="mt-0.5 text-xs text-mute">
+                        Deletes every shop, device, transaction, adjustment, count, and log for a
+                        fresh start. Login accounts are kept and you stay signed in —
+                        <span class="font-medium">download a backup first</span> if you might want
+                        this data back, or restore one afterwards.
+                    </p>
+                    <form method="POST" action="{{ route('settings.wipe') }}" class="mt-3" x-ref="wipeForm">
+                        @csrf
+                        <div class="flex flex-wrap items-center gap-3">
+                            <input type="text" name="confirm" class="input max-w-40" placeholder="Type WIPE"
+                                   autocomplete="off" spellcheck="false"
+                                   x-model="wipeConfirm" @input="error = ''">
+                            <button type="button" class="btn-danger btn-sm h-8" @click="askWipe()">Wipe all data</button>
+                        </div>
+                    </form>
+                </div>
 
                 <div x-show="error !== ''" x-cloak
                      class="rounded-lg border border-lowstock bg-lowstock-tint px-3 py-2 text-sm text-lowstock" x-text="error"></div>

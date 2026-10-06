@@ -89,14 +89,26 @@ POST /settings/staff/{user}/deactivate    SettingsController@deactivate
 POST /settings/staff/{user}/reactivate    SettingsController@reactivate
 POST /settings/staff/{user}/reset-password SettingsController@resetPassword
 POST /settings/models/bulk         SettingsController@bulkCreateModels
+POST /settings/models/import       SettingsController@importModels    (CSV upload; see §5b)
+GET  /settings/models/import/template SettingsController@importTemplate (CSV template download, owner)
 GET  /settings/backup/download     SettingsController@downloadBackup
 POST /settings/backup/restore      SettingsController@restoreBackup
+POST /settings/wipe               SettingsController@wipe            (delete all business data, keep accounts)
 GET  /logs                         LogController@index
 GET  /account                      AccountController@index
 POST /account/password             AccountController@changePassword
 ```
 No `/signup` (accounts are owner-created). Routes are named (`login`, `setup`,
 `dashboard`, `shop.show`, …) so views never hardcode URLs.
+
+Three routes post-date the Next.js app and have no original to match — they
+are speced here: `POST /settings/models/import` (CSV → bulk-add rows, errors
+`CSV file is missing or too large.` / `CSV must include a model_name column.`
+/ inherited `bulkCreate` messages), `GET /settings/models/import/template`
+(owner-only CSV header + one example row), and `POST /settings/wipe`
+(`confirm` must be `WIPE`, else `Type WIPE to confirm.`; non-owner gets
+`Only the owner can wipe data.`). Success strings: `N devices imported.` /
+`All data wiped (N rows removed).`
 
 Middleware aliases (register in `bootstrap/app.php`):
 - `auth` (Laravel default, redirect → `route('login')`)
@@ -155,6 +167,7 @@ ReconciliationService::applyCount(string $id, User $actor): array
 
 BackupService::export(User $actor): array                       // backup payload
 BackupService::restore(array $data, User $actor): array         // sets @mrjeff_no_stock_effects, reconciles `available`
+BackupService::wipe(array $input, User $actor): array           // confirm=WIPE; empties WIPE_ORDER (DELETE_ORDER minus users), keeps accounts
 
 AuditLog::stock(User $actor, string $action, ?string $modelId, ?string $modelName, ?string $condition, array $details): void
 AuditLog::event(string $txId, User $actor, string $action, array $details): void
@@ -191,6 +204,12 @@ read it produce matching names:
 - All forms are `<form method="POST" action="{{ route(...) }}">` with `@csrf`.
   The offline queue may POST the same keys as JSON; `respond()` already
   answers JSON clients with JSON.
+- **Post-parity forms** (added after the port): the CSV import posts `csv`
+  (the file) + `shopId`; the wipe posts `confirm` (must equal `WIPE`).
+  Files are read in the controller like `restoreBackup`'s `backup` upload —
+  `SettingsController::parseCsv()` normalises the header (BOM/`;`-delimited/
+  `Name Case` tolerated) and emits the bulk-add `rows[i][snake_case]` shape,
+  so `StockService::bulkCreate` validates both entry points.
 
 ## 6. Queries (`app/Services/Queries/`)
 
@@ -238,7 +257,7 @@ transactions/new.blade.php     3-step POS (type → phones → pay), model picke
 transactions/show.blade.php    receipt + review/void actions
 devices/index.blade.php        device matrix + detail modal + sold history
 reports/index.blade.php        period filters, daily rows, CSV export link, stock counts
-settings/index.blade.php       shops, staff, bulk add models, backup/restore
+settings/index.blade.php       shops, staff, bulk add models, CSV import + template, backup/restore, data wipe
 logs/index.blade.php           login + stock log tables
 account/index.blade.php        change password
 ```

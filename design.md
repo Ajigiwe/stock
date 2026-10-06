@@ -130,7 +130,7 @@ messages verbatim.
 | `ShopService` | `submit_daily_close`, `lock_daily_close`, `submit_stock_count`, shop create/delete |
 | `ReconciliationService` | `submit_stock_count` reconciliation, `apply_stock_count_correction`, count approve/apply |
 | `StaffService` | create / deactivate / reactivate / reset password (owner only) |
-| `BackupService` | `restore_backup` + the settings backup download (same 6 tables as the original export) |
+| `BackupService` | `restore_backup` + the settings backup download (same 6 tables as the original export) + `wipe` (empty all business tables, keep accounts, typed `WIPE` confirm) |
 | `AuditLogService` | `stock_logs` / `transaction_events` / `login_logs` writes |
 
 Patterns every write path follows:
@@ -186,8 +186,9 @@ RLS had no direct equivalent in Laravel, so the port is layered:
 
 ## 10. Pages and Routes
 
-43 routes = the 42 in `PORTING-CONTRACT.md` §3 + the `signup` → `login`
-redirect the original proxy performed. Inventory:
+46 routes = the 42 in `PORTING-CONTRACT.md` §3 + the `signup` → `login`
+redirect the original proxy performed + the 3 post-parity settings additions
+(CSV import, template download, data wipe — speced in §3). Inventory:
 
 ```
 /setup, /login, /logout, signup                 auth (setup.state / auth)
@@ -200,7 +201,7 @@ POST /transactions/{transaction}/review | /void, /swapped-phones/{phone}/status
 /devices, POST /devices/models/bulk            DeviceController (owner)
 POST /requests/{stockRequest}/approve|reject, /requests/approve-all     StockRequestController
 /reports, /reports/export, POST /reports/counts/{count}/approve|apply   ReportController
-/settings + 9 POSTs (shops/staff/models/backup)                         SettingsController (owner)
+/settings + 12 actions (shops/staff/models/backup/import/wipe)   SettingsController (owner)
 /logs (owner), /account, POST /account/password                         Log/AccountController
 ```
 
@@ -289,7 +290,7 @@ write path runs after `DB::transaction()` commits.
 - `public/sw.js`: network-first navigations, precached shell/assets, downloads
   (CSV, backup) never cached. `manifest.webmanifest` + icons unchanged.
 
-## 17. Testing (55 tests / 258 assertions, real MySQL)
+## 17. Testing (61 tests / 327 assertions, real MySQL)
 
 `phpunit.xml` points `DB_DATABASE` at `mrjeff_test`; `RefreshDatabase`
 re-migrates per test because SQLite cannot run the triggers.
@@ -301,6 +302,7 @@ re-migrates per test because SQLite cannot run the triggers.
 | `Feature/TransactionFlowTest` (7) | POS form → stock moves → redirect+flash; JSON replay dedupe; oversell on both response shapes; attendant request vs owner adjust; approve; owner-only guard |
 | `Feature/ReportExportTest` (3) | CSV bytes (BOM, 10 columns, `esc()` formula prefix, LF joins, filename) + attendant scoping + 403 |
 | `Feature/BackupRoundTripTest` (3) | download (raw shape) → `mrjeff:import-backup` / UI upload restore, incl. verbatim error strings |
+| `Feature/SettingsImportWipeTest` (6) | CSV import (parse → `bulkCreate` reuse, skip/warn, owner/shop guards, template 403) + data wipe (empty tables, accounts kept, typed `WIPE` confirm, role guard) |
 | `Unit/FormatTest`, `Unit/InputTest` | formatting + parsing byte parity |
 | `Feature/ExampleTest` | signed-out `/` redirects to `/login` |
 
