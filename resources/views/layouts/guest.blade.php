@@ -10,10 +10,10 @@
     <title>@yield('title', 'Mr Jeff Stock')</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="relative flex min-h-screen items-center justify-center overflow-hidden bg-paper px-4 py-10 text-ink">
+<body class="relative flex min-h-screen justify-center overflow-x-hidden bg-paper px-4 py-10 text-ink">
     <div class="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-brand/15 blur-3xl" aria-hidden="true"></div>
     <div class="pointer-events-none absolute -bottom-40 -right-24 h-[28rem] w-[28rem] rounded-full bg-brand/10 blur-3xl" aria-hidden="true"></div>
-    <div class="relative w-full max-w-3xl">
+    <div class="relative my-auto w-full max-w-3xl">
         @include('partials.flash')
         @yield('content')
     </div>

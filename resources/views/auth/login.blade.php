@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="grid overflow-hidden rounded-3xl border border-line bg-white shadow-2xl sm:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-        <div class="flex flex-col justify-between gap-8 bg-ink p-7 text-white sm:p-8">
+        <div class="flex min-w-0 flex-col justify-between gap-8 bg-ink p-7 text-white sm:p-8">
             <div class="space-y-4">
                 <p class="text-xl font-extrabold leading-snug tracking-tight">Every phone accounted for.</p>
                 <ul class="space-y-2.5 text-[13px] text-white/75">
@@ -31,7 +31,7 @@
             <p class="text-[11px] text-white/40">Sign in to open your shop&rsquo;s terminal.</p>
         </div>
 
-        <div class="p-7 sm:p-8">
+        <div class="min-w-0 p-7 sm:p-8">
             <div class="flex items-center gap-3">
                 <span class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-line bg-white">
                     <img src="/icon-192.png" alt="Mr Jeff Stock logo" class="h-full w-full object-cover">
