@@ -3,7 +3,7 @@
 @section('title', 'Set up owner — Mr Jeff Stock')
 
 @section('content')
-    <div class="grid overflow-hidden rounded-3xl bg-white shadow-2xl sm:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+    <div class="grid overflow-hidden rounded-3xl border border-line bg-white shadow-2xl sm:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
         <div class="flex flex-col justify-between gap-8 bg-ink p-7 text-white sm:p-8">
             <div class="flex items-center gap-3">
                 <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-brand text-sm font-bold text-white">MJ</span>
