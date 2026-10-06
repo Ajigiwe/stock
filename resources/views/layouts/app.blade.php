@@ -48,6 +48,13 @@
         $primaryNav[] = ['url' => route('shop.show', $myShopId), 'label' => 'My shop', 'icon' => 'shop', 'active' => $active('shops/'.$myShopId)];
     }
     $primaryNav[] = ['url' => route('reports.index'), 'label' => 'Reports', 'icon' => 'reports', 'active' => $active('reports')];
+    if ($isOwner) {
+        // Owner tools: reachable on mobile via the menu sheet, but the
+        // desktop sidebar never linked them — attendants must not see these.
+        $primaryNav[] = ['url' => route('logs.index'), 'label' => 'Logs', 'icon' => 'logs', 'active' => $active('logs')];
+        $primaryNav[] = ['url' => route('settings.index'), 'label' => 'Settings', 'icon' => 'settings', 'active' => $active('settings')];
+    }
+    $primaryNav[] = ['url' => route('account.index'), 'label' => 'Account', 'icon' => 'account', 'active' => $active('account')];
 
     $menuNav = [
         ['url' => route('dashboard'), 'label' => 'Dashboard', 'icon' => 'dashboard', 'active' => $active('/')],

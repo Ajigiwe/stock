@@ -238,5 +238,13 @@ class TransactionFlowTest extends TestCase
         foreach (['type=sale', 'type=swap', 'type=repair'] as $link) {
             $home->assertSee($link, false);
         }
+
+        // Owner tools are linked in the desktop sidebar for owners only.
+        $home->assertSee('/settings', false);
+        $home->assertSee('/logs', false);
+        $staffHome = $this->actingAs($this->attendant)->get('/');
+        $staffHome->assertOk();
+        $staffHome->assertDontSee('/settings', false);
+        $staffHome->assertDontSee('/logs', false);
     }
 }
