@@ -5,15 +5,6 @@
 @section('content')
     <div class="grid overflow-hidden rounded-3xl border border-line bg-white shadow-2xl sm:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
         <div class="flex flex-col justify-between gap-8 bg-ink p-7 text-white sm:p-8">
-            <div class="flex items-center gap-3">
-                <span class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-line bg-white">
-                    <img src="/icon-192.png" alt="Mr Jeff Stock logo" class="h-full w-full object-cover">
-                </span>
-                <div>
-                    <p class="font-bold tracking-tight">Mr Jeff Stock</p>
-                    <p class="text-xs text-white/60">Phone stock control</p>
-                </div>
-            </div>
             <div class="space-y-4">
                 <p class="text-xl font-extrabold leading-snug tracking-tight">One shop, one owner.</p>
                 <ul class="space-y-2.5 text-[13px] text-white/75">
@@ -41,8 +32,15 @@
         </div>
 
         <div class="p-7 sm:p-8">
-            <h1 class="text-xl font-extrabold tracking-tight">Create the owner account</h1>
-            <p class="mt-1 text-sm text-mute">One-time setup. Requires the setup secret.</p>
+            <div class="flex items-center gap-3">
+                <span class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-line bg-white">
+                    <img src="/icon-192.png" alt="Mr Jeff Stock logo" class="h-full w-full object-cover">
+                </span>
+                <div>
+                    <h1 class="text-xl font-extrabold tracking-tight">Create the owner account</h1>
+                    <p class="mt-0.5 text-sm text-mute">One-time setup. Requires the setup secret.</p>
+                </div>
+            </div>
 
             <form method="POST" action="{{ route('setup') }}" class="mt-6 space-y-4">
                 @csrf
