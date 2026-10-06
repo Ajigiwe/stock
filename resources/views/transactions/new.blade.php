@@ -25,7 +25,7 @@
         ];
     @endphp
 
-    <div x-data="posForm()" class="mx-auto w-full max-w-5xl pb-6">
+    <div x-data="posForm()" class="mx-auto w-full max-w-7xl pb-6">
         <form method="POST" action="{{ route('transactions.store') }}"
               x-on:submit="validate($event)"
               data-offline-queue="repair" :data-shop-name="shopName()">
@@ -98,93 +98,53 @@
             <input type="hidden" name="type" :value="type">
             <input type="hidden" name="idempotencyKey" :value="idempotencyKey">
 
-            {{-- Everything below stacks full-width: phones, then customer/payment side-by-side, then the totals bar. --}}
-            <div class="mt-5 space-y-4">
-                {{-- Left: phones going out / repair note / trade-ins --}}
+            {{-- POS floor: catalog on the left, the running ticket on the right. --}}
+            <div class="mt-5 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
+                {{-- Left: catalog + mode panels --}}
                 <div class="min-w-0 space-y-4">
                     <template x-if="type !== 'repair'">
-                        <section class="rounded-2xl border border-l-4 border-line border-l-lowstock bg-white shadow-[0_1px_2px_rgba(20,22,43,0.04)]">
+                        <section class="rounded-2xl border border-line bg-white shadow-[0_1px_2px_rgba(20,22,43,0.04)]">
                             <div class="w-full p-4 sm:p-5">
-                                <div class="mb-3.5 flex items-start justify-between gap-3">
+                                <div class="mb-3 flex items-center justify-between gap-3">
                                     <div class="min-w-0">
-                                        <h2 class="text-[15px] font-bold tracking-tight text-ink">Phones going out</h2>
-                                        <p class="mt-0.5 text-[12.5px] text-mute">These leave the shop's stock</p>
+                                        <h2 class="text-[15px] font-bold tracking-tight text-ink">Catalog</h2>
+                                        <p class="mt-0.5 text-[12.5px] text-mute">Tap a model to add it to the ticket</p>
                                     </div>
-                                    <button type="button" @click="addOut()"
-                                            class="shrink-0 rounded-lg bg-brand-tint px-3 py-1.5 text-xs font-bold text-brand transition-colors hover:bg-brand/10">
-                                        + Add phone
-                                    </button>
+                                    <span class="badge badge-muted shrink-0" x-text="shopModels().length + ' models'"></span>
                                 </div>
 
-                                <div class="space-y-2.5">
-                                    <template x-for="(line, i) in outLines" :key="line.key">
-                                        <div class="rounded-xl border border-line bg-paper p-3">
-                                            <div class="flex items-end gap-2.5">
-                                                <div class="relative min-w-0 flex-1">
-                                                    <label class="label" :for="'pos-model-' + i">Phone model</label>
-                                                    <input type="hidden" :name="'outItems[' + i + '][modelId]'" :value="line.modelId">
-                                                    <input type="text" autocomplete="off" aria-haspopup="listbox"
-                                                           :id="'pos-model-' + i"
-                                                           class="input" placeholder="Type to search model…"
-                                                           :value="line.text"
-                                                           @input="typeText(line, $event.target.value)"
-                                                           @focus="line.open = true"
-                                                           @blur="setTimeout(() => line.open = false, 120)"
-                                                           @keydown="pickerKey($event, line)">
+                                <div class="relative mb-3">
+                                    <span class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-mute">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+                                    </span>
+                                    <input type="text" autocomplete="off" x-model="catalogQuery"
+                                           class="input pl-10" placeholder="Search models…">
+                                </div>
 
-                                                    <div x-show="line.open" x-cloak
-                                                         class="absolute z-20 mt-1 max-h-64 min-w-full overflow-y-auto rounded-lg border border-line bg-white shadow-lg">
-                                                        <ul x-show="matches(line).length > 0" role="listbox">
-                                                            <template x-for="(m, mi) in matches(line)" :key="m.id">
-                                                                <li role="option" :aria-selected="mi === line.hl"
-                                                                    @mousedown.prevent="pick(line, m)"
-                                                                    @mouseenter="line.hl = mi"
-                                                                    :class="mi === line.hl ? 'bg-paper' : ''"
-                                                                    class="flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-sm">
-                                                                    <span class="flex items-center gap-2">
-                                                                        <span class="whitespace-nowrap font-medium text-ink" x-text="m.model_name"></span>
-                                                                        <span class="badge" :class="m.condition === 'new' ? 'badge-brand' : 'badge-muted'" x-text="m.condition"></span>
-                                                                    </span>
-                                                                    <span class="shrink-0 text-xs" :class="low(m) ? 'text-lowstock' : 'text-mute'"
-                                                                          x-text="m.available + ' in stock'"></span>
-                                                                </li>
-                                                            </template>
-                                                        </ul>
-                                                        <div x-show="matches(line).length === 0" x-cloak class="px-3 py-2 text-sm text-mute">
-                                                            No matching models.
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div class="inline-flex shrink-0 items-center overflow-hidden rounded-[10px] border border-line bg-white">
-                                                    <button type="button" aria-label="Decrease quantity" @click="stepQty(i, -1)"
-                                                            class="flex h-11 w-10 items-center justify-center bg-paper text-lg text-ink transition-colors hover:bg-line/50 active:bg-line">&minus;</button>
-                                                    <input type="number" inputmode="numeric" min="1"
-                                                           x-model="line.qty" @blur="normaliseQty(line)"
-                                                           :name="'outItems[' + i + '][qty]'"
-                                                           class="h-11 w-10 border-x border-line bg-white text-center font-mono text-sm font-bold tabular-nums text-ink [appearance:textfield] focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none">
-                                                    <button type="button" aria-label="Increase quantity" @click="stepQty(i, 1)"
-                                                            class="flex h-11 w-10 items-center justify-center bg-paper text-lg text-ink transition-colors hover:bg-line/50 active:bg-line">+</button>
-                                                </div>
-
-                                                <button type="button" aria-label="Remove phone" @click="removeOut(i)"
-                                                        class="mb-0.5 inline-flex h-11 w-10 shrink-0 items-center justify-center rounded-lg text-mute transition-colors hover:bg-lowstock-tint hover:text-lowstock">
-                                                    &#10005;
-                                                </button>
-                                            </div>
-
-                                            <p class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs" x-show="line.modelId" x-cloak>
-                                                <span class="badge" :class="model(line.modelId).condition === 'new' ? 'badge-brand' : 'badge-muted'"
-                                                      x-text="model(line.modelId).condition"></span>
-                                                <span class="text-mute" x-show="model(line.modelId).sale_price != null">
-                                                    Listed <span class="tnum" x-text="money(model(line.modelId).sale_price)"></span>
-                                                </span>
-                                                <span :class="low(model(line.modelId)) ? 'text-lowstock' : 'text-mute'"
-                                                      x-text="stockHint(model(line.modelId))"></span>
-                                            </p>
-                                        </div>
+                                <div class="grid gap-2 sm:grid-cols-2" x-show="catalogList().length > 0">
+                                    <template x-for="m in catalogList()" :key="m.id">
+                                        <button type="button" @click="quickAdd(m)" :disabled="m.available <= 0"
+                                                class="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-line bg-paper px-3 py-2.5 text-left transition-all hover:border-brand/50 hover:bg-brand-tint/40 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50">
+                                            <span class="min-w-0">
+                                                <span class="block truncate text-[13px] font-bold text-ink" x-text="m.model_name"></span>
+                                                <span class="tnum block text-xs font-semibold text-brand"
+                                                      x-text="m.sale_price != null ? money(m.sale_price) : 'No price set'"></span>
+                                            </span>
+                                            <span class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums"
+                                                  :class="m.available <= 0 ? 'bg-line text-mute' : (low(m) ? 'bg-lowstock-tint text-lowstock' : 'bg-instock-tint text-instock')"
+                                                  x-text="m.available <= 0 ? 'Out' : m.available + ' left'"></span>
+                                        </button>
                                     </template>
                                 </div>
+
+                                <p class="rounded-lg bg-paper px-3 py-2.5 text-center text-[13px] text-mute"
+                                   x-show="shopModels().length > 0 && catalogList().length === 0">
+                                    No models match that search.
+                                </p>
+                                <p class="rounded-lg bg-paper px-3 py-2.5 text-center text-[13px] text-mute"
+                                   x-show="shopModels().length === 0">
+                                    No models in this shop yet — add them from the shop page or Settings.
+                                </p>
                             </div>
                         </section>
                     </template>
@@ -244,43 +204,67 @@
                     </template>
                 </div>
 
-                {{-- Customer + payment, side by side on desktop --}}
-                <div class="grid items-stretch gap-4 lg:grid-cols-2">
-                    <section class="flex h-full flex-col rounded-2xl border border-l-4 border-line border-l-brand bg-white shadow-[0_1px_2px_rgba(20,22,43,0.04)]">
-                        <div class="flex w-full flex-1 flex-col p-4 sm:p-5">
-                            <div class="mb-3.5 flex items-start justify-between gap-3">
-                                <div class="min-w-0">
-                                    <h2 class="text-[15px] font-bold tracking-tight text-ink">Customer</h2>
+                {{-- Right: the running ticket --}}
+                <div class="min-w-0 xl:sticky xl:top-6">
+                    <section class="overflow-hidden rounded-2xl border border-line bg-white shadow-[0_1px_2px_rgba(20,22,43,0.04)]">
+                        <div class="flex items-center justify-between gap-3 bg-ink px-4 py-3 text-white">
+                            <h2 class="text-[15px] font-bold tracking-tight">Current sale</h2>
+                            <span class="tnum rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-bold" x-text="unitsOut() + ' item(s)'"></span>
+                        </div>
+
+                        <div class="divide-y divide-line/70">
+                            <p class="px-4 py-4 text-center text-[13px] text-mute" x-show="validOut().length === 0 && type !== 'repair'">
+                                Ticket is empty — tap a model in the catalog to add it.
+                            </p>
+                            <template x-for="(line, i) in outLines" :key="line.key">
+                                <div x-show="line.modelId" class="flex items-center gap-2 px-3 py-2.5">
+                                    <input type="hidden" :name="'outItems[' + i + '][modelId]'" :value="line.modelId">
+                                    <input type="hidden" :name="'outItems[' + i + '][qty]'" :value="line.qty">
+                                    <div class="min-w-0 flex-1">
+                                        <p class="truncate text-[13px] font-bold text-ink" x-text="model(line.modelId).model_name"></p>
+                                        <p class="tnum text-[11.5px] text-mute" x-show="model(line.modelId).sale_price != null">
+                                            <span x-text="money(model(line.modelId).sale_price)"></span> each
+                                        </p>
+                                    </div>
+                                    <div class="inline-flex shrink-0 items-center overflow-hidden rounded-lg border border-line bg-white">
+                                        <button type="button" aria-label="Decrease quantity" @click="stepQty(i, -1)"
+                                                class="flex h-9 w-8 items-center justify-center bg-paper text-base text-ink transition-colors hover:bg-line/50">&minus;</button>
+                                        <span class="tnum w-8 text-center font-mono text-sm font-bold text-ink" x-text="line.qty"></span>
+                                        <button type="button" aria-label="Increase quantity" @click="stepQty(i, 1)"
+                                                class="flex h-9 w-8 items-center justify-center bg-paper text-base text-ink transition-colors hover:bg-line/50">+</button>
+                                    </div>
+                                    <span class="tnum w-[86px] shrink-0 text-right font-mono text-[13px] font-bold text-ink"
+                                          x-text="model(line.modelId).sale_price != null ? money(model(line.modelId).sale_price * Number(line.qty)) : '—'"></span>
+                                    <button type="button" aria-label="Remove phone" @click="removeOut(i)"
+                                            class="inline-flex h-9 w-8 shrink-0 items-center justify-center rounded-lg text-mute transition-colors hover:bg-lowstock-tint hover:text-lowstock">
+                                        &#10005;
+                                    </button>
                                 </div>
-                            </div>
-                            <div class="grid gap-3 sm:grid-cols-2">
-                                <div>
-                                    <label class="label" for="customerName">Name <span class="ml-0.5 text-lowstock">*</span></label>
-                                    <input id="customerName" name="customerName" class="input" x-model="customerName"
-                                           placeholder="Customer name" autocomplete="off">
+                            </template>
+                            <template x-for="line in summarySwaps()" :key="line.key">
+                                <div class="flex items-center justify-between gap-3 bg-instock-tint/40 px-4 py-2 text-[12.5px]">
+                                    <span class="truncate text-ink/90">
+                                        <b class="font-mono font-semibold text-mute">IN</b>
+                                        <span x-text="line.name"></span> (trade-in)
+                                    </span>
+                                    <span class="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-instock">+valued</span>
                                 </div>
-                                <div>
-                                    <label class="label" for="customerPhone">Phone <span class="ml-0.5 text-lowstock">*</span></label>
-                                    <input id="customerPhone" name="customerPhone" class="input" x-model="customerPhone"
-                                           placeholder="Customer phone" autocomplete="off">
-                                </div>
-                            </div>
-                            <p class="mt-auto pt-3 text-[11.5px] leading-relaxed text-mute">
-                                Name and phone are required for every sale — they print on the receipt.
+                            </template>
+                            <p class="px-4 py-3 text-[13px] text-mute" x-show="type === 'repair'">
+                                Repair charge — no stock movement.
                             </p>
                         </div>
-                    </section>
 
-                    <section class="h-full rounded-2xl border border-l-4 border-line border-l-brand bg-white shadow-[0_1px_2px_rgba(20,22,43,0.04)]">
-                        <div class="w-full p-4 sm:p-5">
-                            <div class="mb-3.5 flex items-start justify-between gap-3">
-                                <div class="min-w-0">
-                                    <h2 class="text-[15px] font-bold tracking-tight text-ink">Payment</h2>
-                                    <p class="mt-0.5 text-[12.5px] text-mute" x-text="paymentSub()"></p>
-                                </div>
+                        <div class="space-y-3 border-t border-line bg-paper/60 p-4">
+                            <div class="grid gap-2.5 sm:grid-cols-2">
+                                <input id="customerName" name="customerName" class="input" x-model="customerName"
+                                       placeholder="Customer name *" autocomplete="off">
+                                <input id="customerPhone" name="customerPhone" class="input" x-model="customerPhone"
+                                       placeholder="Customer phone *" autocomplete="off">
                             </div>
 
-                            <div class="space-y-3">
+                            <div>
+                                <p class="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-mute" x-text="paymentSub()"></p>
                                 <div class="relative">
                                     <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-[13px] font-bold text-mute">GHS</span>
                                     <input type="number" min="0" step="0.01" placeholder="0.00" name="amount"
@@ -294,18 +278,20 @@
                                     Use suggested amount — <span class="tnum" x-text="money(suggested())"></span>
                                 </button>
 
-                                <div class="grid gap-3 sm:grid-cols-2">
-                                    <div>
-                                        <label class="label" for="paymentMethod">Payment method</label>
-                                        <select id="paymentMethod" name="paymentMethod" class="input" x-model="paymentMethod">
-                                            <option value="cash">Cash</option>
-                                            <option value="mobile_money">Mobile money</option>
-                                            <option value="card">Card</option>
-                                            <option value="bank_transfer">Bank transfer</option>
-                                            <option value="other">Other</option>
-                                        </select>
+                                <div>
+                                    <p class="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-mute">Payment method</p>
+                                    <div class="grid grid-cols-5 gap-1.5">
+                                        <template x-for="opt in [['cash','Cash'],['mobile_money','MoMo'],['card','Card'],['bank_transfer','Bank'],['other','Other']]" :key="opt[0]">
+                                            <button type="button" @click="paymentMethod = opt[0]" x-text="opt[1]"
+                                                    :class="paymentMethod === opt[0]
+                                                        ? 'border-brand bg-brand text-white shadow-[0_2px_8px_rgba(67,56,202,0.35)]'
+                                                        : 'border-line bg-white text-mute hover:border-brand/40 hover:text-ink'"
+                                                    class="rounded-lg border px-1 py-2 text-[11.5px] font-bold transition-all"></button>
+                                        </template>
                                     </div>
-                                    <div>
+                                    <input type="hidden" name="paymentMethod" :value="paymentMethod">
+                                </div>
+                                <div class="grid gap-3 sm:grid-cols-2">
                                         <label class="label" for="paymentReference">Payment reference</label>
                                         <input id="paymentReference" name="paymentReference" class="input" x-model="paymentReference"
                                                :placeholder="paymentMethod === 'mobile_money' ? 'MoMo reference' : 'optional'"
@@ -332,76 +318,40 @@
                                    class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
                                     Below list price — this sale will be saved for the owner&rsquo;s review before it counts as revenue.
                                 </p>
-                            </div>
-                        </div>
-                    </section>
 
-                </div>
-
-                {{-- Totals bar: the running ticket on the left, save on the right --}}
-                <div class="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-                    <section class="min-w-0 rounded-2xl border border-line bg-white shadow-[0_1px_2px_rgba(20,22,43,0.04)]">
-                        <div class="w-full p-4 sm:p-5">
-                            <div class="mb-3.5">
-                                <h2 class="text-[15px] font-bold tracking-tight text-ink">Order summary</h2>
-                                <p class="mt-0.5 text-[12.5px] text-mute">What this transaction records</p>
-                            </div>
-                            <div class="overflow-hidden rounded-xl border border-line">
-                                <div class="bg-paper px-3.5 py-2 text-[10.5px] font-bold uppercase tracking-wider text-mute"
-                                     x-text="summaryTitle()"></div>
-                                <div class="divide-y divide-line/70">
-                                    <p class="px-3.5 py-2.5 text-xs text-mute" x-show="validOut().length === 0 && type !== 'repair'">
-                                        No phones added yet.
-                                    </p>
-                                    <template x-for="line in validOut()" :key="line.key">
-                                        <div class="flex items-center justify-between gap-3 px-3.5 py-2 text-[12.5px]">
-                                            <span class="min-w-0 truncate text-ink/90">
-                                                <b class="font-mono font-semibold text-mute" x-text="line.qty + '\u00d7'"></b>
-                                                <span x-text="model(line.modelId).model_name"></span>
-                                            </span>
-                                            <span class="shrink-0 font-mono font-semibold tabular-nums text-ink"
-                                                  x-text="money(model(line.modelId).sale_price * Number(line.qty))"></span>
-                                        </div>
-                                    </template>
-                                    <template x-for="line in summarySwaps()" :key="line.key">
-                                        <div class="flex items-center justify-between gap-3 px-3.5 py-2 text-[12.5px]">
-                                            <span class="truncate text-ink/90">
-                                                <b class="font-mono font-semibold text-mute">IN</b>
-                                                <span x-text="line.name"></span> (trade-in)
-                                            </span>
-                                            <span class="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-instock">+valued</span>
-                                        </div>
-                                    </template>
-                                    <p class="px-3.5 py-2.5 text-xs text-mute" x-show="type === 'repair'">
-                                        Repair charge — no stock movement.
-                                    </p>
-                                    <div class="flex items-center justify-between gap-3 bg-white px-3.5 py-2.5">
-                                        <span class="text-[12px] font-bold uppercase tracking-wide text-mute"
-                                              x-text="type === 'swap' ? 'Total top-up' : 'Total due'"></span>
-                                        <span class="font-mono text-base font-bold tabular-nums text-ink"
-                                              x-text="money(amountValid() ? enteredAmount() : 0)"></span>
+                                <div class="flex items-center justify-between gap-3 rounded-xl bg-ink px-4 py-3 text-white">
+                                    <div class="min-w-0">
+                                        <p class="text-[11px] font-bold uppercase tracking-wide text-white/70"
+                                           x-text="type === 'swap' ? 'Total top-up' : 'Total due'"></p>
+                                        <p class="tnum truncate text-[11px] text-white/70"
+                                           x-show="type === 'sale' && suggested() > 0 && amountValid() && enteredAmount() >= suggested()">
+                                            Change due <span class="font-bold text-white" x-text="money(enteredAmount() - suggested())"></span>
+                                        </p>
                                     </div>
+                                    <span class="tnum shrink-0 font-mono text-2xl font-extrabold"
+                                          x-text="money(amountValid() ? enteredAmount() : 0)"></span>
                                 </div>
+
+                                <div x-show="error !== ''" x-cloak
+                                     class="rounded-lg border border-lowstock bg-lowstock-tint px-3 py-2 text-sm text-lowstock" x-text="error"></div>
+
+                                <button type="submit"
+                                        class="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-[14px] font-bold tracking-tight transition-all"
+                                        :class="saving
+                                            ? 'cursor-wait bg-line text-mute'
+                                            : 'bg-brand text-white shadow-[0_6px_16px_rgba(67,56,202,0.3)] hover:bg-brand-deep hover:shadow-[0_8px_20px_rgba(67,56,202,0.35)] active:translate-y-px'">
+                                    <span x-text="saving ? 'Saving…' : saveLabel()"></span>
+                                    <span class="tnum" x-show="!saving && amountValid() && enteredAmount() > 0" x-cloak
+                                          x-text="'· ' + money(enteredAmount())"></span>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M5 12h14M12 5l7 7-7 7" />
+                                    </svg>
+                                </button>
                             </div>
-                        </div>
-                    </section>
-
-                    <div class="min-w-0 space-y-3">
-                        <div x-show="error !== ''" x-cloak
-                             class="rounded-lg border border-lowstock bg-lowstock-tint px-3 py-2 text-sm text-lowstock" x-text="error"></div>
-
-                        <button type="submit"
-                                class="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-[14px] font-bold tracking-tight transition-all"
-                                :class="saving
-                                    ? 'cursor-wait bg-line text-mute'
-                                    : 'bg-brand text-white shadow-[0_6px_16px_rgba(67,56,202,0.3)] hover:bg-brand-deep hover:shadow-[0_8px_20px_rgba(67,56,202,0.35)] active:translate-y-px'">
-                            <span x-text="saving ? 'Saving…' : saveLabel()"></span>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M5 12h14M12 5l7 7-7 7" />
-                            </svg>
-                        </button>
+                        </section>
                     </div>
-                </div>
+
+                {{-- (Order summary + save now live in the ticket panel above.) --}}
             </div>
         </form>
     </div>
@@ -439,6 +389,7 @@
                 outLines: [blankOut()],
                 swapLines: [blankSwap()],
                 error: '',
+                catalogQuery: '',
                 saving: false,
                 online: typeof navigator !== 'undefined' ? navigator.onLine : true,
 
@@ -523,6 +474,31 @@
                     this.swapLines = [blankSwap()];
                 },
                 addOut() { this.outLines.push(blankOut()); },
+                catalogList() {
+                    const q = (this.catalogQuery || '').trim().toLowerCase();
+                    const models = this.shopModels();
+                    const found = q ? models.filter((m) => m.model_name.toLowerCase().includes(q)) : models;
+                    return found
+                        .slice()
+                        .sort((a, b) => (b.available - a.available) || (a.model_name < b.model_name ? -1 : 1))
+                        .slice(0, 60);
+                },
+                quickAdd(m) {
+                    if (! m || m.available <= 0) return;
+                    const at = this.outLines.findIndex((l) => l.modelId === m.id);
+                    if (at >= 0) {
+                        this.stepQty(at, 1);
+                        return;
+                    }
+                    let line = this.outLines.find((l) => ! l.modelId);
+                    if (! line) {
+                        this.addOut();
+                        line = this.outLines[this.outLines.length - 1];
+                    }
+                    line.modelId = m.id;
+                    line.text = m.model_name;
+                    line.open = false;
+                },
                 removeOut(i) {
                     this.outLines = this.outLines.length > 1
                         ? this.outLines.filter((_, idx) => idx !== i)
