@@ -31,11 +31,27 @@
               data-offline-queue="repair" :data-shop-name="shopName()">
             @csrf
 
-            {{-- Step 1 — what kind of transaction --}}
+            {{-- Step 1 — what kind of transaction (picked in the sidebar) --}}
             <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
                 <div>
-                    <h1 class="text-2xl font-extrabold tracking-tight text-ink">Record transaction</h1>
-                    <p class="mt-1 text-[13px] text-mute">Pick a type, add the phones, then take payment — all on one page.</p>
+                    <h1 class="text-2xl font-extrabold tracking-tight text-ink">
+                        @if ($type === 'swap')
+                            Record swap
+                        @elseif ($type === 'repair')
+                            Record repair
+                        @else
+                            Record sale
+                        @endif
+                    </h1>
+                    <p class="mt-1 text-[13px] text-mute">
+                        @if ($type === 'swap')
+                            Add the phones going out, the trade-in coming in, then take the top-up.
+                        @elseif ($type === 'repair')
+                            Enter the customer and the repair charge — no stock moves.
+                        @else
+                            Add the phones, then take payment — all on one page.
+                        @endif
+                    </p>
                 </div>
                 <div x-show="shopName() !== ''" x-cloak
                      class="flex items-center gap-2 rounded-full border border-line bg-white px-3.5 py-2 text-xs font-semibold text-ink/80">
@@ -44,41 +60,6 @@
                     <span class="text-line">|</span>
                     <span class="font-medium text-mute" x-text="dateLabel()"></span>
                 </div>
-            </div>
-
-            <div class="grid grid-cols-3 gap-2.5">
-                <button type="button" @click="type = 'sale'"
-                        :class="type === 'sale'
-                            ? 'border-brand bg-brand-tint shadow-[0_4px_14px_rgba(67,56,202,0.18)]'
-                            : 'border-line bg-white hover:border-brand/40 hover:bg-brand-tint/40'"
-                        class="group flex min-h-[84px] flex-col items-center justify-center gap-1.5 rounded-2xl border-[1.5px] px-3 py-4 text-center transition-all">
-                    <span :class="type === 'sale' ? 'bg-brand text-white' : 'bg-paper text-mute group-hover:bg-brand/10 group-hover:text-brand'"
-                          class="flex h-9 w-9 items-center justify-center rounded-xl transition-colors">{!! $iconSale !!}</span>
-                    <span class="text-[13.5px] font-extrabold tracking-tight text-ink">Sale</span>
-                    <span class="text-[11px] leading-tight text-mute">Phone leaves the shop</span>
-                </button>
-
-                <button type="button" @click="type = 'swap'"
-                        :class="type === 'swap'
-                            ? 'border-brand bg-brand-tint shadow-[0_4px_14px_rgba(67,56,202,0.18)]'
-                            : 'border-line bg-white hover:border-brand/40 hover:bg-brand-tint/40'"
-                        class="group flex min-h-[84px] flex-col items-center justify-center gap-1.5 rounded-2xl border-[1.5px] px-3 py-4 text-center transition-all">
-                    <span :class="type === 'swap' ? 'bg-brand text-white' : 'bg-paper text-mute group-hover:bg-brand/10 group-hover:text-brand'"
-                          class="flex h-9 w-9 items-center justify-center rounded-xl transition-colors">{!! $iconSwap !!}</span>
-                    <span class="text-[13.5px] font-extrabold tracking-tight text-ink">Swap</span>
-                    <span class="text-[11px] leading-tight text-mute">Out + trade-in + top-up</span>
-                </button>
-
-                <button type="button" @click="type = 'repair'"
-                        :class="type === 'repair'
-                            ? 'border-brand bg-brand-tint shadow-[0_4px_14px_rgba(67,56,202,0.18)]'
-                            : 'border-line bg-white hover:border-brand/40 hover:bg-brand-tint/40'"
-                        class="group flex min-h-[84px] flex-col items-center justify-center gap-1.5 rounded-2xl border-[1.5px] px-3 py-4 text-center transition-all">
-                    <span :class="type === 'repair' ? 'bg-brand text-white' : 'bg-paper text-mute group-hover:bg-brand/10 group-hover:text-brand'"
-                          class="flex h-9 w-9 items-center justify-center rounded-xl transition-colors">{!! $iconRepair !!}</span>
-                    <span class="text-[13.5px] font-extrabold tracking-tight text-ink">Repair</span>
-                    <span class="text-[11px] leading-tight text-mute">Logged for service</span>
-                </button>
             </div>
 
             {{-- Owners pick the shop; attendants are locked to theirs. --}}
@@ -208,8 +189,16 @@
                 <div class="min-w-0 xl:sticky xl:top-6">
                     <section class="overflow-hidden rounded-2xl border border-line bg-white shadow-[0_1px_2px_rgba(20,22,43,0.04)]">
                         <div class="flex items-center justify-between gap-3 bg-ink px-4 py-3 text-white">
-                            <h2 class="text-[15px] font-bold tracking-tight">Current sale</h2>
-                            <span class="tnum rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-bold" x-text="unitsOut() + ' item(s)'"></span>
+                            <h2 class="text-[15px] font-bold tracking-tight">
+                                @if ($type === 'swap')
+                                    Current swap
+                                @elseif ($type === 'repair')
+                                    Repair charge
+                                @else
+                                    Current sale
+                                @endif
+                            </h2>
+                            <span class="tnum rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-bold" x-show="type !== 'repair'" x-text="unitsOut() + ' item(s)'"></span>
                         </div>
 
                         <div class="divide-y divide-line/70">
@@ -376,7 +365,7 @@
             }
 
             return {
-                type: 'sale',
+                type: {{ \Illuminate\Support\Js::from($type) }},
                 shopId: {{ \Illuminate\Support\Js::from($defaultShopId) }},
                 customerName: {{ \Illuminate\Support\Js::from(old('customerName', '')) }},
                 customerPhone: {{ \Illuminate\Support\Js::from(old('customerPhone', '')) }},

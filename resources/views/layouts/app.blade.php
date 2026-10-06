@@ -62,6 +62,20 @@
         $menuNav[] = ['url' => route('shop.show', $myShopId), 'label' => 'My shop', 'icon' => 'shop', 'active' => $active('shops/'.$myShopId)];
     }
     $menuNav[] = ['url' => route('account.index'), 'label' => 'Account', 'icon' => 'account', 'active' => $active('account')];
+
+    // POS transaction types live in the sidebar, not on the page: each links
+    // to the POS with ?type=, and the active one follows the query string
+    // (falling back to the just-posted type after a failed submit).
+    $txType = request()->query('type', old('type', 'sale'));
+    if (! in_array($txType, ['sale', 'swap', 'repair'], true)) {
+        $txType = 'sale';
+    }
+    $onPos = $active('transactions/new');
+    $txTypes = [
+        ['type' => 'sale', 'label' => 'Sale'],
+        ['type' => 'swap', 'label' => 'Swap'],
+        ['type' => 'repair', 'label' => 'Repair'],
+    ];
 @endphp
 
 {{-- Desktop sidebar --}}
@@ -84,6 +98,18 @@
                 <x-icon :name="$item['icon']" />
                 <span x-show="!collapsed" class="truncate">{{ $item['label'] }}</span>
             </a>
+            @if ($item['label'] === 'Record')
+                <div x-show="!collapsed" class="mb-1 ml-11 space-y-0.5 border-l-2 border-line pl-2">
+                    @foreach ($txTypes as $tx)
+                        <a href="{{ route('transactions.create', ['type' => $tx['type']]) }}"
+                           @class([
+                               'block rounded-md px-2 py-1.5 text-[13px] font-medium transition',
+                               'bg-brand-tint text-brand' => $onPos && $txType === $tx['type'],
+                               'text-mute hover:bg-paper hover:text-ink' => !($onPos && $txType === $tx['type']),
+                           ])>{{ $tx['label'] }}</a>
+                    @endforeach
+                </div>
+            @endif
         @endforeach
     </nav>
 
@@ -195,6 +221,18 @@
                    ])>
                     <x-icon :name="$item['icon']" /> {{ $item['label'] }}
                 </a>
+                @if ($item['label'] === 'Record transaction')
+                    <div class="mb-1 ml-11 space-y-0.5 border-l-2 border-line pl-2">
+                        @foreach ($txTypes as $tx)
+                            <a href="{{ route('transactions.create', ['type' => $tx['type']]) }}"
+                               @class([
+                                   'block rounded-md px-2 py-1.5 text-sm font-medium',
+                                   'bg-brand-tint text-brand' => $onPos && $txType === $tx['type'],
+                                   'text-mute hover:bg-paper hover:text-ink' => !($onPos && $txType === $tx['type']),
+                               ])>{{ $tx['label'] }}</a>
+                        @endforeach
+                    </div>
+                @endif
             @endforeach
         </nav>
         <form method="POST" action="{{ route('logout') }}" class="border-t border-line p-3">

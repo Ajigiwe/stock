@@ -196,7 +196,7 @@ redirect the original proxy performed + the 3 post-parity settings additions
 /shops/{shop}                                  ShopController@show        ?date
 POST /shops/{shop}/models | /{model} | /{model}/adjust | /models/bulk   StockController
 POST /shops/{shop}/close | /close/{close}/lock | /counts                ShopController
-/transactions/new, POST /transactions, /{transaction}                   TransactionController
+/transactions/new (?type=sale|swap|repair, sidebar-picked), POST /transactions, /{transaction}                   TransactionController
 POST /transactions/{transaction}/review | /void, /swapped-phones/{phone}/status
 /devices, POST /devices/models/bulk            DeviceController (owner)
 POST /requests/{stockRequest}/approve|reject, /requests/approve-all     StockRequestController

@@ -253,7 +253,7 @@ layouts/guest.blade.php        centred card shell for login/setup
 auth/login.blade.php           + auth/setup.blade.php
 dashboard.blade.php            cards, charts (SVG/CSS bars), recent tx, low stock, pending requests, review panel
 shops/show.blade.php           stock table, edit/adjust modals, add-model, bulk modal, tabs: recon, counts, daily close, swaps, requests
-transactions/new.blade.php     3-step POS (type → phones → pay), model picker w/ stock hints, swap trade-ins
+transactions/new.blade.php     POS terminal: catalog + running ticket (type comes from the sidebar ?type= link)
 transactions/show.blade.php    receipt + review/void actions
 devices/index.blade.php        device matrix + detail modal + sold history
 reports/index.blade.php        period filters, daily rows, CSV export link, stock counts

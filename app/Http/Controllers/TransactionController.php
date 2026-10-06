@@ -30,6 +30,15 @@ class TransactionController extends Controller
             return redirect()->route('dashboard');
         }
 
+        // The transaction type is picked in the sidebar (?type=sale|swap|repair)
+        // rather than on the page. A failed submit redisplays without the query
+        // string, so fall back to the just-posted type before defaulting.
+        $queryType = $request->query('type');
+        $oldType = $request->old('type');
+        $payload['type'] = is_string($queryType) && in_array($queryType, ['sale', 'swap', 'repair'], true)
+            ? $queryType
+            : (is_string($oldType) && in_array($oldType, ['sale', 'swap', 'repair'], true) ? $oldType : 'sale');
+
         return view('transactions.new', $payload);
     }
 

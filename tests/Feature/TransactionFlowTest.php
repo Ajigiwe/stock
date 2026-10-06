@@ -213,4 +213,30 @@ class TransactionFlowTest extends TestCase
         $response->assertSessionHasErrors(['action' => 'Only the owner can add shops.']);
         $this->assertSame(1, DB::table('shops')->count()); // fixture only
     }
+
+    public function test_the_pos_type_comes_from_the_sidebar_link(): void
+    {
+        // Default (plain Record link): sale.
+        $sale = $this->actingAs($this->owner)->get('/transactions/new');
+        $sale->assertOk();
+        $sale->assertSee('Record sale', false);
+        $sale->assertSee("type: 'sale'", false);
+
+        // Sidebar sub-links drive swap/repair; anything else falls back.
+        $swap = $this->actingAs($this->owner)->get('/transactions/new?type=swap');
+        $swap->assertOk();
+        $swap->assertSee('Record swap', false);
+        $swap->assertSee("type: 'swap'", false);
+
+        $bogus = $this->actingAs($this->owner)->get('/transactions/new?type=refund');
+        $bogus->assertOk();
+        $bogus->assertSee("type: 'sale'", false);
+
+        // The sidebar carries all three links on every page.
+        $home = $this->actingAs($this->owner)->get('/');
+        $home->assertOk();
+        foreach (['type=sale', 'type=swap', 'type=repair'] as $link) {
+            $home->assertSee($link, false);
+        }
+    }
 }
