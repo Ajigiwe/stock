@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="theme-color" content="#14162b">
-    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <title>@yield('title', 'Mr Jeff Stock')</title>
     <link rel="manifest" href="/manifest.webmanifest">
@@ -89,7 +89,9 @@
 <aside class="fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-line bg-white transition-[width] duration-150 lg:flex"
        :class="collapsed ? 'w-20' : 'w-64'">
     <div class="flex h-16 items-center gap-2 border-b border-line px-4">
-        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand text-sm font-bold text-white">MJ</span>
+        <span class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-line bg-white">
+            <img src="/icon-192.png" alt="Mr Jeff Stock logo" class="h-full w-full object-cover">
+        </span>
         <span x-show="!collapsed" class="truncate font-bold tracking-tight">Mr Jeff Stock</span>
     </div>
 

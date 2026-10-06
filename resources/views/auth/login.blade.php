@@ -6,7 +6,9 @@
     <div class="grid overflow-hidden rounded-3xl border border-line bg-white shadow-2xl sm:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
         <div class="flex flex-col justify-between gap-8 bg-ink p-7 text-white sm:p-8">
             <div class="flex items-center gap-3">
-                <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-brand text-sm font-bold text-white">MJ</span>
+                <span class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-line bg-white">
+                    <img src="/icon-192.png" alt="Mr Jeff Stock logo" class="h-full w-full object-cover">
+                </span>
                 <div>
                     <p class="font-bold tracking-tight">Mr Jeff Stock</p>
                     <p class="text-xs text-white/60">Phone stock control</p>
