@@ -1,142 +1,103 @@
 # Mr Jeff Stock
 
-Multi-shop phone stock & sales management built for a Ghana iPhone reseller. Track inventory, sales, swaps, and repairs across multiple shop locations from any phone browser — in real time.
+Multi-shop phone stock & sales management for small Ghanaian phone dealers:
+per-shop stock, a three-step point of sale (sale / swap / repair), stock
+requests, physical counts with reconciliation, daily closes, owner review of
+attendant transactions, audit logs and CSV reporting.
 
-Built with [Next.js](https://nextjs.org) (App Router, React 19) and [Supabase](https://supabase.com) (Postgres, Auth, Row Level Security).
+This repository is the **PHP rewrite** of the original Next.js 16 + Supabase
+app. Feature parity is the goal; the original's behaviour (including error
+wording) is the specification — see `PLAN-php-migration.md` (milestones) and
+`PORTING-CONTRACT.md` (binding build contract).
 
----
+## Stack
 
-## Features
-
-- **Multi-shop support** — independent stock per shop, with a cross-shop roll-up dashboard for the owner.
-- **Three transaction types** — `sale`, `swap`, and `repair`.
-  - Swaps move stock both ways: the customer's phone comes in as `used` stock, the shop's phone goes out, and a cash top-up is recorded.
-- **Remote, realtime visibility** — the owner can check any shop's stock and daily activity from anywhere.
-- **Model-level stock tracking** — stock is a count per model (e.g. "iPhone 13 128GB"), not per-unit/IMEI.
-- **Daily closing report** — units out per model, broken down by sale vs swap, per shop.
-- **Role-based access** — owners see and manage everything; shop attendants are scoped to their own shop and cannot edit or delete past transactions.
-- **Reports** — filterable by shop, date range, payment method, and type; exportable.
-- **Bulk device import** — add many phone models to a shop at once by pasting CSV rows or uploading a file (Settings → Bulk add devices). Duplicates in the shop are skipped automatically.
-- **Backup & restore** — download a full JSON backup of all shops, devices, transactions, and adjustments, and restore it later (Settings → Backup & restore). Restore is atomic: a bad file rolls back completely, and stock counts are preserved exactly.
-
-## Stock integrity (enforced by the database)
-
-`available` stock is derived and can never be hand-edited or go below 0:
-
-```
-available = opening_stock + bought_in + Σ(swap-ins) − Σ(sales + swap-outs)
-          + Σ(restocks) − Σ(corrections)        where bought_in = Σ(restocks)
-```
-
-- Sales and swap-outs decrease stock; swap-ins increase it; repairs move nothing.
-- Restocking and corrections go through an audited `stock_adjustments` table — positive deltas increment `bought_in`, negative deltas do not. No client role can write the derived columns (`available`, `opening_stock`, `bought_in`) directly.
-- Transactions are recorded atomically via a Postgres RPC — a swap can never leave a half-written transaction. A client-generated idempotency key prevents double-submit duplicates.
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Frontend / Backend | Next.js 16 (App Router), React 19, Tailwind CSS 4 |
-| Database | Supabase (Postgres) |
-| Auth | Supabase Auth + RLS policies scoped by `shop_id` |
-| Realtime | Supabase realtime subscriptions |
-| Language | TypeScript |
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 20+ and npm
-- A Supabase project ([create one here](https://supabase.com), free tier works)
-
-### 1. Set up the database
-
-Open the Supabase Dashboard → **SQL Editor** → **New query**, then paste and run the contents of `supabase/schema.sql`.
-
-This creates the tables, RLS policies, triggers, and helper RPCs (`record_transaction`, `adjust_stock`, etc.). Then paste and run `supabase/migrations/0004_fraud_controls_and_reconciliation.sql` — it adds the fraud controls (transaction lifecycle & audit events, owner review/void, daily closes, physical stock counts, staff deactivation) and is required for the app to work.
-
-> **Existing projects:** do *not* re-run schema.sql (it drops all data). Migrations 0001–0003 are only for databases created from an older schema; if you have been applying the numbered migrations, upgrade with `0004_fraud_controls_and_reconciliation.sql` alone.
-
-### 2. Configure environment variables
-
-Copy `.env.local.example` to `.env.local` and fill in:
-
-| Variable | Description |
-|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Your project URL (Project Settings → API) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Your anon/public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server-only key, used to create staff accounts from Settings |
-| `OWNER_SETUP_SECRET` | A secret phrase that guards the one-time owner setup at `/setup` |
-
-> Never expose `SUPABASE_SERVICE_ROLE_KEY` to the client. It is only used in server-side code.
-
-### 3. Install and run
-
-```bash
-npm install
-npm run dev
-```
-
-### 4. Create the owner account
-
-There is no public sign-up — the owner account is created once, by you:
-
-1. Set `OWNER_SETUP_SECRET` in `.env.local` to any passphrase.
-2. Open [http://localhost:3000/setup](http://localhost:3000/setup) and enter the passphrase plus the owner's name, email, and password.
-3. Sign in, then add shops and staff from **Settings** (staff accounts are created by the owner and cannot sign up on their own).
-
-### Scripts
-
-```bash
-npm run dev     # Start the dev server
-npm run build   # Production build
-npm run start   # Run the production build
-npm run lint    # Lint with ESLint
-```
-
-## Roles
-
-| Action | Owner | Attendant |
+| Layer | Choice | Why |
 |---|---|---|
-| View all shops | Yes | No (own shop only) |
-| Record transactions | Yes | Yes (own shop only) |
-| Approve discounted sales / void transactions | Yes | No |
-| Add / deactivate staff, manage shops | Yes | No |
-| Adjust stock / approve stock requests | Yes | No (requests only) |
-| Lock daily closes / approve stock counts | Yes | No (submit evidence only) |
+| Framework | Laravel 12 (PHP 8.2+) | runs on shared cPanel hosting |
+| Database | MySQL 8 / MariaDB 10.6+ (utf8mb4) | CHECK constraints + triggers enforce the stock invariant |
+| Views | Blade + Tailwind 4 (Vite) + Alpine.js | no SPA, no client-side data fetching |
+| Sessions / cache / queue | file / file / sync | no Redis on shared hosting |
 
-## Project Structure
+## Local setup
 
-```
-src/
-  app/
-    (app)/            # Authenticated pages (dashboard, shops, reports, settings)
-    (auth)/           # Login & one-time owner setup
-    reports/export/   # CSV export route
-  components/         # UI components & forms
-  lib/
-    actions.ts        # Server actions
-    data.ts           # Data access
-    supabase/         # Client & server Supabase clients
-supabase/
-  schema.sql          # Source of truth for the database schema
+Requirements: PHP ≥ 8.2 with `pdo_mysql`, Composer, Node 20+, MySQL or MariaDB.
+
+```bash
+composer install
+cp .env.example .env          # then set DB_* and OWNER_SETUP_SECRET
+php artisan key:generate
+php artisan migrate           # 14 business tables + 12 stock triggers
+php artisan db:seed           # demo data (2 shops, 9 models, 19 sales)
+npm install && npm run build  # compiles resources/css + resources/js
+php artisan serve             # http://localhost:8000
 ```
 
-Full design rationale and implementation decisions live in [`design.md`](design.md).
+Demo sign-in after seeding: **owner@example.com / password123** (also
+`kofi@example.com`, `ama@example.com` — same password).
 
-## Keeping Supabase awake on the free tier
+A fresh install (no owner row) redirects every page to `/setup`, which
+requires `OWNER_SETUP_SECRET` from `.env` and can only ever create one owner.
 
-Supabase free-tier projects auto-pause after ~1 week with no API activity. A scheduled GitHub Action (`.github/workflows/keep-supabase-awake.yml`) is included to keep it alive. Add `SUPABASE_PROJECT_URL` and `SUPABASE_ANON_KEY` as repository secrets to enable it — or upgrade to Supabase Pro at launch.
+## Testing
 
-## Roadmap
+```bash
+php artisan test              # Pest/PHPUnit against the mrjeff_test schema
+```
 
-- [x] Multi-shop stock, sales, swaps, and repairs
-- [x] Owner dashboard with cross-shop roll-up and daily closing
-- [x] Role-based access (owner / attendant)
-- [x] CSV report export
-- [ ] Low-stock alerts / notifications
-- [ ] Revenue breakdown by payment method
+Tests run on a real MySQL schema (`mrjeff_test`, configured in `phpunit.xml`)
+because SQLite cannot run the triggers and CHECK constraints the data rules
+depend on. Re-create it with `DB_DATABASE=mrjeff_test php artisan migrate`.
 
----
+## How the money stays right
 
-© Mr Jeff Stock. Developed for internal business use.
+- `phone_models.available` is **never written by application code**. Twelve
+  MySQL triggers keep it: normalize-on-insert, shop-match guards, guarded
+  stock movements for every `transaction_items`/`stock_adjustments` change,
+  and an oversell/over-correction `SIGNAL` that surfaces as a user-facing
+  error. The invariant:
+  `available = opening_stock + bought_in + Σ(in) − Σ(out) − Σ(|negative adjustments|)`.
+- Multi-statement writes run inside `DB::transaction()` with the involved
+  model rows locked `FOR UPDATE` in id order (port of the Postgres RPCs).
+- Every mutation carries a client-generated `idempotencyKey`; the DB dedupes
+  on it so a retried submission cannot deduct stock twice.
+- Owners-only actions re-check the role server-side on every request
+  (replacing Supabase RLS); attendants are scoped to their own shop by the
+  query layer, which fails closed.
+
+## Offline behaviour
+
+Sales and swaps require a live connection. Only **repair charges** (which
+never move stock) may be queued on the device — `resources/js/offline-queue.js`
+keeps them in `localStorage` with their idempotency key and replays them
+oldest-first when the connection returns (`resources/views/partials/offline-banner.blade.php`
+shows the state). The service worker (`public/sw.js`) caches the app shell and
+static assets only; downloads such as the CSV export and backup are never
+cached.
+
+## Deploying to cPanel
+
+1. Build locally (`npm run build`) and commit `public/build/` — the host does
+   not need Node.
+2. Upload the app with the web root pointed at `public/` (Laravel's standard
+   layout; `public/.htaccess` ships with the rewrite rules).
+3. Set `.env` (`APP_URL`, `DB_*`, `OWNER_SETUP_SECRET`,
+   `SESSION_DRIVER=file`, `CACHE_STORE=file`, `QUEUE_CONNECTION=sync`) and run
+   `php artisan migrate --force` from SSH or cron:
+   `php /home/USER/app/artisan migrate --force`.
+4. Point a cron job at `artisan schedule:run` only if you add scheduled work;
+   the app needs no queue workers or websockets.
+
+## Repository notes
+
+- `PLAN-php-migration.md` — the migration plan (M0—M6) this rewrite executes.
+- `PORTING-CONTRACT.md` — binding conventions: routes, service/query
+  signatures, form field names, view inventory.
+- `design.md` — system design document for this Laravel app (the Next.js
+  original was rewritten in place per plan §10).
+- The original Next.js/Supabase app (`src/`, `supabase/`, `next.config.ts`,
+  `tsconfig.json`, `package.next.json`, `README.nextjs.md`, keep-awake
+  workflow) was removed in M6 — git history retains it as the behavioural
+  reference.
+- `README.nextjs.md` / `package.next.json` are the archived originals of the
+  files this rewrite replaced.

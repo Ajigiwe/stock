@@ -1,0 +1,140 @@
+@import "tailwindcss";
+
+@source "../views";
+
+/*
+ * Design tokens — copied 1:1 from src/app/globals.css so the PHP app is
+ * visually indistinguishable from the Next.js original.
+ */
+@theme {
+    /* ink — near-black navy, for text and dark surfaces */
+    --color-ink: #14162b;
+    --color-ink-soft: #23263f;
+    /* paper — cool off-white background */
+    --color-paper: #f4f5fa;
+    /* line — hairline borders */
+    --color-line: #e4e5ef;
+    /* mute — secondary text (WCAG AA against paper and white) */
+    --color-mute: #5b607a;
+    /* brand — primary action */
+    --color-brand: #4338ca;
+    --color-brand-deep: #312896;
+    --color-brand-tint: #eeedfb;
+    /* ledger gold — money figures, used sparingly */
+    --color-ledger: #b8791f;
+    /* states */
+    --color-instock: #1e7a4c;
+    --color-instock-tint: #e5f3eb;
+    --color-lowstock: #b4402a;
+    --color-lowstock-tint: #fbede8;
+    --color-warnstock: #b8791f;
+    --color-warnstock-tint: #fbf1de;
+
+    --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+[x-cloak] {
+    display: none !important;
+}
+
+@layer base {
+    body {
+        font-family: var(--font-sans);
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Numbers line up in stock/money tables, like the original's tabular figures. */
+    .tnum {
+        font-variant-numeric: tabular-nums;
+    }
+}
+
+/*
+ * Shared component classes. Every Blade view may use these instead of
+ * repeating the same utility soup — see PORTING-CONTRACT.md §7.
+ */
+@layer components {
+    .card {
+        @apply rounded-xl border border-line bg-white p-5;
+    }
+
+    .btn {
+        @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
+    }
+
+    .btn-primary {
+        @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 bg-brand text-white hover:bg-brand-deep;
+    }
+
+    .btn-secondary {
+        @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 border border-line bg-white text-ink hover:bg-paper;
+    }
+
+    .btn-danger {
+        @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 bg-lowstock text-white hover:opacity-90;
+    }
+
+    .btn-ghost {
+        @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 text-mute hover:bg-paper hover:text-ink;
+    }
+
+    .btn-sm {
+        @apply px-3 py-1.5 text-xs;
+    }
+
+    .input {
+        @apply w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm text-ink outline-none transition placeholder:text-mute/70 focus:border-brand focus:ring-2 focus:ring-brand/15;
+    }
+
+    .label {
+        @apply mb-1 block text-sm font-medium text-ink;
+    }
+
+    .field-error {
+        @apply mt-1 text-xs font-medium text-lowstock;
+    }
+
+    .badge {
+        @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold;
+    }
+
+    .badge-ok {
+        @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-instock-tint text-instock;
+    }
+
+    .badge-warn {
+        @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-warnstock-tint text-warnstock;
+    }
+
+    .badge-danger {
+        @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-lowstock-tint text-lowstock;
+    }
+
+    .badge-muted {
+        @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-paper text-mute;
+    }
+
+    .badge-brand {
+        @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-brand-tint text-brand;
+    }
+
+    .table-base {
+        @apply w-full border-collapse text-sm;
+    }
+
+    .table-base thead th {
+        @apply border-b border-line px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-mute;
+    }
+
+    .table-base tbody td {
+        @apply border-b border-line px-3 py-2.5 align-middle;
+    }
+
+    .empty-state {
+        @apply flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-line bg-white/60 px-6 py-12 text-center;
+    }
+
+    .section-title {
+        @apply text-base font-bold tracking-tight text-ink;
+    }
+}

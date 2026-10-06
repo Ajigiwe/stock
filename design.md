@@ -1,424 +1,334 @@
-# Mr Jeff Stock - System Design Document
+# Mr Jeff Stock — System Design Document (Laravel/MySQL)
 
-Multi-shop phone stock and sales management for Ghana phone shops.
-Built with Next.js 16.3.1, React 19, Supabase (PostgreSQL + Auth + Realtime), Tailwind CSS 4.
+This is the design document for the **PHP rewrite**. The original Next.js 16 +
+Supabase design it replaces is preserved in git history; its behaviour —
+including every user-facing string — remains the specification
+(`PORTING-CONTRACT.md` binds the build, `PLAN-php-migration.md` the phases).
 
 ---
 
 ## 1. Architecture Overview
 
+A server-rendered Laravel 12 monolith: Blade views + Alpine.js (no SPA, no
+client-side data fetching), MySQL 8 / MariaDB 10.6+ for storage, file-based
+sessions/cache, sync queue — everything runs on shared cPanel hosting with no
+Redis, no queue workers, no websockets.
+
+Request lifecycle:
+
 ```
-Browser (PWA)
-  Next.js 16 App Router + React 19 + Tailwind v4
-        |
-Next.js Server (Node)
-  Server Components + Server Actions + RSC
-  middleware.ts (src/proxy.ts)
-  cache: no-store on all Supabase reads
-  unstable_cache + updateTag for owner/global reads
-        |
-  Supabase JS (anon key, RLS)  |  Admin API (service role key, bypasses RLS)
-        |
-  Supabase PostgreSQL
-    10 tables + 7 RPCs + Triggers + RLS + Realtime
+HTTP → middleware (setup.state | auth | active | throttle)
+     → controller (thin: merge request + route ids, call one service/query)
+     → service (validation, DB::transaction + lockForUpdate, idempotency)
+        ↳ or query class (fail-closed scoping, DataCache)
+     → respond()  — JSON {ok,...} for expectsJson(), else redirect + flash
+     → Blade view (layout + content section, Alpine for interactivity)
 ```
 
-Key decisions:
-- headers() is async (Next.js 16)
-- force-dynamic on all data pages
-- Server Actions handle all mutations; no API routes
-- Stock invariant enforced at DB level via triggers
-- Repairs are SERVICE-ONLY: no stock movement
+Three hard rules carry over from the original:
 
----
+1. **`phone_models.available` is never written by application code** — twelve
+   MySQL triggers derive it; overselling raises a `SIGNAL` whose message is
+   shown verbatim to the user.
+2. **Every mutation runs inside `DB::transaction()`** with the touched model
+   rows locked `FOR UPDATE` in id order (deadlock avoidance), the port of the
+   Postgres RPCs.
+3. **Authorization fails closed** — owner-only paths re-check the role
+   server-side on every request; attendants are scoped to their own shop by
+   the query layer, never by trusting a client-supplied shop id.
 
 ## 2. Tech Stack
 
-| Package | Version | Purpose |
+| Layer | Choice | Notes |
 |---|---|---|
-| next | 16.3.1 | Framework |
-| react / react-dom | 19.2.8 | UI |
-| @supabase/ssr | ^0.12.4 | Supabase SSR auth |
-| @supabase/supabase-js | ^2.112.3 | Supabase client |
-| tailwindcss | ^4 | Styling (@theme tokens) |
-| typescript | ^5 | Type safety |
-| eslint | ^9 | Linting |
-
----
+| Framework | Laravel 12 (PHP ≥ 8.2) | `pdo_mysql` required |
+| Database | MySQL 8 / MariaDB 10.6+ (utf8mb4) | CHECK constraints + triggers; SQLite cannot run them, tests use real MySQL |
+| Views | Blade + Tailwind 4 (Vite) + Alpine.js | `public/build/` committed; host needs no Node |
+| Sessions / cache / queue | file / file / sync | `.env` values, no Redis |
+| PWA | `public/sw.js` + `manifest.webmanifest` | ported unchanged |
+| CI | GitHub Actions (MySQL 8 service) | `pint --test` + `php artisan test` |
 
 ## 3. Environment Variables
 
-| Variable | Scope | Purpose |
-|---|---|---|
-| NEXT_PUBLIC_SUPABASE_URL | Client+Server | Supabase project URL |
-| NEXT_PUBLIC_SUPABASE_ANON_KEY | Client+Server | Supabase anon key |
-| SUPABASE_SERVICE_ROLE_KEY | Server only | Bypasses RLS |
-| OWNER_SETUP_SECRET | Server only | Bootstrap owner via /setup |
-| SUPABASE_PROJECT_URL | Actions | Keep-awake REST URL |
-| SUPABASE_ANON_KEY | Actions | Keep-awake ping |
-| SUPABASE_ACCESS_TOKEN | Actions | Management API token |
-| SUPABASE_PROJECT_REF | Actions | Project ref |
+`.env.example` documents all of them. Application-specific:
 
----
+- `OWNER_SETUP_SECRET` — one-time owner creation at `/setup` (no owner row ⇒
+  every page redirects there; the route dies once an owner exists).
+- `APP_URL`, `DB_*` — standard.
+- **There is no `.env.local`** — Laravel 12 loads `.env.{APP_ENV}`; the
+  Next.js `.env.local` convention does not apply (`.env.local.nextbackup` is
+  the gitignored original, kept only as reference).
 
-## 4. Database Schema (14 tables)
+## 4. Database Schema (14 business tables + 6 infrastructure)
 
-### shops
-id uuid PK, name text, location text, phone text, created_at timestamptz
+Raw DDL in `database/migrations/0000_00_00_000001_create_mrjeff_tables.php`
+(`supabase/schema.sql` was the single source of truth for the port).
 
-### users  id uuid PK -> auth.users(id) CASCADE, name text, role user_role, shop_id uuid -> shops(id) SET NULL, can_edit_stock boolean default false (deprecated: no longer grants stock editing), active boolean default true, deactivated_at, deactivated_by, created_at timestamptz
-Trigger: handle_new_user() auto-creates row on auth.users insert. Staff are deactivated (not deleted) so their history stays intact; deactivated profiles are invisible to RLS and signed out on their next request.
-
-### phone_models
-id uuid PK, shop_id uuid FK CASCADE, model_name text, condition phone_condition, cost_price numeric(12,2), sale_price numeric(12,2), opening_stock int, bought_in int, available int CHECK>=0 (computed by triggers), low_stock_threshold int default 5, created_at timestamptz
-UNIQUE (shop_id, model_name, condition)
-Stock invariant: available = opening_stock + bought_in + SUM(in) - SUM(out)
-
-### transactions
-id uuid PK, shop_id uuid FK, staff_id uuid FK, customer_name, customer_phone, type tx_type, payment_method, amount numeric(12,2), date timestamptz, created_at timestamptz, idempotency_key uuid UNIQUE, status text (completed/pending_review/voided/rejected) default 'completed', listed_amount numeric, discount_reason, payment_reference, review_reason, reviewed_by, reviewed_at, voided_by, voided_at, void_reason
-INDEXES: (shop_id, date DESC), (type), (status, date DESC)
-Lifecycle: completed transactions are the only ones that count toward revenue/closing totals. Below-list-price sales are recorded as pending_review until the owner approves or rejects them (rejection reverses stock). Voided/rejected rows are kept for audit.
-
-### transaction_items
-id uuid PK, transaction_id uuid FK CASCADE, phone_model_id uuid FK RESTRICT, direction item_direction, qty int CHECK>0
-
-### stock_adjustments
-id uuid PK, shop_id uuid FK, phone_model_id uuid FK, staff_id uuid FK, type adjustment_type, delta int, reason text, date timestamptz
-
-### stock_requests
-id uuid PK, shop_id uuid FK, staff_id uuid FK, type text (create_model/adjust_stock), status text (pending/approved/rejected), model_name, condition, cost_price, sale_price, low_stock_threshold, opening_stock, phone_model_id FK, delta, reason, created_at, decided_at, decided_by, error_note
-
-### swapped_phones
-id uuid PK, shop_id uuid FK, transaction_id uuid FK SET NULL, staff_id uuid FK, model_name text, condition, customer_name, customer_phone, status text (in_stock/sold/returned), notes, created_at
-
-### login_logs
-id uuid PK, user_id uuid FK, email, name, ip, user_agent, device (iPhone/iPad/Android/Windows/Mac/Linux), created_at
-
-### stock_logs
-id uuid PK, shop_id uuid FK, phone_model_id uuid FK SET NULL, staff_id uuid FK, action text (create_model/update_model/adjust_stock/bulk_create), model_name, condition, details jsonb, created_at
-
-### transaction_events (append-only history; migration 0004)
-id uuid PK, transaction_id uuid FK CASCADE, actor_id uuid FK, action text (created/approved/rejected/voided), details jsonb, created_at. Written only inside the controlled RPCs; owners see it as the receipt's Audit history block.
-
-### daily_closes (migration 0004)
-id uuid PK, shop_id FK CASCADE, close_date date, status (open/locked), expected_cash/mobile_money/other numeric, counted_cash/mobile_money/other numeric, notes, submitted_by FK, submitted_at, locked_by, locked_at, created_at. UNIQUE (shop_id, close_date). Expected totals are computed by submit_daily_close from completed transactions only; locking is owner-only and freezes the row.
-
-### stock_counts + stock_count_items (migration 0004)
-Evidence only — never mutate stock directly. stock_counts: id, shop_id, count_date, status (submitted/approved/applied), submitted_by, approved_by, notes, created_at. stock_count_items: count_id, phone_model_id, expected_qty (system), counted_qty (physical), UNIQUE (count_id, phone_model_id). Owner approves a submitted count, then optionally applies the variance as audited stock_adjustments with a required reason.
-
----
-
-## 5. Enums
-
-| Enum | Values |
+| Table | Purpose / notable columns |
 |---|---|
-| user_role | owner, attendant |
-| phone_condition | new, used |
-| tx_type | sale, swap, repair |
-| payment_method | cash, mobile_money, card, bank_transfer, other |
-| item_direction | out, in |
-| adjustment_type | restock, correction |
+| `shops` | `name`, `location` |
+| `users` | `role` ENUM, `shop_id` (SET NULL, null ⇒ owner), `active`, `deactivated_at/by`; **no credentials** — auth was passwordless in the original, the port keeps email+bcrypt password (see §9) |
+| `phone_models` | per-shop stock row: `model_name`, `condition`, `cost_price`, `sale_price`, `opening_stock`, `bought_in`, `low_stock_threshold`, **`available` (derived)**; UNIQUE `(shop_id, model_name, condition)` |
+| `transactions` | `type`, `payment_method`, `amount`, `customer_name/phone`, `date` (business day, anchored 12:00 UTC), `status`, `idempotency_key` (UNIQUE) |
+| `transaction_items` | `direction` out/in, `qty`, link to model; movements the triggers apply |
+| `stock_adjustments` | owner's direct corrections: `delta` (≠ 0), `reason`, `type` restock/correction |
+| `stock_requests` | attendant's pending asks: `type` create_model/adjust_stock, `status`, `delta`, reason, snapshot fields |
+| `swapped_phones` | swap-in inventory with its own `status` lifecycle |
+| `login_logs` | successful sign-ins (email, ip, user agent, device) |
+| `stock_logs` | append-only audit of every stock-relevant action |
+| `transaction_events` | append-only history: review/void with actor + reason |
+| `daily_closes` | per-shop/day totals, `locked_at` |
+| `stock_counts` + `stock_count_items` | physical counts and per-model expected/actual |
 
----
+Infrastructure (created by Laravel defaults): `cache`, `cache_locks`, `jobs`,
+`job_batches`, `failed_jobs`, `migrations`.
 
-## 6. Database Triggers
+FK delete rules are mostly `RESTRICT`; `users.shop_id` is `SET NULL`, matching
+the original's auth-user removal semantics.
 
-### apply_item_stock_change()
-Fires AFTER INSERT/UPDATE/DELETE on transaction_items.
-INSERT: checks stock, updates available. DELETE: reverses. UPDATE: reverses old + applies new.
+## 5. Enums & CHECK Constraints
 
-### apply_stock_adjustment()
-Fires AFTER INSERT/UPDATE/DELETE on stock_adjustments.
-INSERT: checks stock for negative deltas, updates available + bought_in. DELETE: reverses. UPDATE: reverses old + applies new.
+- `users.role`: `owner | attendant` (default `attendant`)
+- `phone_models.condition`: `new | used`
+- `transactions.type`: `sale | swap | repair`
+- `transactions.payment_method`: `cash | mobile_money | card | bank_transfer | other`
+- `transactions.status`: `completed | pending_review | voided | rejected`
+- `transaction_items.direction`: `out | in`
+- `stock_adjustments.type`: `restock | correction`, `CHECK (delta <> 0)`
+- `stock_requests.type`: `create_model | adjust_stock`; `status`: `pending | approved | rejected`
+- Prices/quantities: `CHECK (>= 0)` everywhere, `available >= 0`,
+  `transaction_items.qty > 0`.
 
----
+## 6. Database Triggers (12)
 
-## 7. RPC Functions (14)
+`database/migrations/0000_00_00_000002_create_stock_triggers.php`:
 
-### record_transaction (hardened in migration 0004)
-Atomic: validates shop scope + active staff + date window, enforces that sale/swap have outgoing phones and swaps have trade-ins, rejects repairs moving stock, rejects sellable "in" stock (it must come through stock controls), requires a MoMo/card/bank-transfer reference, and computes the list-price floor. Below-price sales without a reason are refused; with a reason they are recorded as pending_review. Creates the transaction, its items, swapped_phones rows, and a created event in one call. Returns uuid.
-
-### review_transaction / void_transaction (owner only)
-Approve or reject a pending_review transaction (rejection reverses stock via child-line deletes and returns trade-ins), or void any completed transaction with a required reason. The original transaction row and the appended event history are always preserved.
-
-### adjust_stock / bulk_adjust_stock
-Owner only. Validate model belongs to shop and create adjustment row(s).
-
-### approve_stock_request / reject_stock_request / approve_all_stock_requests
-Owner only. Approve/reject staff stock-change requests; bulk variant applies each pending request with per-request error capture.
-
-### submit_daily_close / lock_daily_close
-submit: attendant or owner records counted cash/mobile-money/other and recomputes expected totals from completed transactions (upsert while open). lock: owner freezes the close.
-
-### submit_stock_count / approve_stock_count / apply_stock_count_correction
-submit: records physical counts as evidence (never mutates stock). approve: owner marks it approved. apply: owner applies approved variances as stock_adjustments with a required reason and marks the count applied.
-
-### update_swapped_phone_status
-Owner only. Moves a trade-in between in_stock/sold/returned.
-
-### restore_backup
-Owner only. Disables triggers, clears all data (including the fraud-control tables), re-inserts from backup JSON, re-enables triggers and reconciles `available`.
-
----
-
-## 8. Row Level Security
-
-Helper: current_user_profile() returns (id, role, shop_id)
-
-| Table | Owner | Attendant |
+| Trigger | When | Job |
 |---|---|---|
-| shops | full access | SELECT own shop |
-| users | read all (service role writes) | read own + read same shop |
-| phone_models | full access | SELECT own shop |
-| transactions | SELECT all (writes via RPC) | SELECT own shop |
-| transaction_items | SELECT all (writes via RPC) | via parent transaction shop |
-| stock_adjustments | SELECT all (writes via RPC) | SELECT own shop |
-| stock_requests | full access | INSERT + SELECT own shop |
-| swapped_phones | SELECT all (writes via RPC) | SELECT own shop |
-| transaction_events | SELECT all | — |
-| daily_closes | SELECT all (writes via RPC) | SELECT own shop |
-| stock_counts / items | SELECT all (writes via RPC) | SELECT own shop |
-| login_logs | SELECT all | SELECT own |
-| stock_logs | SELECT all | SELECT own shop |
+| `model_stock_normalize` | BEFORE INSERT `phone_models` | derives `available` from opening/bought-in; honours the restore flag (`@mrjeff_no_stock_effects`) so a backup restore may choose it |
+| `item_shop_match` / `_upd` | BEFORE INSERT/UPDATE `transaction_items` | item's model must exist and belong to the transaction's shop |
+| `adjustment_shop_match` / `_upd` | BEFORE INSERT/UPDATE `stock_adjustments` | same guard for adjustments |
+| `request_shop_match` | BEFORE INSERT `stock_requests` | same guard for requests |
+| `item_stock_change_ai/_au/_ad` | AFTER INSERT/UPDATE/DELETE `transaction_items` | applies ±qty to `available`; **`SIGNAL` 'Insufficient stock: only N available for this model'** on oversell; skipped when `@mrjeff_no_stock_effects = 1` |
+| `stock_adjustment_change_ai/_au/_ad` | AFTER INSERT/UPDATE/DELETE `stock_adjustments` | applies ±delta; **`SIGNAL` 'Insufficient stock to correct: only N available'** |
 
-Direct table mutations were removed from every client role in migration 0004 — all business writes go through the RPCs above, and RLS is the second layer of defense (attendants can never bypass the shop scope or staff_id pinning).
+Invariant (also re-checked by the backup restore):
+`available = opening_stock + bought_in + Σ(in) − Σ(out) − Σ(|negative adjustments|)`.
 
----
+## 7. Service Layer (ports of the 18 PL/pgSQL functions)
+
+Services live in `app/Services/`; every public method takes the **input array
+exactly as the original action did** (field names in `PORTING-CONTRACT.md` §5b)
+and returns `['ok' => bool, 'error'? => string, ...]` with the original
+messages verbatim.
+
+| Service | Functions ported |
+|---|---|
+| `TransactionService` | `record_transaction`, `review_transaction`, `void_transaction`, `update_swapped_phone_status` |
+| `StockService` | `adjust_stock`, `bulk_adjust_stock`, model create/update (incl. attendant → request) |
+| `StockRequestService` | `approve_stock_request`, `reject_stock_request`, `approve_all_stock_requests` |
+| `ShopService` | `submit_daily_close`, `lock_daily_close`, `submit_stock_count`, shop create/delete |
+| `ReconciliationService` | `submit_stock_count` reconciliation, `apply_stock_count_correction`, count approve/apply |
+| `StaffService` | create / deactivate / reactivate / reset password (owner only) |
+| `BackupService` | `restore_backup` + the settings backup download (same 6 tables as the original export) |
+| `AuditLogService` | `stock_logs` / `transaction_events` / `login_logs` writes |
+
+Patterns every write path follows:
+
+- `DB::transaction()` around the whole operation; model rows
+  `lockForUpdate()` sorted **by id** (deadlock avoidance, port of the RPCs).
+- Input through `App\Support\Input` (money/qty/date/uuid parsing — port of
+  `parseMoney`, `parseTxDate`, …), errors returned with the original wording.
+- `idempotencyKey` (client-generated UUID) checked before inserting: a retry
+  returns the existing transaction instead of deducting stock twice. The
+  `transactions.idempotency_key` UNIQUE column is the backstop.
+- `QueryException` → `dbError()` extracts `errorInfo[2]` — the clean SIGNAL
+  message — so users see exactly what Postgres used to say.
+- `App\Support\Format` for all output formatting (money, number, date/time,
+  dash) — no hand-rolled formatting anywhere.
+
+## 8. Authorization (replaces Row Level Security)
+
+RLS had no direct equivalent in Laravel, so the port is layered:
+
+1. **Middleware** (`app/Http/Middleware/`, aliased in `bootstrap/app.php`):
+   - `setup.state` — no owner ⇒ force `/setup`; owner exists ⇒ bounce
+     signed-in users off `/setup` & `/login` (port of `src/proxy.ts`).
+   - `auth` — session required, else redirect `/login`.
+   - `active` — deactivated users are signed out immediately (403 path in
+     mid-session requests).
+   - `throttle:30,1` on login as an IP backstop; the **8 attempts / 10 min
+     per ip+email** limit lives in `AuthController@login` via `RateLimiter`,
+     with the original message.
+2. **Owner-only GETs** throw `AccessDeniedHttpException` (403) from the query
+   class before any view renders (settings, logs, devices) — verified by the
+   HTTP smoke as both roles.
+3. **Owner-only writes** are re-checked inside each service
+   (`$me->role !== 'owner'` → `['ok' => false, 'error' => 'Only the owner …']`),
+   so even a crafted POST cannot bypass it.
+4. **Attendant scoping** happens in the query layer: every list query pins
+   `shop_id` to the session user's shop and **fails closed** when it is null;
+   cross-shop URLs return 403/404, never data. The client-supplied `shopId`
+   is always compared against the session profile before use.
 
 ## 9. Authentication and Roles
 
-### Owner
-- Single account via /setup with OWNER_SETUP_SECRET
-- Full CRUD on all data
-- Manages shops and staff (deactivate/reactivate, password reset)
-- Approves/rejects stock requests and below-price (discounted) transactions
-- Voids mistakes with a recorded reason (never deletes history)
-- Submits/locks daily closes and approves/applies physical stock counts
-- Access: Dashboard (all), Devices, Reports, Logs, Settings, Account
-
-### Attendant
-- Created by owner in Settings > Staff; may be deactivated (never deleted)
-- Assigned to one shop
-- Records transactions for own shop only (sales/swaps need a live connection; only repair charges queue offline)
-- Submits daily counted cash and physical stock evidence — the owner reviews variances
-- All stock editing is owner-only: attendants always use the stock_requests approval flow
-- Access: Dashboard (own shop), Record, Shop page, Account
-
----
+- Email + password (bcrypt) session login — the original was magic-link
+  passwordless; the cPanel host has no mail guarantee, so the port adds
+  credentials while keeping every role rule identical. `/setup` (guarded by
+  `OWNER_SETUP_SECRET`) creates the single owner.
+- Roles: **owner** — everything; **attendant** — own shop's stock, POS,
+  own transactions; cannot see settings/logs/devices, cannot adjust stock
+  directly (files a request instead), no cross-shop access.
+- Deactivation (`StaffService`) flips `active`; middleware ends their session.
+- Password change (`AccountController@changePassword`) requires the current
+  password; owner can reset a staff password from settings.
 
 ## 10. Pages and Routes
 
-| Route | Access | Description |
-|---|---|---|
-| /login | public | Email/password login |
-| /setup | public | Bootstrap owner account |
-| / | authenticated | Dashboard with stats, charts, alerts |
-| /shops/[id] | authenticated | Shop detail, stock table, transactions |
-| /devices | owner | Model x shop matrix |
-| /transactions/new | authenticated | 3-step record wizard |
-| /transactions/[id] | authenticated | Receipt with share/print |
-| /reports | authenticated | Filtered reports + CSV export |
-| /logs | owner | Login + stock edit audit logs |
-| /settings | owner | Shops, staff, bulk import, backup |
-| /account | authenticated | Profile + change password |
+43 routes = the 42 in `PORTING-CONTRACT.md` §3 + the `signup` → `login`
+redirect the original proxy performed. Inventory:
 
----
+```
+/setup, /login, /logout, signup                 auth (setup.state / auth)
+/                                              DashboardController@index  ?period&shop
+/shops/{shop}                                  ShopController@show        ?date
+POST /shops/{shop}/models | /{model} | /{model}/adjust | /models/bulk   StockController
+POST /shops/{shop}/close | /close/{close}/lock | /counts                ShopController
+/transactions/new, POST /transactions, /{transaction}                   TransactionController
+POST /transactions/{transaction}/review | /void, /swapped-phones/{phone}/status
+/devices, POST /devices/models/bulk            DeviceController (owner)
+POST /requests/{stockRequest}/approve|reject, /requests/approve-all     StockRequestController
+/reports, /reports/export, POST /reports/counts/{count}/approve|apply   ReportController
+/settings + 9 POSTs (shops/staff/models/backup)                         SettingsController (owner)
+/logs (owner), /account, POST /account/password                         Log/AccountController
+```
 
-## 11. Components
+`signup` is registered as a redirect route; everything else is
+`Route::middleware(['auth', 'active'])` except the auth group.
 
-### Layout
-- app-shell.tsx: Mobile ink header + bottom 4-tab nav + menu sheet. Desktop sidebar.
-- shop-switcher.tsx: Owner shop context switcher
-- logout-button.tsx: Sign out + redirect
+## 11. Controllers (thin by design)
 
-### Dashboard
-- dashboard.tsx: Stat cards, charts, recent txs, low stock alerts, pending requests
-- dashboard-charts.tsx: Revenue trend + sales by type + top models
-- period-toggle.tsx: Today / 7d / 30d toggle
-- shop-filter.tsx: Owner shop filter dropdown
+`app/Http/Controllers/` — one class per contract section. A controller:
 
-### Transaction Recording
-- transaction-form.tsx: 3-step wizard (Type -> Phones -> Pay). QtySteppers, multi-line, swap trade-ins, suggested price.
-- model-picker.tsx: Autocomplete with stock hints, keyboard nav
+1. merges `$request->except(['_token', '_method'])` with the route-bound ids
+   (the service parses the keys it needs — contract §5b),
+2. calls exactly one service/query method,
+3. returns `respond($request, $result, $redirectTo?)` from the shared base:
+   - `expectsJson()` ⇒ JSON: success 200 `{ok: true, …}`, failure 422
+     `{ok: false, error}` (what the offline queue reads),
+   - otherwise redirect back with `success` flash (or `withErrors(['action'
+     => …])`), preserving input; optional `$redirectTo` for flows the
+     original pushed elsewhere (POS → shop page).
 
-### Devices
-- devices-table.tsx: Desktop matrix + mobile compact rows, detail modal, sold history
+No `isOwner()` checks in controllers — enforcement lives in middleware,
+queries and services so it cannot be forgotten on a new route.
 
-### Stock Management
-- stock-table.tsx: Per-shop stock with search/filters
-- product-edit-modal.tsx: Edit model + stock adjustment + history
-- bulk-stock-modal.tsx: Set target quantities for all models
-- add-model-form.tsx: Add new model (direct or via request)
+## 12. Query Layer
 
-### Settings
-- shop-manager.tsx: Create/delete shops
-- staff-manager.tsx: Create/remove staff, reset passwords, toggle stock privilege
-- backup-restore.tsx: Download/upload JSON backup
-- bulk-add-models.tsx: Paste JSON/CSV to import models
+`app/Services/Queries/` — read models returning view-ready payload arrays:
 
-### Approval
-- stock-requests-panel.tsx: Pending requests, approve/reject/bulk approve
+- `QuerySupport` — shared row builders (`transactions()`, `stock()`,
+  `summary()`, `stockRequests()`, …) used by the page classes and by the CSV
+  export.
+- Page classes: `DashboardQueries`, `ShopQueries`, `TransactionQueries`,
+  `DeviceQueries`, `ReportQueries`, `SettingsQueries`, `LogQueries`.
+- GET controllers pass the payload straight to `view()`
+  (`view('x', $payload)`); views consume the keys verbatim (contract §7).
 
-### Swap
-- swapped-phones-list.tsx: Trade-in iPhones, status updates
+Scoping is applied inside these classes (§8.4) — a query class never trusts a
+filter it did not pin itself.
 
-### Receipt
-- receipt-actions.tsx: WhatsApp share + copy + print
-- delete-transaction-button.tsx: Owner-only void (with reason; history kept)
+## 13. Views & Components
 
-### Auth
-- auth-forms.tsx: Login form component
-- setup-owner-form.tsx: Owner setup form
-- change-password-form.tsx: Password change form
+`resources/views/` (22 files):
 
-### Shared UI (ui.tsx)
-- Button, ButtonSecondary, ButtonDanger
-- Input, Select, Textarea
-- Label, Field (with required indicator)
-- Card (with title/subtitle)
-- Badge (gray/green/amber/red/blue tones)
-- ErrorNote
-- EmptyState
-- Modal (with title/subtitle, backdrop)
-- useToast (success/error/info)
-- useConfirm (danger confirmation dialog)
+- Layouts: `layouts/app.blade.php` (sidebar + shop switcher + flash/offline
+  partials; `@section('content')` convention), `layouts/guest.blade.php`.
+- Pages: `dashboard`, `shops/show`, `transactions/new`, `transactions/show`,
+  `reports/index`, `settings/index`, `devices/index`, `logs/index`,
+  `account/index`, `auth/login`, `auth/setup`.
+- Components: `icon`, `dash-card`, `shop-card`, `shop-modal`,
+  `shop-recon-card`, `shop-product-modal` (attribute bags, no JS state).
+- Partials: `flash` (success / action-error / warnings), `offline-banner`.
 
-### Feedback (feedback.tsx)
-- Toast notifications (success/error/info) with auto-dismiss
-- Confirmation dialog with danger variant
+Alpine owns all interactivity (qty steppers, filters, modals, sidebar
+collapse) as small factories pushed through `@push('scripts')`. **Watch out:
+on a Blade component tag `:class` is a PHP expression — Alpine bindings must
+be written `x-bind:class`** (a bare Alpine name would be read as a PHP
+constant). Blade's `@directive` also needs a non-word character before `@`:
+never chain `@endif@if` or end a word directly against `@endif`.
 
----
+Tailwind 4 theme tokens (`ink`, `paper`, `brand`, `lowstock`, …) live in
+`resources/css/app.css` and match the original `globals.css` `@theme`.
 
-## 12. Server Actions (src/lib/actions.ts)
+## 14. Caching
 
-### Auth
-- login(): Sign in with retry, log login (IP, device, user-agent)
-- logout(): Sign out + redirect
-- changePassword(): Update own password
-- setupOwner(): Create owner account with secret
+`App\Support\DataCache` replaces `unstable_cache`: file-store wrapper with a
+generation counter (bumped on every mutation) and ~30 s TTL for owner reads.
+Query classes cache behind it; mutations never read stale rows because the
+write path runs after `DB::transaction()` commits.
 
-### Transactions
-- recordTransaction(): Validate + call hardened RPC (discount reason, payment reference) + invalidate cache
-- reviewTransaction(): Owner approves/rejects discounted (pending_review) sales
-- voidTransaction(): Owner voids with a required reason (history preserved)
-- updateSwappedPhoneStatus(): Update trade-in status via owner-only RPC
+## 15. Formatting & Input
 
-### Reconciliation (owner)
-- lockDailyClose(), approveStockCount(), applyStockCountCorrection()
-- Staff can submitDailyClose() and submitStockCount() for their shop; the panels live on each shop page and the review queue on the dashboard
+- `App\Support\Format` — `money()` (`GHS 1,234.56`), `number()`, `date()`,
+  `dateTime()` (time-only for today, Ghana UTC+0 via `gmdate`), `dash()`.
+  Unit-tested byte-for-byte against the original `format.ts`.
+- `App\Support\Input` — `money()`, `count()`, `qty()`, `txDate()` (business
+  day anchored at 12:00 UTC so the calendar day survives timezones),
+  `idempotencyKey()`, `isUuid()`, `safeNext()`.
 
-### Stock
-- createModel(): Direct insert or stock_request for non-privileged
-- updateModel(): Edit model details (owner/privileged)
-- adjustStock(): Direct RPC or stock_request for non-privileged
-- bulkAdjustStock(): Set target quantities, compute deltas, apply or request
-- approveStockRequest(): Call RPC
-- rejectStockRequest(): Call RPC
-- approveAllStockRequests(): Call RPC (bulk)
+## 16. Offline Behaviour & PWA
 
-### Admin
-- createShop(), deleteShop()
-- createStaff(), deactivateStaff()/reactivateStaff(), resetStaffPassword()
-- restoreBackup(): Call RPC
-- bulkCreateModels(): Batch insert models (owner)
+- Only repair charges (never move stock) queue offline:
+  `resources/js/offline-queue.js` keeps them in `localStorage` with the
+  idempotency key and replays oldest-first; `partials/offline-banner.blade.php`
+  shows sync state.
+- POSTs sent as JSON get `{ok:false, error}` + 422 when rejected, so the
+  queue surfaces the original message instead of silently retrying.
+- `public/sw.js`: network-first navigations, precached shell/assets, downloads
+  (CSV, backup) never cached. `manifest.webmanifest` + icons unchanged.
 
-All actions: validate input, check role, call Supabase, invalidateAllData() via updateTag.
+## 17. Testing (55 tests / 258 assertions, real MySQL)
 
----
+`phpunit.xml` points `DB_DATABASE` at `mrjeff_test`; `RefreshDatabase`
+re-migrates per test because SQLite cannot run the triggers.
 
-## 13. Data Layer (src/lib/data.ts)
+| File | Covers |
+|---|---|
+| `Feature/AuthFlowTest` (14) | setup guard, login/logout, rate limit (8/10 min), deactivation mid-session, auth-page bounce, signup redirect |
+| `Feature/StockTriggerTest` (11) | every invariant: derived `available`, oversell SIGNAL texts, shop-match guards, idempotent restore flag, FK rules |
+| `Feature/TransactionFlowTest` (7) | POS form → stock moves → redirect+flash; JSON replay dedupe; oversell on both response shapes; attendant request vs owner adjust; approve; owner-only guard |
+| `Feature/ReportExportTest` (3) | CSV bytes (BOM, 10 columns, `esc()` formula prefix, LF joins, filename) + attendant scoping + 403 |
+| `Feature/BackupRoundTripTest` (3) | download (raw shape) → `mrjeff:import-backup` / UI upload restore, incl. verbatim error strings |
+| `Unit/FormatTest`, `Unit/InputTest` | formatting + parsing byte parity |
+| `Feature/ExampleTest` | signed-out `/` redirects to `/login` |
 
-### Types
-- SessionUser, TransactionWithDetails, DailyRow, ShopDailySummary
-- DeviceCell, DeviceSale, DeviceRow, DevicesData
-- StockRequestWithDetails, DashboardData, DashboardTotals, DailyPoint
-- LoginLog, StockLogEntry
+A scripted HTTP smoke (`21 checks`) additionally runs against
+`php artisan serve` with both roles: every page 200, owner-only 403,
+cross-shop 403, CSV/backup downloads, signed-out bounce.
 
-### Direct Queries (with Supabase client)
-- getSession(), requireSession()
-- getShops(), getStock(shopId?)
-- getTransactions(opts), getTransaction(id)
-- getDailySummary(shopId, date), getShopSummary(shopId, from, to)
-- getAdjustments(shopId?, limit)
-- getSwappedPhones(opts)
-- getStockRequests(opts)
-- getDevicesData(): Aggregated model x shop matrix
-- getDashboardData(period, shopFilter): Unified dashboard for owner/attendant
-- getLoginLogs(limit), getStockLogs(limit)
+## 18. Deployment (cPanel)
 
-### Hydration
-- hydrateTransactions(): Enriches transactions with shop names, staff names, item details
+1. Build locally (`npm run build`), commit `public/build/` — no Node on host.
+2. Upload with web root at `public/` (`public/.htaccess` ships rewrite rules).
+3. `.env`: `APP_URL`, `DB_*`, `OWNER_SETUP_SECRET`, file session/cache, sync
+   queue; `php artisan key:generate`.
+4. `php artisan migrate --force` via SSH/cron.
+5. No queue workers, no websockets, no Redis; `schedule:run` cron only if
+   scheduled work is ever added.
 
----
+## 19. Cutover & Deletions (M6)
 
-## 14. Caching Strategy
+Old app stays live until UAT sign-off. Status of the plan §10 deletions:
 
-- DATA_CACHE_REVALIDATE_SECONDS = 30
-- DATA_CACHE_TAGS: shops, stock, transactions, requests, adjustments, swaps, logs, users
-- getCachedAdminClient(): Service-role client without no-store
-- All owner/global reads use unstable_cache with tags
-- All mutations call invalidateAllData() -> updateTag for each tag
-- Pages: export const dynamic = force-dynamic
-
-Cached functions:
-- getCachedShops, getCachedStock, getCachedTransactions
-- getCachedStockRequests, getCachedAdjustments, getCachedSwappedPhones
-- getCachedShopSummary, getCachedLoginLogs, getCachedStockLogs
-
----
-
-## 15. Formatting (src/lib/format.ts)
-
-- formatMoney(n): GHS XX.XX
-- formatNumber(n): raw number string
-- formatDateTime(iso): Smart format (time only if same day, else DD Mon YYYY, HH:MM)
-- todayISO(): YYYY-MM-DD for today
-- addDays(iso, days): Date arithmetic
-
----
-
-## 16. PWA and Deployment
-
-- Service worker at /sw.js
-- Web manifest at /manifest.webmanifest
-- Installable on mobile devices
-- Deployed via Vercel (Next.js)
-
----
-
-## 17. Design Tokens (globals.css @theme)
-
-| Token | Value | Usage |
-|---|---|---|
-| ink | #14162B | Primary text |
-| paper | #F4F5FA | Page/card background |
-| line | #E4E5EF | Borders, dividers |
-| mute | #767B94 | Secondary text |
-| brand | #4338CA | Primary accent |
-| brand-deep | #312896 | Hover states |
-| brand-tint | #E8E7FB | Light brand bg |
-| ledger | #B8791F | Currency highlights |
-| instock | #1E7A4C | Positive/good stock |
-| instock-tint | #E6F5ED | Light green bg |
-| lowstock | #B4402A | Warning/danger |
-| lowstock-tint | #FBEDE8 | Light red bg |
-
----
-
-## 18. Supabase Keep-Awake
-
-GitHub Actions workflow (.github/workflows/keep-supabase-awake.yml):
-- Runs every 3 hours
-- Non-blocking resume via Supabase Management API
-- REST ping to verify the project is responsive
-- Secrets: SUPABASE_PROJECT_URL, SUPABASE_ANON_KEY, SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF
-
----
-
-## 19. Git and Deployment
-
-- Remote: github.com/Ajigiwe/stock
-- Branch: main
-- Lint: npx eslint src --max-warnings=0
-- Build: npm run build
-- All mutations invalidate cache via updateTag
+- **Done (2026-10-06):** all Next.js application files — `src/`, `supabase/`,
+  `next.config.ts`, `next-env.d.ts`, `tsconfig.json`, `tsconfig.tsbuildinfo`,
+  `package.next.json`, `README.nextjs.md`, `eslint.config.mjs`,
+  `.env.local.example` / `.env.local.nextbackup`, `postcss.config.mjs`,
+  `.next/`, `.freebuff/`, `supabase/.temp/` and the
+  `.github/workflows/keep-supabase-awake.yml` workflow. Git history retains
+  the original app as the behavioural reference.
+- **Pending:** real-data import (`mrjeff:import-backup` with the production
+  backup + row-count/totals reconciliation against the old app), cPanel UAT,
+  DNS/URL cutover — plan M6.
