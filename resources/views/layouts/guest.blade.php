@@ -20,6 +20,7 @@
     <div class="pointer-events-none absolute -bottom-40 -right-24 h-[28rem] w-[28rem] rounded-full bg-brand/10 blur-3xl" aria-hidden="true"></div>
     <div class="relative my-auto w-full max-w-md">
         @include('partials.flash')
+        @include('partials.install-prompt')
         @yield('content')
     </div>
     @stack('scripts')

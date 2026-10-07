@@ -301,6 +301,10 @@ write path runs after `DB::transaction()` commits.
   `any` + `maskable` icons and Sale/Swap shortcuts; both layouts link it and
   declare iOS standalone metas. Bump `CACHE` in `sw.js` whenever the precached
   set changes so installed clients refresh.
+- `partials/install-prompt.blade.php` (in both shells): an in-app install
+  card driven by `beforeinstallprompt` (`Install` calls `prompt()`; decline
+  dismisses forever via `localStorage`); iPhones get Share-menu instructions
+  instead, and it never shows when already installed.
 
 ## 17. Testing (73 tests / 415 assertions, real MySQL)
 

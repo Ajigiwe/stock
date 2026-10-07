@@ -20,6 +20,7 @@
 
 @include('partials.flash')
 @include('partials.offline-banner')
+@include('partials.install-prompt')
 
 @php
     // Nav structure — port of app-shell.tsx: a 4-tab mobile bar (Home,
