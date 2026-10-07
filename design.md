@@ -205,7 +205,7 @@ RLS had no direct equivalent in Laravel, so the port is layered:
 
 ## 10. Pages and Routes
 
-52 routes = the 42 in `PORTING-CONTRACT.md` §3 + the `signup` → `login`
+53 routes = the 42 in `PORTING-CONTRACT.md` §3 + the `signup` → `login`
 redirect the original proxy performed + the 3 post-parity settings additions
 (CSV import, template download, data wipe — speced in §3) + the 6
 superadmin/impersonation endpoints. Inventory:
@@ -317,7 +317,7 @@ write path runs after `DB::transaction()` commits.
   dismisses forever via `localStorage`); iPhones get Share-menu instructions
   instead, and it never shows when already installed.
 
-## 17. Testing (95 tests / 571 assertions, real MySQL)
+## 17. Testing (100 tests / 623 assertions, real MySQL)
 
 `phpunit.xml` points `DB_DATABASE` at `mrjeff_test`; `RefreshDatabase`
 re-migrates per test because SQLite cannot run the triggers.
@@ -331,7 +331,8 @@ re-migrates per test because SQLite cannot run the triggers.
 | `Feature/BackupRoundTripTest` (3) | download (raw shape) → `mrjeff:import-backup` / UI upload restore, incl. verbatim error strings |
 | `Feature/SettingsImportWipeTest` (6) | CSV import (parse → `bulkCreate` reuse, skip/warn, owner/shop guards, template 403) + data wipe (empty tables, accounts kept, typed `WIPE` confirm, role guard) |
 | `Unit/FormatTest`, `Unit/InputTest` | formatting + parsing byte parity |
-| `Feature/StaffPermissionsTest` (8) | owner grants/revokes `perm_*` (never on owners, never by staff); granted attendant approves/rejects/approve-alls within their shop, adjusts directly, locks closes and approves/applies counts; cross-shop reads as missing; original refusals intact |
+| `Feature/StaffPermissionsTest` (10) | owner grants/revokes `perm_*` (never on owners, never by staff); granted attendant approves/rejects/approve-alls within their shop, adjusts directly, locks closes and approves/applies counts; cross-shop reads as missing; original refusals intact; owner moves/park attendants |
+| `Feature/StockTransferTest` (5) | owner/superadmin cross-shop moves (destination auto-created, both legs audited, top-up path), bad qty/shop/stock refusals, attendant refusal |
 | `Feature/ModelVariantTest` (5) | SIM/color through single-add, edit, bulk, CSV (`colour` alias, invalid-SIM skip), request approval; POS + devices display |
 | `Feature/SuperadminTest` (13) | dashboard sections + role locks, sidebar link visibility, owner capabilities held, owner minting locks, owner deactivation rules, restore role preservation, `mrjeff:make-superadmin`, till closed (service + notice + hidden entries), impersonate/hand-back/locks, leaderboard + activity, owner-page Blade gates (logs/account) |
 | `Feature/ExampleTest` | signed-out `/` redirects to `/login` |

@@ -1,4 +1,4 @@
-@props(['model', 'shop' => '', 'canEdit' => false, 'adjustments' => [], 'simTypes' => [], 'categories' => []])
+@props(['model', 'shop' => '', 'canEdit' => false, 'canTransfer' => false, 'shops' => [], 'adjustments' => [], 'simTypes' => [], 'categories' => []])
 
 {{-- Product edit + adjust modal — port of src/components/product-edit-modal.tsx.
      Owner gets the product form and applies adjustments directly; anyone else
@@ -162,6 +162,34 @@
                 {{ $canEdit ? 'Apply stock change' : 'Request stock change' }}
             </button>
         </form>
+
+        @if ($canTransfer)
+            <form method="POST" action="{{ route('models.transfer', ['shop' => $shop, 'model' => $model['id']]) }}" class="mt-5">
+                @csrf
+                <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-mute">Move to another shop</h3>
+                <div class="grid gap-2 sm:grid-cols-2">
+                    <div>
+                        <label class="label">Destination shop</label>
+                        <select name="toShopId" class="input">
+                            @foreach ($shops as $dest)
+                                @if ($dest['id'] !== $shop)
+                                    <option value="{{ $dest['id'] }}">{{ $dest['name'] }}</option>
+                                @endif
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="label">Quantity</label>
+                        <input type="number" min="1" name="qty" value="1" class="input">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="label">Reason</label>
+                        <input type="text" name="reason" class="input" placeholder="optional">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-secondary mt-3 h-9 w-full">Move stock</button>
+            </form>
+        @endif
 
         @if (count($adjustments) > 0)
             <div class="mt-5">

@@ -79,4 +79,20 @@ class StockController extends Controller
 
         return $this->respond($request, $service->bulkAdjust($input, $request->user()), $message);
     }
+
+    /** POST /shops/{shop}/models/{model}/transfer — move units to another shop */
+    public function transfer(Request $request, Shop $shop, PhoneModel $model, StockService $service): RedirectResponse|JsonResponse
+    {
+        $input = $request->except(['_token', '_method']);
+        $input['shopId'] = $shop->id;
+        $input['phoneModelId'] = $model->id;
+
+        $result = $service->transfer($input, $request->user());
+
+        $message = $result['ok']
+            ? (int) ($result['moved'] ?? 0).' moved to '.($result['shopName'] ?? 'the other shop').'.'
+            : '';
+
+        return $this->respond($request, $result, $message);
+    }
 }

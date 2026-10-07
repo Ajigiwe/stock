@@ -47,6 +47,7 @@ Route::middleware(['auth', 'active'])->group(function (): void {
     Route::post('/shops/{shop}/models', [StockController::class, 'create'])->name('models.store');
     Route::post('/shops/{shop}/models/{model}', [StockController::class, 'update'])->name('models.update');
     Route::post('/shops/{shop}/models/{model}/adjust', [StockController::class, 'adjust'])->name('models.adjust');
+    Route::post('/shops/{shop}/models/{model}/transfer', [StockController::class, 'transfer'])->name('models.transfer');
     Route::post('/shops/{shop}/models/bulk', [StockController::class, 'bulkAdjust'])->name('models.bulk');
     Route::post('/shops/{shop}/close', [ShopController::class, 'submitClose'])->name('close.submit');
     Route::post('/shops/{shop}/close/{close}/lock', [ShopController::class, 'lockClose'])->name('close.lock');

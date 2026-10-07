@@ -56,6 +56,8 @@ final class ShopQueries
             'canEditStock' => $isOwner || (bool) $actor->perm_adjust_stock,
             'canApproveRequests' => $isOwner || (bool) $actor->perm_approve_requests,
             'canReconcile' => $isOwner || (bool) $actor->perm_reconcile,
+            'canTransfer' => $isOwner,
+            'shops' => $isOwner ? QuerySupport::shops() : [],
         ];
     }
 

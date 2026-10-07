@@ -947,7 +947,7 @@
                                             <td class="text-right font-bold {{ $low ? 'text-lowstock' : 'text-ink' }}">{{ $model['available'] }}</td>
                                             <td>
                                                 <x-shop-product-modal :model="$model" :shop="$shopId"
-                                                                       :can-edit="$canEditStock" :sim-types="$simTypes" :categories="$categories"
+                                                                       :can-edit="$canEditStock" :can-transfer="$canTransfer" :shops="$shops" :sim-types="$simTypes" :categories="$categories"
                                                                        :adjustments="$rowAdjustments" />
                                             </td>
                                         </tr>
@@ -988,7 +988,7 @@
                                             </div>
                                         </div>
                                         <x-shop-product-modal :model="$model" :shop="$shopId"
-                                                               :can-edit="$canEditStock" :sim-types="$simTypes" :categories="$categories"
+                                                               :can-edit="$canEditStock" :can-transfer="$canTransfer" :shops="$shops" :sim-types="$simTypes" :categories="$categories"
                                                                :adjustments="$rowAdjustments" />
                                     </div>
                                     <div class="mt-2 grid grid-cols-3 gap-2 text-center">

@@ -460,6 +460,147 @@ class StockService
     }
 
     /**
+     * Port of transferStock(): move units of one model from one shop to
+     * another. Owners and superadmins only — attendants keep filing
+     * requests. The destination row is created (opening 0, prices copied)
+     * when the variant does not exist there yet; both legs go through
+     * stock_adjustments so the triggers move `available` on each side.
+     *
+     * @param  array<string, mixed>  $input
+     * @return array{ok: bool, error?: string, moved?: int, shopName?: string}
+     */
+    public function transfer(array $input, User $actor): array
+    {
+        $me = $this->fresh($actor);
+        if (! ($me instanceof User)) {
+            return $me;
+        }
+        if (! $me->isAdmin()) {
+            return ['ok' => false, 'error' => 'Only the owner can move stock between shops.'];
+        }
+
+        $rawQty = $input['qty'] ?? null;
+        $numeric = is_numeric($rawQty) ? (float) $rawQty : null;
+        if ($numeric === null || floor($numeric) != $numeric || $numeric < 1) {
+            return ['ok' => false, 'error' => 'Enter a quantity of at least 1.'];
+        }
+        if ($numeric > Input::MAX_QTY) {
+            return ['ok' => false, 'error' => 'That quantity is too large.'];
+        }
+        $qty = (int) $numeric;
+
+        $fromShopId = $input['shopId'] ?? null;
+        $toShopId = $input['toShopId'] ?? null;
+        if (! Input::isUuid($fromShopId) || ! Input::isUuid($toShopId)) {
+            return ['ok' => false, 'error' => 'Select a valid shop.'];
+        }
+        if ($fromShopId === $toShopId) {
+            return ['ok' => false, 'error' => 'Choose a different shop to move stock to.'];
+        }
+        if (! Input::isUuid($input['phoneModelId'] ?? null)) {
+            return ['ok' => false, 'error' => 'Invalid product.'];
+        }
+
+        $destShop = DB::table('shops')->where('id', $toShopId)->first(['id', 'name']);
+        if ($destShop === null) {
+            return ['ok' => false, 'error' => 'Select a valid shop.'];
+        }
+
+        $reason = Input::trimmed($input['reason'] ?? null);
+        $reason = $reason === '' ? null : $reason;
+
+        try {
+            $moved = DB::transaction(function () use ($fromShopId, $toShopId, $destShop, $input, $qty, $reason, $me): array {
+                $source = DB::table('phone_models')
+                    ->where('id', $input['phoneModelId'])
+                    ->where('shop_id', $fromShopId)
+                    ->lockForUpdate()
+                    ->first();
+                if ($source === null) {
+                    return ['ok' => false, 'error' => 'Product not found in this shop.'];
+                }
+                if ((int) $source->available < $qty) {
+                    return ['ok' => false, 'error' => 'Only '.(int) $source->available.' available to move.'];
+                }
+
+                $dest = DB::table('phone_models')
+                    ->where('shop_id', $toShopId)
+                    ->where('model_name', $source->model_name)
+                    ->where('condition', $source->condition)
+                    ->where('sim_type', $source->sim_type ?? '')
+                    ->where('color', $source->color ?? '')
+                    ->where('category', $source->category ?? 'phone')
+                    ->lockForUpdate()
+                    ->first();
+                if ($dest === null) {
+                    $destId = (string) Str::uuid();
+                    DB::table('phone_models')->insert([
+                        'id' => $destId,
+                        'shop_id' => $toShopId,
+                        'model_name' => $source->model_name,
+                        'condition' => $source->condition,
+                        'sim_type' => $source->sim_type ?? '',
+                        'color' => $source->color ?? '',
+                        'category' => $source->category ?? 'phone',
+                        'cost_price' => $source->cost_price,
+                        'sale_price' => $source->sale_price,
+                        'opening_stock' => 0,
+                        'bought_in' => 0,
+                        'low_stock_threshold' => $source->low_stock_threshold ?? 5,
+                    ]);
+                    $dest = (object) ['id' => $destId];
+                }
+
+                DB::table('stock_adjustments')->insert([
+                    [
+                        'id' => (string) Str::uuid(),
+                        'shop_id' => $fromShopId,
+                        'phone_model_id' => $source->id,
+                        'staff_id' => $me->id,
+                        'type' => 'correction',
+                        'delta' => -$qty,
+                        'reason' => $reason ?? 'Transfer to '.$destShop->name,
+                    ],
+                    [
+                        'id' => (string) Str::uuid(),
+                        'shop_id' => $toShopId,
+                        'phone_model_id' => $dest->id,
+                        'staff_id' => $me->id,
+                        'type' => 'restock',
+                        'delta' => $qty,
+                        'reason' => $reason ?? 'Transfer from '.(DB::table('shops')->where('id', $fromShopId)->value('name') ?? 'another shop'),
+                    ],
+                ]);
+
+                AuditLog::stock($me, 'adjust_stock', $source->id, $source->model_name, $source->condition, [
+                    'delta' => -$qty,
+                    'type' => 'correction',
+                    'reason' => $reason,
+                    'transfer_to' => $toShopId,
+                ]);
+                AuditLog::stock($me, 'adjust_stock', $dest->id, $source->model_name, $source->condition, [
+                    'delta' => $qty,
+                    'type' => 'restock',
+                    'reason' => $reason,
+                    'transfer_from' => $fromShopId,
+                ]);
+
+                return ['ok' => true, 'moved' => $qty, 'shopName' => $destShop->name];
+            });
+        } catch (QueryException|\PDOException $e) {
+            return $this->dbError($e);
+        }
+
+        if (! ($moved['ok'] ?? false)) {
+            return $moved;
+        }
+
+        DataCache::flush();
+
+        return $moved;
+    }
+
+    /**
      * Port of bulkAdjustStock(): set target quantities for many models. The
      * owner path locks every model first (one atomic batch, like the
      * bulk_adjust_stock RPC); attendants file one request per changed model.

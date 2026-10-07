@@ -15,7 +15,7 @@ abstract class Controller
      * JSON; regular forms get a redirect with a flash message — the same text
      * either way, because the messages are copied from the original.
      *
-     * @param  array{ok: bool, error?: string, id?: string, deleted?: int, warnings?: array<int, string>, warning?: string}  $result
+     * @param  array{ok: bool, error?: string, id?: string, deleted?: int, moved?: int, shopName?: string, warnings?: array<int, string>, warning?: string}  $result
      * @param  string|null  $redirectTo  explicit target for success (the original pushed to the shop page after recording); null keeps the referrer
      */
     protected function respond(Request $request, array $result, string $successMessage = '', ?string $redirectTo = null): RedirectResponse|\Illuminate\Http\JsonResponse

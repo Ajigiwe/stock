@@ -62,6 +62,7 @@ GET  /shops/{shop}                 ShopController@show            ?date=YYYY-MM-
 POST /shops/{shop}/models          StockController@create
 POST /shops/{shop}/models/{model}  StockController@update
 POST /shops/{shop}/models/{model}/adjust   StockController@adjust
+POST /shops/{shop}/models/{model}/transfer StockController@transfer      (move units to another shop, owner+superadmin)
 POST /shops/{shop}/models/bulk              StockController@bulkAdjust
 POST /shops/{shop}/close                    ShopController@submitClose    (submitDailyClose)
 POST /shops/{shop}/close/{close}/lock       ShopController@lockClose      (lockDailyClose)
@@ -153,6 +154,7 @@ StockService::create(array $input, User $actor): array          // owner-direct 
 StockService::update(string $id, array $input, User $actor): array
 StockService::adjust(array $input, User $actor): array
 StockService::bulkAdjust(array $input, User $actor): array
+StockService::transfer(array $input, User $actor): array         // move qty of one model shop-to-shop (toShopId, qty, reason?)
 StockService::bulkCreate(array $rows, User $actor): array       // settings bulk add
 
 StockRequestService::approve(string $id, User $actor): array
@@ -218,6 +220,10 @@ read it produce matching names:
   they consume — Laravel fills action arguments positionally, so a missing
   `Shop $shop` slides the shop id into the next argument
   (`close.lock` did exactly this).
+- **Stock transfers.** `POST /shops/{shop}/models/{model}/transfer` takes
+  `toShopId`, whole `qty` ≥ 1 and optional `reason`; the service moves both
+  legs through `stock_adjustments` (correction out, restock in, audited),
+  creating the destination row with copied prices when needed.
 - **Route-bound ids are NOT in the form.** `shopId`, `modelId`, `txId`,
   `requestId`… come from the URL; controllers merge them into the input array
   before calling the service (e.g. `$input['modelId'] = $model->id;`).
