@@ -94,7 +94,7 @@
                                     <span class="badge badge-muted shrink-0" x-text="shopModels().length + ' models'"></span>
                                 </div>
 
-                                <div class="relative mb-3">
+                                <div class="relative mb-3 hidden sm:block">
                                     <span class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-mute">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
                                     </span>
@@ -102,7 +102,20 @@
                                            class="input pl-10" placeholder="Search models…">
                                 </div>
 
-                                <div class="grid gap-2 sm:grid-cols-2" x-show="catalogList().length > 0">
+                                {{-- Compact picker for phones: the tap grid is desktop-only. --}}
+                                <div class="mb-3 sm:hidden">
+                                    <label class="label" for="pos-pick">Add a model to the ticket</label>
+                                    <select id="pos-pick" class="input"
+                                            @change="if ($event.target.value) { quickAddById($event.target.value); $event.target.value = ''; }">
+                                        <option value="">Choose a model…</option>
+                                        <template x-for="m in catalogList()" :key="m.id">
+                                            <option :value="m.id" :disabled="m.available <= 0"
+                                                    x-text="m.model_name + ' — ' + (m.sale_price != null ? money(m.sale_price) : 'no price') + (m.available <= 0 ? ' (out)' : '')"></option>
+                                        </template>
+                                    </select>
+                                </div>
+
+                                <div class="hidden gap-2 sm:grid sm:grid-cols-2" x-show="catalogList().length > 0">
                                     <template x-for="m in catalogList()" :key="m.id">
                                         <button type="button" @click="quickAdd(m)" :disabled="m.available <= 0"
                                                 class="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-line bg-paper px-3 py-2.5 text-left transition-all hover:border-brand/50 hover:bg-brand-tint/40 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50">
@@ -118,7 +131,7 @@
                                     </template>
                                 </div>
 
-                                <p class="rounded-lg bg-paper px-3 py-2.5 text-center text-[13px] text-mute"
+                                <p class="hidden rounded-lg bg-paper px-3 py-2.5 text-center text-[13px] text-mute sm:block"
                                    x-show="shopModels().length > 0 && catalogList().length === 0">
                                     No models match that search.
                                 </p>
@@ -471,6 +484,10 @@
                         .slice()
                         .sort((a, b) => (b.available - a.available) || (a.model_name < b.model_name ? -1 : 1))
                         .slice(0, 60);
+                },
+                quickAddById(id) {
+                    const m = this.shopModels().find((x) => x.id === id);
+                    if (m) this.quickAdd(m);
                 },
                 quickAdd(m) {
                     if (! m || m.available <= 0) return;
