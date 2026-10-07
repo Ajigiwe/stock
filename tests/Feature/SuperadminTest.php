@@ -82,6 +82,17 @@ class SuperadminTest extends TestCase
         $this->actingAs($this->attendant)->get('/superadmin')->assertForbidden();
     }
 
+    public function test_superadmin_sees_owner_pages_that_compute_access_in_views(): void
+    {
+        // /logs and /account decide in Blade, not just the query layer.
+        $logs = $this->actingAs($this->superadmin)->get('/logs');
+        $logs->assertOk();
+        $logs->assertSee('Sign-ins', false);
+        $logs->assertDontSee('Only the owner can view logs', false);
+
+        $this->actingAs($this->superadmin)->get('/account')->assertOk();
+    }
+
     public function test_sidebar_links_the_dashboard_for_superadmins_only(): void
     {
         $this->actingAs($this->superadmin)->get('/')->assertSee('/superadmin', false);

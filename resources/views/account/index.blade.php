@@ -4,7 +4,7 @@
 @section('mobileTitle', 'Account')
 
 @php
-    $isOwner = $user->isOwner();
+    $isOwner = $user->isAdmin();
     $shopName = $user->shop_id !== null ? ($user->shop?->name ?? null) : null;
     $showShop = ! $isOwner || $user->shop_id !== null;
 @endphp

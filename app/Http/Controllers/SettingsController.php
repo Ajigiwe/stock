@@ -160,7 +160,7 @@ class SettingsController extends Controller
      */
     public function importTemplate(Request $request)
     {
-        if ($request->user()?->role !== User::ROLE_OWNER && ! $request->user()?->isSuperAdmin()) {
+        if (! $request->user()?->isAdmin()) {
             abort(403);
         }
 

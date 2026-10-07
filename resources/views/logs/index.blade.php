@@ -12,7 +12,7 @@
     // The controller may render this page for anyone who reaches /logs — an
     // attendant gets the notice below instead of the owner's audit trails.
     $actor = auth()->user();
-    $isOwner = $is_owner ?? ($actor instanceof \App\Models\User && $actor->isOwner());
+    $isOwner = $is_owner ?? ($actor instanceof \App\Models\User && $actor->isAdmin());
 
     $actionLabels = [
         'create_model' => 'Added model',

@@ -317,7 +317,7 @@ write path runs after `DB::transaction()` commits.
   dismisses forever via `localStorage`); iPhones get Share-menu instructions
   instead, and it never shows when already installed.
 
-## 17. Testing (94 tests / 567 assertions, real MySQL)
+## 17. Testing (95 tests / 571 assertions, real MySQL)
 
 `phpunit.xml` points `DB_DATABASE` at `mrjeff_test`; `RefreshDatabase`
 re-migrates per test because SQLite cannot run the triggers.
@@ -333,7 +333,7 @@ re-migrates per test because SQLite cannot run the triggers.
 | `Unit/FormatTest`, `Unit/InputTest` | formatting + parsing byte parity |
 | `Feature/StaffPermissionsTest` (8) | owner grants/revokes `perm_*` (never on owners, never by staff); granted attendant approves/rejects/approve-alls within their shop, adjusts directly, locks closes and approves/applies counts; cross-shop reads as missing; original refusals intact |
 | `Feature/ModelVariantTest` (5) | SIM/color through single-add, edit, bulk, CSV (`colour` alias, invalid-SIM skip), request approval; POS + devices display |
-| `Feature/SuperadminTest` (12) | dashboard sections + role locks, sidebar link visibility, owner capabilities held, owner minting locks, owner deactivation rules, restore role preservation, `mrjeff:make-superadmin`, till closed (service + notice + hidden entries), impersonate/hand-back/locks, leaderboard + activity |
+| `Feature/SuperadminTest` (13) | dashboard sections + role locks, sidebar link visibility, owner capabilities held, owner minting locks, owner deactivation rules, restore role preservation, `mrjeff:make-superadmin`, till closed (service + notice + hidden entries), impersonate/hand-back/locks, leaderboard + activity, owner-page Blade gates (logs/account) |
 | `Feature/ExampleTest` | signed-out `/` redirects to `/login` |
 
 A scripted HTTP smoke (`21 checks`) additionally runs against
