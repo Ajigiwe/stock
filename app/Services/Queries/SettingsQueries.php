@@ -26,7 +26,7 @@ final class SettingsQueries
     /** @return array{shops: array<int, array<string, mixed>>, staff: array<int, array<string, mixed>>} */
     public static function index(User $actor): array
     {
-        if (! $actor->isOwner()) {
+        if (! $actor->isAdmin()) {
             throw new AccessDeniedHttpException;
         }
 

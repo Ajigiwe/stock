@@ -40,7 +40,7 @@ final class TransactionQueries
      */
     public static function create(?string $shopId, User $actor): array
     {
-        $isOwner = $actor->isOwner();
+        $isOwner = $actor->isAdmin();
         $own = $actor->shop_id ?? 'none';
         $role = $isOwner ? 'owner' : "attendant:{$own}";
         $requested = $shopId ?? '-';
@@ -106,7 +106,7 @@ final class TransactionQueries
     /** @return array<string, mixed> empty when the transaction is missing or not visible */
     public static function show(string $txId, User $actor): array
     {
-        $isOwner = $actor->isOwner();
+        $isOwner = $actor->isAdmin();
         $own = $actor->shop_id ?? 'none';
         $role = $isOwner ? 'owner' : "attendant:{$own}";
 

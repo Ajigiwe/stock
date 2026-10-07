@@ -48,6 +48,12 @@
         ['url' => route('dashboard'), 'label' => 'Home', 'icon' => 'dashboard', 'active' => $active('/')],
         ['url' => route('transactions.create'), 'label' => 'Record', 'icon' => 'record', 'active' => $active('transactions')],
     ];
+    if ($isSuperAdmin ?? false) {
+        array_unshift(
+            $primaryNav,
+            ['url' => route('superadmin.index'), 'label' => 'Superadmin', 'icon' => 'superadmin', 'active' => $active('superadmin')]
+        );
+    }
     if ($isOwner) {
         $primaryNav[] = ['url' => route('devices.index'), 'label' => 'Devices', 'icon' => 'devices', 'active' => $active('devices')];
     } elseif ($myShopId) {
@@ -67,6 +73,12 @@
         ['url' => route('transactions.create'), 'label' => 'Record transaction', 'icon' => 'record', 'active' => $active('transactions/new')],
         ['url' => route('reports.index'), 'label' => 'Reports', 'icon' => 'reports', 'active' => $active('reports')],
     ];
+    if ($isSuperAdmin ?? false) {
+        array_unshift(
+            $menuNav,
+            ['url' => route('superadmin.index'), 'label' => 'Superadmin', 'icon' => 'superadmin', 'active' => $active('superadmin')]
+        );
+    }
     if ($isOwner) {
         $menuNav[] = ['url' => route('devices.index'), 'label' => 'Devices', 'icon' => 'devices', 'active' => $active('devices')];
         $menuNav[] = ['url' => route('logs.index'), 'label' => 'Logs', 'icon' => 'logs', 'active' => $active('logs')];

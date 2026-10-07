@@ -22,7 +22,7 @@ class ShopService
         if (! ($me instanceof User)) {
             return $me;
         }
-        if ($me->role !== User::ROLE_OWNER) {
+        if (! $me->isAdmin()) {
             return ['ok' => false, 'error' => 'Only the owner can add shops.'];
         }
 
@@ -59,7 +59,7 @@ class ShopService
         if (! ($me instanceof User)) {
             return $me;
         }
-        if ($me->role !== User::ROLE_OWNER) {
+        if (! $me->isAdmin()) {
             return ['ok' => false, 'error' => 'Only the owner can remove shops.'];
         }
 

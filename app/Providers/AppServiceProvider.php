@@ -22,11 +22,15 @@ class AppServiceProvider extends ServiceProvider
         // is applied identically everywhere.
         View::composer('layouts.app', function ($view): void {
             $user = Auth::user();
-            $isOwner = $user !== null && $user->isOwner();
+            // The shell's "owner UI" (devices, logs, settings, shop switcher)
+            // is shared by owners and superadmins alike.
+            $isOwner = $user !== null && $user->isAdmin();
+            $isSuperAdmin = $user !== null && $user->isSuperAdmin();
 
             $view->with([
                 'me' => $user,
                 'isOwner' => $isOwner,
+                'isSuperAdmin' => $isSuperAdmin,
                 'myShops' => $isOwner
                     ? Shop::orderBy('name')->get(['id', 'name', 'location', 'phone'])
                     : collect(),

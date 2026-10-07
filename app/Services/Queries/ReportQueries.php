@@ -62,7 +62,7 @@ final class ReportQueries
     {
         $filters = self::filters();
 
-        if ($actor->isOwner()) {
+        if ($actor->isAdmin()) {
             $key = self::key('reports:owner', $filters);
 
             return DataCache::remember($key, fn (): array => self::indexBody($filters, true));
@@ -93,7 +93,7 @@ final class ReportQueries
         $filters = self::filters();
         unset($filters['status']);
 
-        if ($actor->isOwner()) {
+        if ($actor->isAdmin()) {
             $key = self::key('export:owner', $filters);
 
             return DataCache::remember($key, fn (): array => self::exportBody($filters));

@@ -104,7 +104,7 @@ class BackupService
         if (! ($me instanceof User)) {
             return $me;
         }
-        if ($me->role !== User::ROLE_OWNER) {
+        if (! $me->isAdmin()) {
             return ['ok' => false, 'error' => 'Forbidden'];
         }
 
@@ -154,7 +154,7 @@ class BackupService
         if (! ($me instanceof User)) {
             return $me;
         }
-        if ($me->role !== User::ROLE_OWNER) {
+        if (! $me->isAdmin()) {
             return ['ok' => false, 'error' => 'Only the owner can restore backups.'];
         }
 
@@ -225,7 +225,7 @@ class BackupService
         if (! ($me instanceof User)) {
             return $me;
         }
-        if ($me->role !== User::ROLE_OWNER) {
+        if (! $me->isAdmin()) {
             return ['ok' => false, 'error' => 'Only the owner can wipe data.'];
         }
 
@@ -338,13 +338,15 @@ class BackupService
             $warnings[] = "Skipped {$missing} account(s) that do not exist on this server.";
         }
 
-        // Always re-assert the caller as the owner, exactly like the
-        // `on conflict (id) do update set role = 'owner', shop_id = null,
+        // Always re-assert the caller as an admin, exactly like the
+        // `on conflict (id) do update set role = ..., shop_id = null,
         // active = true` upsert — the file's own name wins if it has one.
+        // A superadmin restoring stays a superadmin (never demoted).
+        $callerRole = $me->role === User::ROLE_SUPERADMIN ? User::ROLE_SUPERADMIN : User::ROLE_OWNER;
         $own = $accounts[$me->id] ?? null;
         if (DB::table('users')->where('id', $me->id)->exists()) {
             DB::table('users')->where('id', $me->id)->update([
-                'role' => User::ROLE_OWNER,
+                'role' => $callerRole,
                 'shop_id' => null,
                 'active' => 1,
             ]);
@@ -356,7 +358,7 @@ class BackupService
                 'phone' => $own->phone ?? $me->phone,
                 'password' => $own->password ?? $me->password,
                 'remember_token' => $own->remember_token ?? null,
-                'role' => User::ROLE_OWNER,
+                'role' => $callerRole,
                 'shop_id' => null,
                 'active' => 1,
                 'created_at' => $own->created_at ?? null,
@@ -366,11 +368,14 @@ class BackupService
 
         foreach ($data['phone_models'] as $raw) {
             $raw = is_array($raw) ? $raw : [];
+            $sim = $this->text($raw['sim_type'] ?? null) ?? '';
             DB::table('phone_models')->insert($this->omitNull([
                 'id' => $this->uuid($raw['id'] ?? null),
                 'shop_id' => $this->uuid($raw['shop_id'] ?? null),
                 'model_name' => $this->text($raw['model_name'] ?? null),
                 'condition' => $this->enum($raw['condition'] ?? null, 'new'),
+                'sim_type' => isset(StockService::SIM_TYPES[$sim]) ? $sim : '',
+                'color' => $this->text($raw['color'] ?? null) ?? '',
                 'cost_price' => $this->money($raw['cost_price'] ?? null),
                 'sale_price' => $this->money($raw['sale_price'] ?? null),
                 'opening_stock' => $this->intClamped($raw['opening_stock'] ?? null, 0, 0),

@@ -10,6 +10,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ShopController;
 use App\Http\Controllers\StockController;
 use App\Http\Controllers\StockRequestController;
+use App\Http\Controllers\SuperadminController;
 use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
 
@@ -91,6 +92,14 @@ Route::middleware(['auth', 'active'])->group(function (): void {
         Route::get('/backup/download', [SettingsController::class, 'downloadBackup'])->name('backup.download');
         Route::post('/backup/restore', [SettingsController::class, 'restoreBackup'])->name('backup.restore');
         Route::post('/wipe', [SettingsController::class, 'wipe'])->name('wipe');
+    });
+
+    // Superadmin command center (superadmin role only — enforced in the query)
+    Route::prefix('superadmin')->name('superadmin.')->group(function (): void {
+        Route::get('/', [SuperadminController::class, 'index'])->name('index');
+        Route::post('/owners', [SuperadminController::class, 'createOwner'])->name('owners.store');
+        Route::post('/users/{user}/deactivate', [SuperadminController::class, 'deactivate'])->name('users.deactivate');
+        Route::post('/users/{user}/reactivate', [SuperadminController::class, 'reactivate'])->name('users.reactivate');
     });
 
     // Audit trails (owner)

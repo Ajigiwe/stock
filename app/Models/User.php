@@ -58,9 +58,28 @@ class User extends Authenticatable
 
     public const ROLE_ATTENDANT = 'attendant';
 
+    public const ROLE_SUPERADMIN = 'superadmin';
+
     public function isOwner(): bool
     {
         return $this->role === self::ROLE_OWNER;
+    }
+
+    /**
+     * Owners and superadmins pass every owner-only gate: shop scoping (both
+     * are shopless and see everything), direct stock paths, approvals,
+     * reconciliation, backup and staff management. Only the superadmin
+     * dashboard and owner-account management check the superadmin role
+     * specifically.
+     */
+    public function isAdmin(): bool
+    {
+        return $this->role === self::ROLE_OWNER || $this->role === self::ROLE_SUPERADMIN;
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->role === self::ROLE_SUPERADMIN;
     }
 
     public function shop(): BelongsTo

@@ -91,7 +91,7 @@ class StockService
             return $me;
         }
 
-        $shopId = $me->role === User::ROLE_OWNER ? ($input['shopId'] ?? null) : $me->shop_id;
+        $shopId = $me->isAdmin() ? ($input['shopId'] ?? null) : $me->shop_id;
         if (! Input::isUuid($shopId)) {
             return ['ok' => false, 'error' => 'No shop selected.'];
         }
@@ -136,7 +136,7 @@ class StockService
             return ['ok' => false, 'error' => $threshold];
         }
 
-        if ($me->role === User::ROLE_OWNER) {
+        if ($me->isAdmin()) {
             // Owner adds models immediately.
             try {
                 $modelId = DB::transaction(function () use ($shopId, $modelName, $condition, $sim, $color, $cost, $sale, $opening, $threshold): string {
@@ -218,7 +218,7 @@ class StockService
             return $me;
         }
 
-        $shopId = $me->role === User::ROLE_OWNER ? ($input['shopId'] ?? null) : $me->shop_id;
+        $shopId = $me->isAdmin() ? ($input['shopId'] ?? null) : $me->shop_id;
         if (! Input::isUuid($shopId)) {
             return ['ok' => false, 'error' => 'No shop selected.'];
         }
@@ -226,7 +226,7 @@ class StockService
             return ['ok' => false, 'error' => 'Invalid product.'];
         }
 
-        if ($me->role !== User::ROLE_OWNER) {
+        if (! $me->isAdmin()) {
             return ['ok' => false, 'error' => 'Only the owner can edit products.'];
         }
 
@@ -336,7 +336,7 @@ class StockService
         }
         $delta = (int) $numeric;
 
-        $shopId = $me->role === User::ROLE_OWNER ? ($input['shopId'] ?? null) : $me->shop_id;
+        $shopId = $me->isAdmin() ? ($input['shopId'] ?? null) : $me->shop_id;
         if (! Input::isUuid($shopId)) {
             return ['ok' => false, 'error' => 'No shop selected.'];
         }
@@ -363,7 +363,7 @@ class StockService
         // Owners — and attendants holding the direct-adjust grant — move
         // stock immediately; everyone else files a request. Either way the
         // shop stays locked to the caller's own on the attendant path.
-        if ($me->role === User::ROLE_OWNER || $me->perm_adjust_stock) {
+        if ($me->isAdmin() || $me->perm_adjust_stock) {
             try {
                 DB::table('stock_adjustments')->insert([
                     'id' => (string) Str::uuid(),
@@ -424,7 +424,7 @@ class StockService
             return $me;
         }
 
-        $shopId = $me->role === User::ROLE_OWNER ? ($input['shopId'] ?? null) : $me->shop_id;
+        $shopId = $me->isAdmin() ? ($input['shopId'] ?? null) : $me->shop_id;
         if (! Input::isUuid($shopId)) {
             return ['ok' => false, 'error' => 'No shop selected.'];
         }
@@ -475,7 +475,7 @@ class StockService
         }
 
         // Same direct path as adjust(): owners plus granted attendants.
-        if ($me->role === User::ROLE_OWNER || $me->perm_adjust_stock) {
+        if ($me->isAdmin() || $me->perm_adjust_stock) {
             try {
                 $result = DB::transaction(function () use ($shopId, $items, $me, $reason): array {
                     $ids = array_keys($items);
@@ -592,7 +592,7 @@ class StockService
         if (! ($me instanceof User)) {
             return $me;
         }
-        if ($me->role !== User::ROLE_OWNER) {
+        if (! $me->isAdmin()) {
             return ['ok' => false, 'error' => 'Only the owner can bulk add devices.'];
         }
 

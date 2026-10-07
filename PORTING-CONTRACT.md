@@ -90,6 +90,10 @@ POST /settings/staff/{user}/reactivate    SettingsController@reactivate
 POST /settings/staff/{user}/reset-password SettingsController@resetPassword
 POST /settings/staff/{user}/permissions SettingsController@updatePermissions   (owner grants staff capabilities)
 POST /settings/staff/{user}/shop         SettingsController@moveShop           (owner moves attendant shops)
+POST /superadmin/owners                  SuperadminController@createOwner    (superadmin mints owners)
+POST /superadmin/users/{user}/deactivate SuperadminController@deactivate
+POST /superadmin/users/{user}/reactivate SuperadminController@reactivate
+GET  /superadmin                          SuperadminController@index         (command center, superadmin only)
 POST /settings/models/bulk         SettingsController@bulkCreateModels
 POST /settings/models/import       SettingsController@importModels    (CSV upload; see §5b)
 GET  /settings/models/import/template SettingsController@importTemplate (CSV template download, owner)
@@ -162,6 +166,7 @@ StaffService::reactivate(string $id, User $actor): array
 StaffService::resetPassword(string $id, User $actor): array
 StaffService::setPermissions(string $id, array $input, User $actor): array   // owner grants perm_* to an attendant
 StaffService::moveShop(string $id, array $input, User $actor): array         // owner moves an attendant (shopId, blank parks)
+StaffService::createOwner(array $input, User $actor): array                  // superadmin mints an owner (email or phone required)
 
 ReconciliationService::submitClose(array $input, User $actor): array
 ReconciliationService::lockClose(string $id, User $actor): array
@@ -278,6 +283,7 @@ transactions/show.blade.php    receipt + review/void actions
 devices/index.blade.php        device matrix + detail modal + sold history
 reports/index.blade.php        period filters, daily rows, CSV export link, stock counts
 settings/index.blade.php       shops, staff, bulk add models, CSV import + template, backup/restore, data wipe
+superadmin/index.blade.php     command center: money, approvals inbox, stock alerts, staff + owner management, system/data
 logs/index.blade.php           login + stock log tables
 account/index.blade.php        change password
 ```

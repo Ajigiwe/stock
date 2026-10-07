@@ -28,7 +28,7 @@ final class DeviceQueries
      */
     public static function index(User $actor): array
     {
-        if (! $actor->isOwner()) {
+        if (! $actor->isAdmin()) {
             throw new AccessDeniedHttpException;
         }
 

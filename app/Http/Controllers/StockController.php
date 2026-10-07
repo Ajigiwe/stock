@@ -53,7 +53,7 @@ class StockController extends Controller
 
         // A granted attendant hears the direct message too — the service, not
         // the role, decides which path the stock took.
-        $direct = $request->user()->isOwner() || (bool) $request->user()->perm_adjust_stock;
+        $direct = $request->user()->isAdmin() || (bool) $request->user()->perm_adjust_stock;
         $message = $direct
             ? 'Stock updated.'
             : 'Stock change sent — awaiting owner approval.';
@@ -72,7 +72,7 @@ class StockController extends Controller
         $items = array_filter((array) ($input['items'] ?? []), 'is_array');
         $changes = count($items);
 
-        $direct = $request->user()->isOwner() || (bool) $request->user()->perm_adjust_stock;
+        $direct = $request->user()->isAdmin() || (bool) $request->user()->perm_adjust_stock;
         $message = $direct
             ? "{$changes} stock change(s) applied."
             : "{$changes} change(s) sent — awaiting owner approval.";

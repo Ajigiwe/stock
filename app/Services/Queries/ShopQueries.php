@@ -26,7 +26,7 @@ final class ShopQueries
     /** @return array<string, mixed> */
     public static function show(string $shopId, ?string $date, User $actor): array
     {
-        $isOwner = $actor->isOwner();
+        $isOwner = $actor->isAdmin();
         if (! $isOwner && ($actor->shop_id === null || $actor->shop_id !== $shopId)) {
             throw new AccessDeniedHttpException;
         }

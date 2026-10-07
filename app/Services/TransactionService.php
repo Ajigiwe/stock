@@ -137,7 +137,7 @@ class TransactionService
         }
 
         // Attendants: force their own shop regardless of what the form sends.
-        $shopId = $me->role === User::ROLE_OWNER ? ($input['shopId'] ?? null) : $me->shop_id;
+        $shopId = $me->isAdmin() ? ($input['shopId'] ?? null) : $me->shop_id;
         if (! Input::isUuid($shopId)) {
             return ['ok' => false, 'error' => 'No shop selected.'];
         }
@@ -167,7 +167,7 @@ class TransactionService
             }
         }
 
-        if ($me->role !== User::ROLE_OWNER && $shopId !== $me->shop_id) {
+        if (! $me->isAdmin() && $shopId !== $me->shop_id) {
             return ['ok' => false, 'error' => 'Not allowed to record transactions for this shop'];
         }
 
@@ -347,7 +347,7 @@ class TransactionService
         if (! ($me instanceof User)) {
             return $me;
         }
-        if ($me->role !== User::ROLE_OWNER) {
+        if (! $me->isAdmin()) {
             return ['ok' => false, 'error' => 'Only the owner can review transactions.'];
         }
         if (! Input::isUuid($txId)) {
@@ -415,7 +415,7 @@ class TransactionService
         if (! ($me instanceof User)) {
             return $me;
         }
-        if ($me->role !== User::ROLE_OWNER) {
+        if (! $me->isAdmin()) {
             return ['ok' => false, 'error' => 'Only the owner can void transactions.'];
         }
         if (! Input::isUuid($txId)) {
@@ -472,7 +472,7 @@ class TransactionService
         if (! ($me instanceof User)) {
             return $me;
         }
-        if ($me->role !== User::ROLE_OWNER) {
+        if (! $me->isAdmin()) {
             return ['ok' => false, 'error' => 'Only the owner can update swapped phones.'];
         }
         if (! Input::isUuid($id)) {

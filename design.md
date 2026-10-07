@@ -177,6 +177,11 @@ RLS had no direct equivalent in Laravel, so the port is layered:
    matching controls on `$canApproveRequests` / `$canReconcile` /
    `$canEditStock`. Settings, staff, backup, wipe, reviews and voids stay
    owner-only.
+6. **Superadmins** (`role = superadmin`) pass every owner gate
+   (`User::isAdmin()`), see the owner UI everywhere, run the `/superadmin`
+   command center, and manage owner accounts (mint via dashboard or
+   `mrjeff:make-superadmin`, deactivate/reactivate). Owners never touch
+   other owners; attendants never touch admins.
 
 ## 9. Authentication and Roles
 
@@ -195,9 +200,10 @@ RLS had no direct equivalent in Laravel, so the port is layered:
 
 ## 10. Pages and Routes
 
-46 routes = the 42 in `PORTING-CONTRACT.md` §3 + the `signup` → `login`
+50 routes = the 42 in `PORTING-CONTRACT.md` §3 + the `signup` → `login`
 redirect the original proxy performed + the 3 post-parity settings additions
-(CSV import, template download, data wipe — speced in §3). Inventory:
+(CSV import, template download, data wipe — speced in §3) + the 4
+superadmin endpoints. Inventory:
 
 ```
 /setup, /login, /logout, signup                 auth (setup.state / auth)
@@ -306,7 +312,7 @@ write path runs after `DB::transaction()` commits.
   dismisses forever via `localStorage`); iPhones get Share-menu instructions
   instead, and it never shows when already installed.
 
-## 17. Testing (81 tests / 479 assertions, real MySQL)
+## 17. Testing (88 tests / 518 assertions, real MySQL)
 
 `phpunit.xml` points `DB_DATABASE` at `mrjeff_test`; `RefreshDatabase`
 re-migrates per test because SQLite cannot run the triggers.
@@ -322,6 +328,7 @@ re-migrates per test because SQLite cannot run the triggers.
 | `Unit/FormatTest`, `Unit/InputTest` | formatting + parsing byte parity |
 | `Feature/StaffPermissionsTest` (8) | owner grants/revokes `perm_*` (never on owners, never by staff); granted attendant approves/rejects/approve-alls within their shop, adjusts directly, locks closes and approves/applies counts; cross-shop reads as missing; original refusals intact |
 | `Feature/ModelVariantTest` (5) | SIM/color through single-add, edit, bulk, CSV (`colour` alias, invalid-SIM skip), request approval; POS + devices display |
+| `Feature/SuperadminTest` (7) | dashboard sections + role locks, sidebar link visibility, owner capabilities held, owner minting locks, owner deactivation rules, restore role preservation, `mrjeff:make-superadmin` |
 | `Feature/ExampleTest` | signed-out `/` redirects to `/login` |
 
 A scripted HTTP smoke (`21 checks`) additionally runs against

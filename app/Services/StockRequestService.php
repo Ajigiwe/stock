@@ -105,14 +105,14 @@ class StockRequestService
         if (! ($me instanceof User)) {
             return $me;
         }
-        if ($me->role !== User::ROLE_OWNER && ! $me->perm_approve_requests) {
+        if (! $me->isAdmin() && ! $me->perm_approve_requests) {
             return ['ok' => false, 'error' => 'Only the owner can approve stock changes.'];
         }
 
         try {
             $query = DB::table('stock_requests')
                 ->where('status', 'pending');
-            if ($me->role !== User::ROLE_OWNER) {
+            if (! $me->isAdmin()) {
                 // A permitted attendant only ever sees their own shop.
                 $query->where('shop_id', $me->shop_id);
             }
@@ -243,7 +243,7 @@ class StockRequestService
      */
     private function denyDecide(User $me, ?string $shopId, string $verb = 'approve'): ?string
     {
-        if ($me->role === User::ROLE_OWNER) {
+        if ($me->isAdmin()) {
             return null;
         }
         if (! $me->perm_approve_requests) {

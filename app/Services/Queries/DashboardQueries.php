@@ -34,7 +34,7 @@ final class DashboardQueries
             default => $today,
         };
 
-        if ($actor->isOwner()) {
+        if ($actor->isAdmin()) {
             $scope = ($shopId === null || $shopId === '') ? '-' : $shopId;
 
             return DataCache::remember(

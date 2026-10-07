@@ -51,7 +51,7 @@ class ReconciliationService
             return ['ok' => false, 'error' => $other];
         }
 
-        if ($me->role !== User::ROLE_OWNER && $shopId !== $me->shop_id) {
+        if (! $me->isAdmin() && $shopId !== $me->shop_id) {
             return ['ok' => false, 'error' => 'Not allowed for this shop'];
         }
 
@@ -190,7 +190,7 @@ class ReconciliationService
             return ['ok' => false, 'error' => 'Enter at least one counted quantity.'];
         }
 
-        if ($me->role !== User::ROLE_OWNER && $shopId !== $me->shop_id) {
+        if (! $me->isAdmin() && $shopId !== $me->shop_id) {
             return ['ok' => false, 'error' => 'Not allowed for this shop'];
         }
 
@@ -370,7 +370,7 @@ class ReconciliationService
      */
     private function denyScoped(User $me, ?string $shopId, string $ownerError, string $absentError): ?string
     {
-        if ($me->role === User::ROLE_OWNER) {
+        if ($me->isAdmin()) {
             return null;
         }
         if (! $me->perm_reconcile) {

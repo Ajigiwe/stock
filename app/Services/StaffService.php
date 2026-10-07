@@ -32,7 +32,7 @@ class StaffService
         if (! ($me instanceof User)) {
             return $me;
         }
-        if ($me->role !== User::ROLE_OWNER) {
+        if (! $me->isAdmin()) {
             return ['ok' => false, 'error' => 'Only the owner can add staff.'];
         }
 
@@ -93,7 +93,7 @@ class StaffService
         if (! ($me instanceof User)) {
             return $me;
         }
-        if ($me->role !== User::ROLE_OWNER) {
+        if (! $me->isAdmin()) {
             return ['ok' => false, 'error' => 'Only the owner can change permissions.'];
         }
         if (! Input::isUuid($id)) {
@@ -133,7 +133,7 @@ class StaffService
         if (! ($me instanceof User)) {
             return $me;
         }
-        if ($me->role !== User::ROLE_OWNER) {
+        if (! $me->isAdmin()) {
             return ['ok' => false, 'error' => 'Only the owner can move staff.'];
         }
         if (! Input::isUuid($id)) {
@@ -169,6 +169,68 @@ class StaffService
     }
 
     /**
+     * Mint an owner account. Only a superadmin can do this — owners manage
+     * attendants, never other owners. Same contact rules as staff creation:
+     * email and phone are optional identifiers, at least one is required so
+     * the account can sign in.
+     *
+     * @param  array<string, mixed>  $input
+     * @return array{ok: bool, error?: string}
+     */
+    public function createOwner(array $input, User $actor): array
+    {
+        $me = $this->fresh($actor);
+        if (! ($me instanceof User)) {
+            return $me;
+        }
+        if (! $me->isSuperAdmin()) {
+            return ['ok' => false, 'error' => 'Only a superadmin can add owners.'];
+        }
+
+        $name = Input::trimmed($input['name'] ?? null);
+        $email = Input::trimmed($input['email'] ?? null);
+        $phone = Input::phone($input['phone'] ?? null);
+        $password = (string) ($input['password'] ?? '');
+
+        if ($name === '' || strlen($password) < 8) {
+            return ['ok' => false, 'error' => 'Name required; password at least 8 characters.'];
+        }
+        if ($email === '' && $phone === '') {
+            return ['ok' => false, 'error' => 'An email address or phone number is required.'];
+        }
+        if ($email !== '' && ! Input::email($email)) {
+            return ['ok' => false, 'error' => 'That email address is not valid.'];
+        }
+        if (($input['phone'] ?? null) !== null && trim((string) $input['phone']) !== '' && $phone === '') {
+            return ['ok' => false, 'error' => 'That phone number is not valid.'];
+        }
+        if ($email !== '' && DB::table('users')->where('email', $email)->exists()) {
+            return ['ok' => false, 'error' => 'That email address is already in use.'];
+        }
+        if ($phone !== '' && DB::table('users')->where('phone', $phone)->exists()) {
+            return ['ok' => false, 'error' => 'That phone number is already in use.'];
+        }
+
+        try {
+            DB::table('users')->insert([
+                'id' => (string) Str::uuid(),
+                'name' => $name,
+                'email' => $email === '' ? null : $email,
+                'phone' => $phone === '' ? null : $phone,
+                'password' => Hash::make($password),
+                'role' => User::ROLE_OWNER,
+                'shop_id' => null,
+            ]);
+        } catch (QueryException|\PDOException $e) {
+            return $this->dbError($e);
+        }
+
+        DataCache::flush();
+
+        return ['ok' => true];
+    }
+
+    /**
      * @return array{ok: bool, error?: string}
      */
     public function deactivate(string $id, User $actor): array
@@ -177,7 +239,7 @@ class StaffService
         if (! ($me instanceof User)) {
             return $me;
         }
-        if ($me->role !== User::ROLE_OWNER) {
+        if (! $me->isAdmin()) {
             return ['ok' => false, 'error' => 'Only the owner can deactivate staff.'];
         }
         if ($id === $me->id) {
@@ -187,7 +249,7 @@ class StaffService
             return ['ok' => false, 'error' => 'Invalid staff account.'];
         }
 
-        if (! $this->attendantExists($id)) {
+        if (! $this->manageableExists($id, $me)) {
             return ['ok' => false, 'error' => 'Invalid staff account.'];
         }
 
@@ -215,14 +277,14 @@ class StaffService
         if (! ($me instanceof User)) {
             return $me;
         }
-        if ($me->role !== User::ROLE_OWNER) {
+        if (! $me->isAdmin()) {
             return ['ok' => false, 'error' => 'Only the owner can reactivate staff.'];
         }
         if (! Input::isUuid($id)) {
             return ['ok' => false, 'error' => 'Invalid staff account.'];
         }
 
-        if (! $this->attendantExists($id)) {
+        if (! $this->manageableExists($id, $me)) {
             return ['ok' => false, 'error' => 'Invalid staff account.'];
         }
 
@@ -256,7 +318,7 @@ class StaffService
         if (! ($me instanceof User)) {
             return $me;
         }
-        if ($me->role !== User::ROLE_OWNER) {
+        if (! $me->isAdmin()) {
             return ['ok' => false, 'error' => 'Only the owner can reset staff passwords.'];
         }
         if ($id === $me->id) {
@@ -270,7 +332,7 @@ class StaffService
             return ['ok' => false, 'error' => 'Password must be at least 8 characters.'];
         }
 
-        if (! $this->attendantExists($id)) {
+        if (! $this->manageableExists($id, $me)) {
             return ['ok' => false, 'error' => 'Invalid staff account.'];
         }
 
@@ -289,8 +351,20 @@ class StaffService
 
     /**
      * The original targeted attendant rows only (`where role = 'attendant'`)
-     * and failed on an unknown id through the auth admin call.
+     * and failed on an unknown id through the auth admin call. Owners still
+     * manage attendants only; a superadmin caller may additionally target
+     * owner accounts.
      */
+    private function manageableExists(string $id, User $me): bool
+    {
+        $query = DB::table('users')->where('id', $id);
+        if (! $me->isSuperAdmin()) {
+            $query->where('role', User::ROLE_ATTENDANT);
+        }
+
+        return $query->exists();
+    }
+
     private function attendantExists(string $id): bool
     {
         return DB::table('users')->where('id', $id)->where('role', User::ROLE_ATTENDANT)->exists();
