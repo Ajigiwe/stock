@@ -93,6 +93,8 @@ POST /settings/staff/{user}/shop         SettingsController@moveShop           (
 POST /superadmin/owners                  SuperadminController@createOwner    (superadmin mints owners)
 POST /superadmin/users/{user}/deactivate SuperadminController@deactivate
 POST /superadmin/users/{user}/reactivate SuperadminController@reactivate
+POST /superadmin/impersonate/{user}      SuperadminController@impersonate    (see the app as that account)
+POST /impersonate/exit                   SuperadminController@exitImpersonation (hand back, session-flag only)
 GET  /superadmin                          SuperadminController@index         (command center, superadmin only)
 POST /settings/models/bulk         SettingsController@bulkCreateModels
 POST /settings/models/import       SettingsController@importModels    (CSV upload; see §5b)

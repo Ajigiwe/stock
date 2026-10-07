@@ -45,10 +45,16 @@ final class TransactionQueries
         $role = $isOwner ? 'owner' : "attendant:{$own}";
         $requested = $shopId ?? '-';
 
-        return DataCache::remember(
+        $payload = DataCache::remember(
             "pos:{$role}:{$requested}",
             fn (): array => self::posPayload($shopId, $isOwner, $actor->shop_id)
         );
+
+        // Outside the cache: superadmins may look at the terminal but the
+        // till is closed to them (record() refuses with a clean message).
+        $payload['isSuperAdmin'] = $actor->isSuperAdmin();
+
+        return $payload;
     }
 
     /** @return array{shops: array<int, array<string, mixed>>, stock: array<int, array<string, mixed>>, defaultShopId: string|null, isOwner: bool} */

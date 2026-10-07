@@ -79,6 +79,13 @@
             <input type="hidden" name="type" :value="type">
             <input type="hidden" name="idempotencyKey" :value="idempotencyKey">
 
+            @if ($isSuperAdmin ?? false)
+                <div class="mt-5 rounded-xl border border-warnstock/30 bg-warnstock-tint px-4 py-3 text-sm font-medium text-warnstock">
+                    Till closed for superadmins — recording sales is shop staff work.
+                    You can look around, but the charge button stays off.
+                </div>
+            @endif
+
             {{-- POS floor: catalog on the left, the running ticket on the right. --}}
             <div class="mt-5 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
                 {{-- Left: catalog + mode panels --}}
@@ -353,7 +360,8 @@
                                      class="rounded-lg border border-lowstock bg-lowstock-tint px-3 py-2 text-sm text-lowstock" x-text="error"></div>
 
                                 <button type="submit"
-                                        class="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-[14px] font-bold tracking-tight transition-all"
+                                        @if ($isSuperAdmin ?? false) disabled @endif
+                                        class="flex h-12 w-full items-center justify-center gap-2 rounded-xl text-[14px] font-bold tracking-tight transition-all disabled:cursor-not-allowed disabled:bg-line disabled:text-mute disabled:shadow-none"
                                         :class="saving
                                             ? 'cursor-wait bg-line text-mute'
                                             : 'bg-brand text-white shadow-[0_6px_16px_rgba(67,56,202,0.3)] hover:bg-brand-deep hover:shadow-[0_8px_20px_rgba(67,56,202,0.35)] active:translate-y-px'">

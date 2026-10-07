@@ -117,10 +117,12 @@
                 <h1 class="text-xl font-extrabold tracking-tight text-ink">{{ $headerTitle }}</h1>
                 <p class="mt-0.5 text-[12.5px] text-mute">{{ $dayLabel }} · {{ $scopeLabel }} · live</p>
             </div>
-            <a href="{{ route('transactions.create') }}"
-               class="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-[10px] bg-brand px-4 text-sm font-bold text-white transition-colors hover:bg-brand-deep">
-                Record
-            </a>
+            @if (! request()->user()?->isSuperAdmin())
+                <a href="{{ route('transactions.create') }}"
+                   class="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-[10px] bg-brand px-4 text-sm font-bold text-white transition-colors hover:bg-brand-deep">
+                    Record
+                </a>
+            @endif
         </div>
 
         <div class="flex flex-wrap items-center gap-3">

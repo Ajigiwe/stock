@@ -100,7 +100,9 @@ Route::middleware(['auth', 'active'])->group(function (): void {
         Route::post('/owners', [SuperadminController::class, 'createOwner'])->name('owners.store');
         Route::post('/users/{user}/deactivate', [SuperadminController::class, 'deactivate'])->name('users.deactivate');
         Route::post('/users/{user}/reactivate', [SuperadminController::class, 'reactivate'])->name('users.reactivate');
+        Route::post('/impersonate/{user}', [SuperadminController::class, 'impersonate'])->name('impersonate');
     });
+    Route::post('/impersonate/exit', [SuperadminController::class, 'exitImpersonation'])->name('impersonate.exit');
 
     // Audit trails (owner)
     Route::get('/logs', [LogController::class, 'index'])->name('logs.index');

@@ -66,6 +66,76 @@
             </div>
         </section>
 
+        {{-- Staff leaderboard + recent activity --}}
+        <section class="rounded-xl border border-line bg-white shadow-sm">
+            <div class="border-b border-line px-4 py-3">
+                <h2 class="text-sm font-semibold text-ink">Who is selling</h2>
+                <p class="mt-0.5 text-xs text-mute">Completed sales per person, trailing 30 days</p>
+            </div>
+            <div class="overflow-x-auto p-4">
+                <table class="table-base min-w-[520px]">
+                    <thead>
+                        <tr>
+                            <th scope="col">Staff</th>
+                            <th scope="col">Shop</th>
+                            <th scope="col" class="text-right">Sales</th>
+                            <th scope="col" class="text-right">Revenue</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($leaders as $i => $leader)
+                            <tr>
+                                <td class="font-medium text-ink">
+                                    <span class="tnum mr-2 text-mute">{{ $i + 1 }}</span>{{ $leader['name'] }}
+                                    <span class="badge-muted ml-1">{{ $leader['role'] }}</span>
+                                </td>
+                                <td class="text-mute">{{ $leader['shop_name'] ?? '—' }}</td>
+                                <td class="tnum text-right">{{ $leader['sales'] }}</td>
+                                <td class="tnum text-right font-semibold">{{ \App\Support\Format::money($leader['revenue']) }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="4" class="text-xs text-mute">No completed sales in the last 30 days.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="rounded-xl border border-line bg-white shadow-sm">
+            <div class="border-b border-line px-4 py-3">
+                <h2 class="text-sm font-semibold text-ink">Recent activity</h2>
+                <p class="mt-0.5 text-xs text-mute">Latest stock movements and till decisions, all shops</p>
+            </div>
+            <div class="grid gap-4 p-4 lg:grid-cols-2">
+                <div>
+                    <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-mute">Stock moves</h3>
+                    <ul class="space-y-1.5">
+                        @forelse ($activity['moves'] as $move)
+                            <li class="rounded-lg bg-paper px-3 py-2 text-xs">
+                                <span class="text-ink">{{ $move['text'] }}</span>
+                                <span class="text-mute"> · {{ $move['shop_name'] ?? '' }} · {{ \App\Support\Format::dateTime($move['at']) }}</span>
+                            </li>
+                        @empty
+                            <li class="text-xs text-mute">No stock movements recorded.</li>
+                        @endforelse
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-mute">Till decisions</h3>
+                    <ul class="space-y-1.5">
+                        @forelse ($activity['decisions'] as $decision)
+                            <li class="rounded-lg bg-paper px-3 py-2 text-xs">
+                                <span class="text-ink">{{ $decision['text'] }}</span>
+                                <span class="text-mute"> · {{ $decision['shop_name'] ?? '' }} · {{ \App\Support\Format::dateTime($decision['at']) }}</span>
+                            </li>
+                        @empty
+                            <li class="text-xs text-mute">No approvals, rejections or voids yet.</li>
+                        @endforelse
+                    </ul>
+                </div>
+            </div>
+        </section>
+
         {{-- Approvals inbox --}}
         <section class="rounded-xl border border-line bg-white shadow-sm">
             <div class="border-b border-line px-4 py-3">
@@ -209,6 +279,12 @@
                                     </td>
                                     <td class="text-xs text-mute">{{ $member['last_login'] !== null ? \App\Support\Format::dateTime($member['last_login']) : 'never' }}</td>
                                     <td class="text-right">
+                                        @if ($member['role'] !== 'superadmin')
+                                            <form method="POST" action="{{ route('superadmin.impersonate', $member['id']) }}" class="mb-1">
+                                                @csrf
+                                                <button type="submit" class="btn btn-secondary btn-sm" @if (! $member['active']) disabled @endif>Sign in as</button>
+                                            </form>
+                                        @endif
                                         @if ($member['role'] !== 'superadmin')
                                             @if ($member['active'])
                                                 <form method="POST" action="{{ route('superadmin.users.deactivate', $member['id']) }}" class="inline">

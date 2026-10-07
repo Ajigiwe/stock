@@ -196,4 +196,92 @@ class SuperadminTest extends TestCase
             '--no-interaction' => true,
         ])->assertExitCode(1);
     }
+
+    public function test_superadmin_cannot_record_sales_but_sees_the_closed_till(): void
+    {
+        $this->actingAs($this->superadmin)
+            ->from('/transactions/new')
+            ->post('/transactions', [
+                'shopId' => $this->shopId,
+                'type' => 'sale',
+                'paymentMethod' => 'cash',
+                'amount' => '100',
+                'customerName' => 'Ama',
+                'customerPhone' => '0240000001',
+                'outItems' => [['modelId' => $this->modelId, 'qty' => '1']],
+                'date' => '2026-01-15',
+                'idempotencyKey' => (string) Str::uuid(),
+            ])
+            ->assertRedirect('/transactions/new')
+            ->assertSessionHasErrors(['action' => 'Superadmin accounts cannot record sales.']);
+
+        $this->assertSame(0, DB::table('transactions')->count());
+        $this->assertSame(10, (int) DB::table('phone_models')->where('id', $this->modelId)->value('available'));
+
+        $pos = $this->actingAs($this->superadmin)->get('/transactions/new');
+        $pos->assertOk();
+        $pos->assertSee('Till closed for superadmins', false);
+    }
+
+    public function test_superadmin_sidebar_hides_the_till(): void
+    {
+        $page = $this->actingAs($this->superadmin)->get('/');
+        $page->assertOk();
+        $page->assertDontSee('/transactions/new', false);
+    }
+
+    public function test_superadmin_can_impersonate_staff_and_hand_back(): void
+    {
+        $this->actingAs($this->superadmin)
+            ->post('/superadmin/impersonate/'.$this->attendant->id)
+            ->assertRedirect(route('dashboard'));
+
+        // Now looking through the attendant's eyes: own shop opens, the
+        // banner shows, anything else stays shut.
+        $this->get('/shops/'.$this->shopId)->assertOk();
+        $this->get('/')->assertSee('Superadmin preview', false);
+
+        $this->post('/impersonate/exit')->assertRedirect(route('superadmin.index'));
+        $this->get('/superadmin')->assertOk();
+        $this->assertAuthenticatedAs(User::findOrFail($this->superadmin->id));
+    }
+
+    public function test_impersonation_is_locked_down(): void
+    {
+        // Owners and attendants cannot impersonate anyone.
+        $this->actingAs($this->owner)
+            ->post('/superadmin/impersonate/'.$this->attendant->id)
+            ->assertForbidden();
+
+        // Superadmins cannot impersonate themselves or each other.
+        $this->actingAs($this->superadmin)
+            ->from('/superadmin')
+            ->post('/superadmin/impersonate/'.$this->superadmin->id)
+            ->assertRedirect('/superadmin')
+            ->assertSessionHasErrors(['action' => 'That account cannot be impersonated.']);
+
+        // Exiting without an active preview is forbidden.
+        $this->actingAs($this->superadmin)->post('/impersonate/exit')->assertForbidden();
+    }
+
+    public function test_dashboard_shows_leaderboard_and_activity(): void
+    {
+        $this->actingAs($this->owner)->postJson('/transactions', [
+            'shopId' => $this->shopId,
+            'type' => 'sale',
+            'paymentMethod' => 'cash',
+            'amount' => '100',
+            'customerName' => 'Ama',
+            'customerPhone' => '0240000001',
+            'outItems' => [['modelId' => $this->modelId, 'qty' => '1']],
+            'date' => '2026-01-15',
+            'idempotencyKey' => (string) Str::uuid(),
+        ])->assertOk();
+
+        $page = $this->actingAs($this->superadmin)->get('/superadmin');
+        $page->assertOk();
+        $page->assertSee('Who is selling', false);
+        $page->assertSee('Recent activity', false);
+        $page->assertSee('Owner', false);
+    }
 }

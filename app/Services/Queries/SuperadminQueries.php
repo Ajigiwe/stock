@@ -36,6 +36,8 @@ final class SuperadminQueries
             'shops' => $shops,
             'simTypes' => StockService::SIM_TYPES,
             'money' => self::money($today, $weekStart, $shopNames),
+            'leaders' => self::leaders(QuerySupport::addDays($today, -29)),
+            'activity' => self::activity(),
             'stock' => self::stockAlerts($shopNames),
             'approvals' => self::approvals($shopNames),
             'staff' => self::staff($shopNames),
@@ -97,6 +99,77 @@ final class SuperadminQueries
             'pending_txs' => (int) ($pending->txs ?? 0),
             'pending_revenue' => (float) ($pending->revenue ?? 0),
         ];
+    }
+
+    /** Staff leaderboard: completed sales per person over the trailing 30 days. */
+    private static function leaders(string $since): array
+    {
+        $rows = DB::table('transactions')
+            ->where('status', 'completed')
+            ->where('date', '>=', $since.' 00:00:00')
+            ->selectRaw('staff_id, COUNT(*) AS sales, COALESCE(SUM(amount), 0) AS revenue')
+            ->groupBy('staff_id')
+            ->orderByDesc('revenue')
+            ->limit(10)
+            ->get();
+
+        $names = DB::table('users')->whereIn('id', $rows->pluck('staff_id')->all())->get(['id', 'name', 'role', 'shop_id']);
+        $byId = $names->keyBy('id');
+        $shops = DB::table('shops')->pluck('name', 'id')->all();
+
+        $board = [];
+        foreach ($rows as $row) {
+            $user = $byId->get($row->staff_id);
+            $board[] = [
+                'name' => $user->name ?? '—',
+                'role' => $user->role ?? '—',
+                'shop_name' => ($user->shop_id ?? null) === null ? null : ($shops[$user->shop_id] ?? null),
+                'sales' => (int) $row->sales,
+                'revenue' => (float) $row->revenue,
+            ];
+        }
+
+        return $board;
+    }
+
+    /** Latest stock movements + till decisions across every shop. */
+    private static function activity(): array
+    {
+        $logs = DB::table('stock_logs')->orderBy('created_at', 'desc')->limit(10)->get();
+        $events = DB::table('transaction_events')->orderBy('created_at', 'desc')->limit(10)->get();
+
+        $userIds = $logs->pluck('staff_id')->merge($events->pluck('actor_id'))->unique()->all();
+        $names = DB::table('users')->whereIn('id', $userIds)->pluck('name', 'id')->all();
+        $shopNames = DB::table('shops')->pluck('name', 'id')->all();
+        $modelNames = DB::table('phone_models')
+            ->whereIn('id', $logs->pluck('phone_model_id')->filter()->unique()->all())
+            ->pluck('model_name', 'id')
+            ->all();
+        $txShops = DB::table('transactions')
+            ->whereIn('id', $events->pluck('transaction_id')->unique()->all())
+            ->pluck('shop_id', 'id')
+            ->all();
+
+        $moves = [];
+        foreach ($logs as $log) {
+            $moves[] = [
+                'at' => (string) $log->created_at,
+                'text' => ($names[$log->staff_id] ?? 'Someone').' · '.str_replace('_', ' ', (string) $log->action)
+                    .($log->phone_model_id !== null ? ' · '.($modelNames[$log->phone_model_id] ?? 'a model') : ''),
+                'shop_name' => $shopNames[$log->shop_id] ?? null,
+            ];
+        }
+
+        $decisions = [];
+        foreach ($events as $event) {
+            $decisions[] = [
+                'at' => (string) $event->created_at,
+                'text' => ($names[$event->actor_id] ?? 'Someone').' · '.(string) $event->action.' a transaction',
+                'shop_name' => $shopNames[$txShops[$event->transaction_id] ?? ''] ?? null,
+            ];
+        }
+
+        return ['moves' => $moves, 'decisions' => $decisions];
     }
 
     /** @return array<string, mixed> */

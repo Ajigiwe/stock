@@ -40,6 +40,9 @@ class TransactionService
         if (! ($me instanceof User)) {
             return $me;
         }
+        if ($me->isSuperAdmin()) {
+            return ['ok' => false, 'error' => 'Superadmin accounts cannot record sales.'];
+        }
 
         $type = $input['type'] ?? null;
         if (! in_array($type, self::TX_TYPES, true)) {

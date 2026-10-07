@@ -23,6 +23,18 @@
 @include('partials.offline-banner')
 @include('partials.install-prompt')
 
+@if (is_array(session('impersonator')) && isset(session('impersonator')['name']))
+    <div class="fixed inset-x-0 top-0 z-50 flex justify-center px-3 pt-2">
+        <div class="flex w-full max-w-md items-center gap-2.5 rounded-xl border border-warnstock/40 bg-ink px-4 py-2.5 text-white shadow-lg">
+            <span class="min-w-0 flex-1 truncate text-xs">Superadmin preview — you are seeing the app as <b>{{ $userName }}</b></span>
+            <form method="POST" action="{{ route('impersonate.exit') }}" class="shrink-0">
+                @csrf
+                <button type="submit" class="rounded-lg bg-white/15 px-2.5 py-1 text-xs font-bold transition-colors hover:bg-white/25">Exit</button>
+            </form>
+        </div>
+    </div>
+@endif
+
 @php
     // Nav structure — port of app-shell.tsx: a 4-tab mobile bar (Home,
     // Record, Devices|My shop, Reports) and a fuller desktop sidebar / mobile
@@ -43,6 +55,10 @@
                 : ['url' => route('reports.index'), 'label' => 'Reports', 'icon' => 'reports', 'active' => $active('reports')]),
         ['url' => route('reports.index'), 'label' => 'Reports', 'icon' => 'reports', 'active' => $active('reports')],
     ];
+    if ($isSuperAdmin ?? false) {
+        // The till is closed to superadmins: their tab opens the dashboard.
+        $mobileTabs[1] = ['url' => route('superadmin.index'), 'label' => 'Admin', 'icon' => 'superadmin', 'active' => $active('superadmin')];
+    }
 
     $primaryNav = [
         ['url' => route('dashboard'), 'label' => 'Home', 'icon' => 'dashboard', 'active' => $active('/')],
@@ -53,6 +69,11 @@
             $primaryNav,
             ['url' => route('superadmin.index'), 'label' => 'Superadmin', 'icon' => 'superadmin', 'active' => $active('superadmin')]
         );
+        // No till for superadmins: drop the Record entry they cannot use.
+        $primaryNav = array_values(array_filter(
+            $primaryNav,
+            static fn (array $item): bool => $item['label'] !== 'Record'
+        ));
     }
     if ($isOwner) {
         $primaryNav[] = ['url' => route('devices.index'), 'label' => 'Devices', 'icon' => 'devices', 'active' => $active('devices')];
@@ -78,6 +99,10 @@
             $menuNav,
             ['url' => route('superadmin.index'), 'label' => 'Superadmin', 'icon' => 'superadmin', 'active' => $active('superadmin')]
         );
+        $menuNav = array_values(array_filter(
+            $menuNav,
+            static fn (array $item): bool => $item['label'] !== 'Record transaction'
+        ));
     }
     if ($isOwner) {
         $menuNav[] = ['url' => route('devices.index'), 'label' => 'Devices', 'icon' => 'devices', 'active' => $active('devices')];
