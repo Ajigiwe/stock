@@ -24,7 +24,9 @@ class SettingsController extends Controller
     /** GET /settings */
     public function index(Request $request): View
     {
-        return view('settings.index', SettingsQueries::index($request->user()));
+        return view('settings.index', SettingsQueries::index($request->user()) + [
+            'simTypes' => StockService::SIM_TYPES,
+        ]);
     }
 
     /** POST /settings/shops — shop-manager.tsx */
@@ -161,8 +163,8 @@ class SettingsController extends Controller
             abort(403);
         }
 
-        $csv = "model_name,condition,cost_price,sale_price,opening_stock,low_stock_threshold\n"
-            ."iPhone 13 128GB,used,1500,2000,5,2\n";
+        $csv = "model_name,condition,sim_type,color,cost_price,sale_price,opening_stock,low_stock_threshold\n"
+            ."iPhone 13 128GB,used,esim,Blue,1500,2000,5,2\n";
 
         return response($csv, 200, [
             'Content-Type' => 'text/csv',

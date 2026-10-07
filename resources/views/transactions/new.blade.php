@@ -110,7 +110,7 @@
                                         <option value="">Choose a model…</option>
                                         <template x-for="m in catalogList()" :key="m.id">
                                             <option :value="m.id" :disabled="m.available <= 0"
-                                                    x-text="m.model_name + ' — ' + (m.sale_price != null ? money(m.sale_price) : 'no price') + (m.available <= 0 ? ' (out)' : '')"></option>
+                                                    x-text="m.model_name + (variantLabel(m) ? ' (' + variantLabel(m) + ')' : '') + ' — ' + (m.sale_price != null ? money(m.sale_price) : 'no price') + (m.available <= 0 ? ' (out)' : '')"></option>
                                         </template>
                                     </select>
                                 </div>
@@ -121,6 +121,7 @@
                                                 class="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-line bg-paper px-3 py-2.5 text-left transition-all hover:border-brand/50 hover:bg-brand-tint/40 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50">
                                             <span class="min-w-0">
                                                 <span class="block truncate text-[13px] font-bold text-ink" x-text="m.model_name"></span>
+                                                <span class="block truncate text-[11px] text-mute" x-show="variantLabel(m) !== ''" x-text="variantLabel(m)"></span>
                                                 <span class="tnum block text-xs font-semibold text-brand"
                                                       x-text="m.sale_price != null ? money(m.sale_price) : 'No price set'"></span>
                                             </span>
@@ -224,6 +225,7 @@
                                     <input type="hidden" :name="'outItems[' + i + '][qty]'" :value="line.qty">
                                     <div class="min-w-0 flex-1">
                                         <p class="truncate text-[13px] font-bold text-ink" x-text="model(line.modelId).model_name"></p>
+                                        <p class="tnum truncate text-[11px] text-mute" x-show="variantLabel(model(line.modelId)) !== ''" x-text="variantLabel(model(line.modelId))"></p>
                                         <p class="tnum text-[11.5px] text-mute" x-show="model(line.modelId).sale_price != null">
                                             <span x-text="money(model(line.modelId).sale_price)"></span> each
                                         </p>
@@ -364,6 +366,7 @@
         function posForm() {
             const shops = {!! json_encode($shops, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!};
             const stock = {!! json_encode($stock, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!};
+            const simLabels = {!! json_encode($simLabels, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!};
             const EMPTY_MODEL = { id: '', shop_id: '', model_name: '', condition: '', cost_price: null, sale_price: null, available: 0, low_stock_threshold: 0 };
             let nextKey = 1;
             const blankOut = () => ({ key: nextKey++, modelId: '', qty: '1', text: '', open: false, hl: 0 });
@@ -446,6 +449,13 @@
                     return s != null && s > 0 && Number(this.amount) < s;
                 },
                 low(m) { return m != null && m.available <= m.low_stock_threshold; },
+                variantLabel(m) {
+                    if (! m) return '';
+                    const parts = [];
+                    if (m.sim_type && simLabels[m.sim_type]) parts.push(simLabels[m.sim_type]);
+                    if (m.color) parts.push(m.color);
+                    return parts.join(' · ');
+                },
                 stockHint(m) { return m.available + ' in stock' + (this.low(m) ? ' \u00b7 low!' : ''); },
                 saveLabel() {
                     if (this.type === 'swap') return 'Record swap';

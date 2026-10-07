@@ -68,7 +68,7 @@ Raw DDL in `database/migrations/0000_00_00_000001_create_mrjeff_tables.php`
 |---|---|
 | `shops` | `name`, `location` |
 | `users` | `role` ENUM, `shop_id` (SET NULL, null ⇒ owner), `active`, `deactivated_at/by`; **no credentials** — auth was passwordless in the original, the port keeps email+bcrypt password (see §9) |
-| `phone_models` | per-shop stock row: `model_name`, `condition`, `cost_price`, `sale_price`, `opening_stock`, `bought_in`, `low_stock_threshold`, **`available` (derived)**; UNIQUE `(shop_id, model_name, condition)` |
+| `phone_models` | per-shop stock row: `model_name`, `condition`, `sim_type` (eSIM/physical × locked/unlocked, `''` = unspecified), `color` (free text), `cost_price`, `sale_price`, `opening_stock`, `bought_in`, `low_stock_threshold`, **`available` (derived)**; UNIQUE `(shop_id, model_name, condition, sim_type, color)` |
 | `transactions` | `type`, `payment_method`, `amount`, `customer_name/phone`, `date` (business day, anchored 12:00 UTC), `status`, `idempotency_key` (UNIQUE) |
 | `transaction_items` | `direction` out/in, `qty`, link to model; movements the triggers apply |
 | `stock_adjustments` | owner's direct corrections: `delta` (≠ 0), `reason`, `type` restock/correction |
@@ -306,7 +306,7 @@ write path runs after `DB::transaction()` commits.
   dismisses forever via `localStorage`); iPhones get Share-menu instructions
   instead, and it never shows when already installed.
 
-## 17. Testing (73 tests / 415 assertions, real MySQL)
+## 17. Testing (80 tests / 472 assertions, real MySQL)
 
 `phpunit.xml` points `DB_DATABASE` at `mrjeff_test`; `RefreshDatabase`
 re-migrates per test because SQLite cannot run the triggers.
@@ -321,6 +321,7 @@ re-migrates per test because SQLite cannot run the triggers.
 | `Feature/SettingsImportWipeTest` (6) | CSV import (parse → `bulkCreate` reuse, skip/warn, owner/shop guards, template 403) + data wipe (empty tables, accounts kept, typed `WIPE` confirm, role guard) |
 | `Unit/FormatTest`, `Unit/InputTest` | formatting + parsing byte parity |
 | `Feature/StaffPermissionsTest` (8) | owner grants/revokes `perm_*` (never on owners, never by staff); granted attendant approves/rejects/approve-alls within their shop, adjusts directly, locks closes and approves/applies counts; cross-shop reads as missing; original refusals intact |
+| `Feature/ModelVariantTest` (5) | SIM/color through single-add, edit, bulk, CSV (`colour` alias, invalid-SIM skip), request approval; POS + devices display |
 | `Feature/ExampleTest` | signed-out `/` redirects to `/login` |
 
 A scripted HTTP smoke (`21 checks`) additionally runs against

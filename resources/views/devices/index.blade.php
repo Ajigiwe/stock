@@ -53,6 +53,9 @@
         $alpineRows[$row['key']] = [
             'model_name' => $row['model_name'],
             'condition' => $row['condition'],
+            'sim_type' => $row['sim_type'],
+            'sim_label' => $row['sim_label'],
+            'color' => $row['color'],
             'total' => (int) $row['total'],
             'sold' => (int) $row['sold'],
             'low' => (int) $row['low'],
@@ -200,6 +203,12 @@
                                     @click="selected = {{ $keyExpr }}">
                                     <td class="sticky left-0 bg-white py-2 pl-4 pr-2 font-medium text-ink hover:text-brand">
                                         {{ $row['model_name'] }}
+                                        @if ($row['sim_label'] !== '')
+                                            <span class="ml-1 badge badge-muted">{{ $row['sim_label'] }}</span>
+                                        @endif
+                                        @if ($row['color'] !== '')
+                                            <span class="ml-1 text-xs font-normal text-mute">{{ $row['color'] }}</span>
+                                        @endif
                                     </td>
                                     <td class="py-2 pr-2">
                                         <span class="{{ $row['condition'] === 'new' ? 'badge badge-brand' : 'badge badge-muted' }}">
@@ -251,6 +260,12 @@
                                 <span class="{{ $row['condition'] === 'new' ? 'badge badge-brand' : 'badge badge-muted' }}">
                                     {{ $row['condition'] }}
                                 </span>
+                                @if ($row['sim_label'] !== '')
+                                    <span class="badge badge-muted">{{ $row['sim_label'] }}</span>
+                                @endif
+                                @if ($row['color'] !== '')
+                                    <span class="shrink-0 text-xs text-mute">{{ $row['color'] }}</span>
+                                @endif
                                 <span class="flex-1"></span>
                                 <span class="text-right text-[13px] tnum">
                                     <span class="font-mono font-bold text-ink"
@@ -285,6 +300,12 @@
                             <span class="{{ $row['condition'] === 'new' ? 'badge badge-brand' : 'badge badge-muted' }}">
                                 {{ $row['condition'] }}
                             </span>
+                            @if ($row['sim_label'] !== '')
+                                <span class="badge badge-brand">{{ $row['sim_label'] }}</span>
+                            @endif
+                            @if ($row['color'] !== '')
+                                <span class="text-sm text-mute">{{ $row['color'] }}</span>
+                            @endif
                             <span class="text-sm text-mute">
                                 <span class="font-semibold tnum text-ink" x-text="scopedTotal({{ $keyExpr }})">{{ $row['total'] }}</span>
                                 available ·
@@ -409,7 +430,7 @@
                     if (this.cond !== 'all' && row.condition !== this.cond) return false;
                     if (this.lowOnly && this.scopedLow(key) === 0) return false;
                     const term = this.q.trim().toLowerCase();
-                    if (term && row.model_name.toLowerCase().indexOf(term) === -1) return false;
+                    if (term && (row.model_name + ' ' + row.sim_label + ' ' + row.color).toLowerCase().indexOf(term) === -1) return false;
                     return true;
                 },
 

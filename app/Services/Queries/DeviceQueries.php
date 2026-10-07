@@ -3,6 +3,7 @@
 namespace App\Services\Queries;
 
 use App\Models\User;
+use App\Services\StockService;
 use App\Support\DataCache;
 use App\Support\Format;
 use Illuminate\Support\Facades\DB;
@@ -51,10 +52,13 @@ final class DeviceQueries
         }
 
         $rows = [];
-        $initRow = fn (string $modelName, string $condition): array => [
-            'key' => $modelName.'|'.$condition,
+        $initRow = fn (string $modelName, string $condition, string $sim, string $color): array => [
+            'key' => $modelName.'|'.$condition.'|'.$sim.'|'.$color,
             'model_name' => $modelName,
             'condition' => $condition,
+            'sim_type' => $sim,
+            'sim_label' => StockService::simLabel($sim),
+            'color' => $color,
             'total' => 0,
             'sold' => 0,
             'low' => 0,
@@ -68,9 +72,11 @@ final class DeviceQueries
         ];
 
         foreach ($stock as $model) {
-            $key = $model->model_name.'|'.$model->condition;
+            $sim = (string) ($model->sim_type ?? '');
+            $color = (string) ($model->color ?? '');
+            $key = $model->model_name.'|'.$model->condition.'|'.$sim.'|'.$color;
             if (! isset($rows[$key])) {
-                $rows[$key] = $initRow((string) $model->model_name, (string) $model->condition);
+                $rows[$key] = $initRow((string) $model->model_name, (string) $model->condition, $sim, $color);
             }
 
             $index = $shopIndex[$model->shop_id] ?? null;
@@ -95,9 +101,9 @@ final class DeviceQueries
                     continue;
                 }
 
-                $key = $item['model_name'].'|'.$item['condition'];
+                $key = $item['model_name'].'|'.$item['condition'].'|'.($item['sim_type'] ?? '').'|'.($item['color'] ?? '');
                 if (! isset($rows[$key])) {
-                    $rows[$key] = $initRow($item['model_name'], $item['condition']);
+                    $rows[$key] = $initRow($item['model_name'], $item['condition'], $item['sim_type'] ?? '', $item['color'] ?? '');
                 }
 
                 $rows[$key]['sold'] += $item['qty'];
@@ -128,6 +134,12 @@ final class DeviceQueries
             $cmp = strcasecmp($a['model_name'], $b['model_name']);
             if ($cmp === 0) {
                 $cmp = strcmp($a['condition'], $b['condition']);
+            }
+            if ($cmp === 0) {
+                $cmp = strcmp($a['sim_type'], $b['sim_type']);
+            }
+            if ($cmp === 0) {
+                $cmp = strcasecmp($a['color'], $b['color']);
             }
 
             return $cmp;

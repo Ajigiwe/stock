@@ -1,4 +1,4 @@
-@props(['model', 'shop' => '', 'canEdit' => false, 'adjustments' => []])
+@props(['model', 'shop' => '', 'canEdit' => false, 'adjustments' => [], 'simTypes' => []])
 
 {{-- Product edit + adjust modal — port of src/components/product-edit-modal.tsx.
      Owner gets the product form and applies adjustments directly; anyone else
@@ -21,6 +21,12 @@
             <span class="flex items-center gap-2">
                 {{ $model['model_name'] }}
                 <span class="{{ $model['condition'] === 'new' ? 'badge-brand' : 'badge-muted' }}">{{ $model['condition'] }}</span>
+                @if (($model['sim_type'] ?? '') !== '')
+                    <span class="badge-muted">{{ $simTypes[$model['sim_type']] ?? $model['sim_type'] }}</span>
+                @endif
+                @if (($model['color'] ?? '') !== '')
+                    <span class="text-sm text-mute">{{ $model['color'] }}</span>
+                @endif
             </span>
         </x-slot>
         <x-slot name="sub">Edit product details and adjust stock</x-slot>
@@ -81,6 +87,20 @@
                             <label class="label">Low-stock threshold</label>
                             <input type="number" min="0" name="lowStockThreshold" class="input"
                                    value="{{ old('lowStockThreshold', $model['low_stock_threshold']) }}">
+                        </div>
+                        <div>
+                            <label class="label">SIM type</label>
+                            <select name="simType" class="input">
+                                <option value="">Unspecified</option>
+                                @foreach ($simTypes as $value => $label)
+                                    <option value="{{ $value }}" @if (old('simType', $model['sim_type'] ?? '') === $value) selected @endif>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="label">Color</label>
+                            <input type="text" name="color" class="input" maxlength="64"
+                                   value="{{ old('color', $model['color'] ?? '') }}" placeholder="optional">
                         </div>
                         <div>
                             <label class="label">Cost price (GHS)</label>

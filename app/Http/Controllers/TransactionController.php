@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\SwappedPhone;
 use App\Models\Transaction;
 use App\Services\Queries\TransactionQueries;
+use App\Services\StockService;
 use App\Services\TransactionService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -38,6 +39,7 @@ class TransactionController extends Controller
         $payload['type'] = is_string($queryType) && in_array($queryType, ['sale', 'swap', 'repair'], true)
             ? $queryType
             : (is_string($oldType) && in_array($oldType, ['sale', 'swap', 'repair'], true) ? $oldType : 'sale');
+        $payload['simLabels'] = StockService::SIM_TYPES;
 
         return view('transactions.new', $payload);
     }

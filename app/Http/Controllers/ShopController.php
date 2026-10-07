@@ -7,6 +7,7 @@ use App\Models\Shop;
 use App\Services\Queries\QuerySupport;
 use App\Services\Queries\ShopQueries;
 use App\Services\ReconciliationService;
+use App\Services\StockService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -23,7 +24,9 @@ class ShopController extends Controller
         $date = $request->query('date');
         $date = is_string($date) && QuerySupport::isDate($date) ? $date : null;
 
-        return view('shops.show', ShopQueries::show($shop->id, $date, $request->user()));
+        return view('shops.show', ShopQueries::show($shop->id, $date, $request->user()) + [
+            'simTypes' => StockService::SIM_TYPES,
+        ]);
     }
 
     /** POST /shops/{shop}/close — submitDailyClose() */

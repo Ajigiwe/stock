@@ -56,7 +56,7 @@ final class TransactionQueries
     {
         $shopsQuery = DB::table('shops')->orderBy('name');
         $stockQuery = DB::table('phone_models')
-            ->select(['id', 'shop_id', 'model_name', 'condition', 'cost_price', 'sale_price', 'available', 'low_stock_threshold'])
+            ->select(['id', 'shop_id', 'model_name', 'condition', 'sim_type', 'color', 'cost_price', 'sale_price', 'available', 'low_stock_threshold'])
             ->orderBy('model_name')
             ->orderBy('condition');
 
@@ -81,6 +81,8 @@ final class TransactionQueries
             'shop_id' => (string) $row->shop_id,
             'model_name' => (string) $row->model_name,
             'condition' => (string) $row->condition,
+            'sim_type' => (string) ($row->sim_type ?? ''),
+            'color' => (string) ($row->color ?? ''),
             'cost_price' => $row->cost_price === null ? null : (float) $row->cost_price,
             'sale_price' => $row->sale_price === null ? null : (float) $row->sale_price,
             'available' => (int) $row->available,

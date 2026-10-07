@@ -184,6 +184,8 @@ class StockRequestService
                 ->where('shop_id', $request->shop_id)
                 ->where('model_name', $request->model_name)
                 ->where('condition', $request->condition)
+                ->where('sim_type', $request->sim_type ?? '')
+                ->where('color', $request->color ?? '')
                 ->exists();
             if ($duplicate) {
                 return ['ok' => false, 'error' => 'A model with this name and condition already exists'];
@@ -194,6 +196,8 @@ class StockRequestService
                 'shop_id' => $request->shop_id,
                 'model_name' => $request->model_name,
                 'condition' => $request->condition,
+                'sim_type' => $request->sim_type ?? '',
+                'color' => $request->color ?? '',
                 'cost_price' => $request->cost_price,
                 'sale_price' => $request->sale_price,
                 'opening_stock' => $request->opening_stock ?? 0,

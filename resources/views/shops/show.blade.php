@@ -771,9 +771,23 @@
                                 </select>
                             </div>
                             <div>
+                                <label class="label">SIM type</label>
+                                <select name="simType" class="input">
+                                    <option value="">Unspecified</option>
+                                    @foreach ($simTypes as $value => $label)
+                                        <option value="{{ $value }}" @if (old('simType') === $value) selected @endif>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div>
                                 <label class="label">Low-stock threshold</label>
                                 <input type="number" name="lowStockThreshold" class="input"
                                        value="{{ old('lowStockThreshold', '5') }}">
+                            </div>
+                            <div>
+                                <label class="label">Color</label>
+                                <input type="text" name="color" class="input" maxlength="64"
+                                       value="{{ old('color') }}" placeholder="optional">
                             </div>
                             <div>
                                 <label class="label">Cost price (GHS)</label>
@@ -905,6 +919,12 @@
                                                 @if ($low)
                                                     <span class="ml-2"><span class="badge-brand">low</span></span>
                                                 @endif
+                                                @if (($model['sim_type'] ?? '') !== '')
+                                                    <span class="ml-2"><span class="badge-muted">{{ $simTypes[$model['sim_type']] ?? $model['sim_type'] }}</span></span>
+                                                @endif
+                                                @if (($model['color'] ?? '') !== '')
+                                                    <span class="ml-2 text-sm font-normal text-mute">{{ $model['color'] }}</span>
+                                                @endif
                                             </td>
                                             <td>
                                                 <span class="{{ $model['condition'] === 'new' ? 'badge-brand' : 'badge-muted' }}">{{ $model['condition'] }}</span>
@@ -916,7 +936,7 @@
                                             <td class="text-right font-bold {{ $low ? 'text-lowstock' : 'text-ink' }}">{{ $model['available'] }}</td>
                                             <td>
                                                 <x-shop-product-modal :model="$model" :shop="$shopId"
-                                                                       :can-edit="$canEditStock"
+                                                                       :can-edit="$canEditStock" :sim-types="$simTypes"
                                                                        :adjustments="$rowAdjustments" />
                                             </td>
                                         </tr>
@@ -943,12 +963,18 @@
                                             </div>
                                             <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-mute">
                                                 <span class="{{ $model['condition'] === 'new' ? 'badge-brand' : 'badge-muted' }}">{{ $model['condition'] }}</span>
+                                                @if (($model['sim_type'] ?? '') !== '')
+                                                    <span class="badge-muted">{{ $simTypes[$model['sim_type']] ?? $model['sim_type'] }}</span>
+                                                @endif
+                                                @if (($model['color'] ?? '') !== '')
+                                                    <span>{{ $model['color'] }}</span>
+                                                @endif
                                                 <span>Cost {{ $model['cost_price'] !== null ? \App\Support\Format::money($model['cost_price']) : '—' }}</span>
                                                 <span>Sale {{ $model['sale_price'] !== null ? \App\Support\Format::money($model['sale_price']) : '—' }}</span>
                                             </div>
                                         </div>
                                         <x-shop-product-modal :model="$model" :shop="$shopId"
-                                                               :can-edit="$canEditStock"
+                                                               :can-edit="$canEditStock" :sim-types="$simTypes"
                                                                :adjustments="$rowAdjustments" />
                                     </div>
                                     <div class="mt-2 grid grid-cols-3 gap-2 text-center">

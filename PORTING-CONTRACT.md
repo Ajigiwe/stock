@@ -201,6 +201,7 @@ read it produce matching names:
   at `/login` (the form field stays `email`). Duplicates are refused with
   `That email address is already in use.` / `That phone number is already
   in use.`
+- **Product variants.** `simType` (one of `StockService::SIM_TYPES`, blank = unspecified) and `color` (≤64 chars, `colour` accepted as an alias) ride on create/update/bulk/CSV/request rows (`rows[i][sim_type]`, `rows[i][color]`); the duplicate key is name + condition + variant
 - **Staff capabilities.** `POST /settings/staff/{user}/permissions` takes
   checkbox fields `perm_approve_requests`, `perm_adjust_stock`,
   `perm_reconcile` (absent means off). Holders act inside their own shop

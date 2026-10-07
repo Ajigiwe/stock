@@ -30,6 +30,11 @@
 
             $outItems = array_values(array_filter($tx['items'], fn (array $i): bool => $i['direction'] === 'out'));
             $inItems = array_values(array_filter($tx['items'], fn (array $i): bool => $i['direction'] === 'in'));
+            $itemVariant = static fn (array $i): string => implode(', ', array_filter([
+                $i['condition'] ?? null,
+                \App\Services\StockService::simLabel($i['sim_type'] ?? ''),
+                ($i['color'] ?? '') !== '' ? $i['color'] : null,
+            ]));
 
             // Trade-ins: prefer the swapped-phones list; fall back to legacy
             // "in" items — and while the fallback is in play those items are
@@ -51,7 +56,7 @@
                 'Date: '.\App\Support\Format::dateTime($tx['date']),
                 'Type: '.$typeLabel,
                 $outItems !== [] ? 'Items: '.implode(', ', array_map(
-                    fn (array $i): string => $i['qty'].' x '.$i['model_name'].' ('.$i['condition'].')',
+                    fn (array $i): string => $i['qty'].' x '.$i['model_name'].' ('.$itemVariant($i).')',
                     $outItems
                 )) : null,
                 $tradeInLabels !== [] ? 'Trade-in: '.implode(', ', $tradeInLabels) : null,
@@ -123,6 +128,9 @@
                                 <li class="flex justify-between gap-2">
                                     <span class="min-w-0">
                                         {{ $item['model_name'] }}
+                                        @if ($itemVariant($item) !== '' && $itemVariant($item) !== ($item['condition'] ?? ''))
+                                            <span class="ml-1 align-middle text-xs font-normal text-mute">{{ $itemVariant($item) }}</span>
+                                        @endif
                                         @if ($item['direction'] === 'in')
                                             <span class="badge-ok ml-1 align-middle">in</span>
                                         @endif

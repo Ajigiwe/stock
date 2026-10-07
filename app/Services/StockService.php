@@ -19,7 +19,60 @@ class StockService
     /** @var list<string> */
     private const CONDITIONS = ['new', 'used'];
 
+    /**
+     * SIM variants a model can carry ('' = unspecified, for stock recorded
+     * before variants existed). Views render SIM_TYPES as the dropdown and
+     * simLabel() for badges; the keys are what the database stores.
+     *
+     * @var array<string, string>
+     */
+    public const SIM_TYPES = [
+        'esim' => 'eSIM',
+        'esim_locked' => 'eSIM Locked',
+        'esim_unlocked' => 'eSIM Unlocked',
+        'physical_sim' => 'Physical SIM',
+        'physical_sim_locked' => 'Physical SIM Locked',
+        'physical_sim_unlocked' => 'Physical SIM Unlocked',
+    ];
+
     public const MAX_BULK_ROWS = 500;
+
+    /**
+     * Normalise a SIM input (`Physical SIM`, `physical-sim` and `physical_sim`
+     * all land on the key); unknown values come back as '' so callers can
+     * tell "blank" from "invalid" by comparing against the raw input.
+     */
+    public static function simType(mixed $raw): string
+    {
+        if (! is_string($raw)) {
+            return '';
+        }
+
+        $value = str_replace([' ', '-'], '_', strtolower(trim($raw)));
+
+        return isset(self::SIM_TYPES[$value]) ? $value : '';
+    }
+
+    /** Display label for a stored sim_type ('' renders nothing). */
+    public static function simLabel(string $sim): string
+    {
+        return self::SIM_TYPES[$sim] ?? '';
+    }
+
+    /**
+     * Trimmed color name, at most 64 chars.
+     *
+     * @return array{0: bool, 1: string}
+     */
+    public static function color(mixed $raw): array
+    {
+        $value = Input::trimmed($raw);
+        if (strlen($value) > 64) {
+            return [false, 'Color is too long.'];
+        }
+
+        return [true, $value];
+    }
 
     /**
      * Port of createModel(): the owner creates the model immediately, an
@@ -56,6 +109,16 @@ class StockService
             return ['ok' => false, 'error' => 'Model name is too long.'];
         }
 
+        $simRaw = $input['simType'] ?? $input['sim_type'] ?? '';
+        $sim = self::simType($simRaw);
+        if (Input::trimmed($simRaw) !== '' && $sim === '') {
+            return ['ok' => false, 'error' => 'Choose a valid SIM type.'];
+        }
+        [$ok, $color] = self::color($input['color'] ?? $input['colour'] ?? null);
+        if (! $ok) {
+            return ['ok' => false, 'error' => $color];
+        }
+
         [$ok, $opening] = Input::count($input['openingStock'] ?? null, 'Opening stock', 0);
         if (! $ok) {
             return ['ok' => false, 'error' => $opening];
@@ -76,13 +139,15 @@ class StockService
         if ($me->role === User::ROLE_OWNER) {
             // Owner adds models immediately.
             try {
-                $modelId = DB::transaction(function () use ($shopId, $modelName, $condition, $cost, $sale, $opening, $threshold): string {
+                $modelId = DB::transaction(function () use ($shopId, $modelName, $condition, $sim, $color, $cost, $sale, $opening, $threshold): string {
                     $id = (string) Str::uuid();
                     DB::table('phone_models')->insert([
                         'id' => $id,
                         'shop_id' => $shopId,
                         'model_name' => $modelName,
                         'condition' => $condition,
+                        'sim_type' => $sim,
+                        'color' => $color,
                         'cost_price' => $cost,
                         'sale_price' => $sale,
                         'opening_stock' => $opening,
@@ -107,6 +172,8 @@ class StockService
             ->where('shop_id', $shopId)
             ->where('model_name', $modelName)
             ->where('condition', $condition)
+            ->where('sim_type', $sim)
+            ->where('color', $color)
             ->exists();
         if ($duplicate) {
             return ['ok' => false, 'error' => 'A model with this name and condition already exists in the shop.'];
@@ -120,6 +187,8 @@ class StockService
                 'type' => 'create_model',
                 'model_name' => $modelName,
                 'condition' => $condition,
+                'sim_type' => $sim,
+                'color' => $color,
                 'cost_price' => $cost,
                 'sale_price' => $sale,
                 'low_stock_threshold' => $threshold,
@@ -187,6 +256,16 @@ class StockService
             return ['ok' => false, 'error' => $threshold];
         }
 
+        $simRaw = $input['simType'] ?? $input['sim_type'] ?? '';
+        $sim = self::simType($simRaw);
+        if (Input::trimmed($simRaw) !== '' && $sim === '') {
+            return ['ok' => false, 'error' => 'Choose a valid SIM type.'];
+        }
+        [$ok, $color] = self::color($input['color'] ?? $input['colour'] ?? null);
+        if (! $ok) {
+            return ['ok' => false, 'error' => $color];
+        }
+
         $before = DB::table('phone_models')->where('id', $id)->where('shop_id', $shopId)->first();
         if ($before === null) {
             return ['ok' => false, 'error' => 'Product not found in this shop.'];
@@ -196,6 +275,8 @@ class StockService
             DB::table('phone_models')->where('id', $id)->where('shop_id', $shopId)->update([
                 'model_name' => $modelName,
                 'condition' => $condition,
+                'sim_type' => $sim,
+                'color' => $color,
                 'cost_price' => $cost,
                 'sale_price' => $sale,
                 'low_stock_threshold' => $threshold,
@@ -208,6 +289,8 @@ class StockService
             'before' => [
                 'model_name' => $before->model_name,
                 'condition' => $before->condition,
+                'sim_type' => $before->sim_type ?? '',
+                'color' => $before->color ?? '',
                 'cost_price' => $before->cost_price === null ? null : (float) $before->cost_price,
                 'sale_price' => $before->sale_price === null ? null : (float) $before->sale_price,
                 'low_stock_threshold' => (int) $before->low_stock_threshold,
@@ -215,6 +298,8 @@ class StockService
             'after' => [
                 'model_name' => $modelName,
                 'condition' => $condition,
+                'sim_type' => $sim,
+                'color' => $color,
                 'cost_price' => $cost,
                 'sale_price' => $sale,
                 'low_stock_threshold' => $threshold,
@@ -541,10 +626,10 @@ class StockService
             return ['ok' => false, 'error' => 'Import at most '.self::MAX_BULK_ROWS.' rows at a time.'];
         }
 
-        // Skip models that already exist for this shop (same name + condition).
+        // Skip models that already exist for this shop (same name + condition + variant).
         $existingKeys = [];
-        foreach (DB::table('phone_models')->where('shop_id', $shopId)->get(['model_name', 'condition']) as $model) {
-            $existingKeys[$model->model_name.'|'.$model->condition] = true;
+        foreach (DB::table('phone_models')->where('shop_id', $shopId)->get(['model_name', 'condition', 'sim_type', 'color']) as $model) {
+            $existingKeys[$model->model_name.'|'.$model->condition.'|'.($model->sim_type ?? '').'|'.($model->color ?? '')] = true;
         }
 
         $toInsert = [];
@@ -566,7 +651,21 @@ class StockService
                 continue;
             }
 
-            $key = $name.'|'.$condition;
+            $simRaw = $row['sim_type'] ?? $row['simType'] ?? $row['sim'] ?? '';
+            $sim = self::simType($simRaw);
+            if (Input::trimmed($simRaw) !== '' && $sim === '') {
+                $skipped[] = ['name' => $name, 'reason' => 'Invalid SIM type'];
+
+                continue;
+            }
+            [$ok, $color] = self::color($row['color'] ?? $row['colour'] ?? null);
+            if (! $ok) {
+                $skipped[] = ['name' => $name, 'reason' => $color];
+
+                continue;
+            }
+
+            $key = $name.'|'.$condition.'|'.$sim.'|'.$color;
             if (isset($existingKeys[$key])) {
                 $skipped[] = ['name' => $name, 'reason' => 'Already exists in this shop'];
 
@@ -616,6 +715,8 @@ class StockService
                 'shop_id' => $shopId,
                 'model_name' => $name,
                 'condition' => $condition,
+                'sim_type' => $sim,
+                'color' => $color,
                 'cost_price' => $cost,
                 'sale_price' => $sale,
                 'opening_stock' => $opening,
