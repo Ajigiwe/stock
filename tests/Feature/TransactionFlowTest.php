@@ -107,6 +107,26 @@ class TransactionFlowTest extends TestCase
         $this->assertSame(9, $this->available());
     }
 
+    public function test_a_swap_accepts_a_trade_in_name_not_on_the_list(): void
+    {
+        // The trade-in picker suggests iPhone models but any typed name
+        // records — the server never validated against the list.
+        $payload = $this->salePayload();
+        $payload['type'] = 'swap';
+        $payload['swapIn'] = [['name' => 'Tecno Camon 30']];
+
+        $this->actingAs($this->owner)
+            ->from('/transactions/new?type=swap')
+            ->post('/transactions', $payload)
+            ->assertRedirect('/shops/'.$this->shopId)
+            ->assertSessionHas('success', 'Transaction recorded.');
+
+        $this->assertDatabaseHas('swapped_phones', [
+            'shop_id' => $this->shopId,
+            'model_name' => 'Tecno Camon 30',
+        ]);
+    }
+
     public function test_the_offline_queues_json_replay_with_one_idempotency_key_records_once(): void
     {
         $payload = $this->salePayload();

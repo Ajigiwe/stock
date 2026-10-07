@@ -167,7 +167,7 @@
                                 <div class="mb-3.5 flex items-start justify-between gap-3">
                                     <div class="min-w-0">
                                         <h2 class="text-[15px] font-bold tracking-tight text-ink">Old iPhone received</h2>
-                                        <p class="mt-0.5 text-[12.5px] text-mute">The trade-in model — no need to enter its details</p>
+                                        <p class="mt-0.5 text-[12.5px] text-mute">Pick from the list or type any model — no valuation needed</p>
                                     </div>
                                     <button type="button" @click="addSwap()"
                                             class="shrink-0 rounded-lg bg-instock-tint px-3 py-1.5 text-xs font-bold text-instock transition-colors hover:bg-instock/10">
@@ -180,12 +180,9 @@
                                         <div class="flex items-end gap-2.5 rounded-xl border border-line bg-paper p-3">
                                             <div class="min-w-0 flex-1">
                                                 <label class="label" :for="'pos-swap-' + i">iPhone model</label>
-                                                <select class="input" :id="'pos-swap-' + i" x-model="line.name" :name="'swapIn[' + i + '][name]'">
-                                                    <option value="">Select iPhone model…</option>
-                                                    @foreach ($iphoneModels as $iphone)
-                                                        <option value="{{ $iphone }}">{{ $iphone }}</option>
-                                                    @endforeach
-                                                </select>
+                                                <input type="text" class="input" :id="'pos-swap-' + i" x-model="line.name"
+                                                       :name="'swapIn[' + i + '][name]'" :list="'pos-swap-list'"
+                                                       placeholder="Select or type the model…" autocomplete="off">
                                             </div>
                                             <button type="button" aria-label="Remove" @click="removeSwap(i)"
                                                     class="mb-0.5 inline-flex h-11 w-10 shrink-0 items-center justify-center rounded-lg text-mute transition-colors hover:bg-lowstock-tint hover:text-lowstock">
@@ -193,6 +190,11 @@
                                             </button>
                                         </div>
                                     </template>
+                                    <datalist id="pos-swap-list">
+                                        @foreach ($iphoneModels as $iphone)
+                                            <option value="{{ $iphone }}"></option>
+                                        @endforeach
+                                    </datalist>
                                 </div>
                             </div>
                         </section>
