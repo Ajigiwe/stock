@@ -229,7 +229,7 @@ POST /requests/{stockRequest}/approve|reject, /requests/approve-all     StockReq
      `{ok: false, error}` (what the offline queue reads),
    - otherwise redirect back with `success` flash (or `withErrors(['action'
      => …])`), preserving input; optional `$redirectTo` for flows the
-     original pushed elsewhere (POS → shop page).
+     original pushed elsewhere (POS returns to a fresh `/transactions/new`, whose floating flash is the success toast)
 
 No `isOwner()` checks in controllers — enforcement lives in middleware,
 queries and services so it cannot be forgotten on a new route.
@@ -306,7 +306,7 @@ write path runs after `DB::transaction()` commits.
   dismisses forever via `localStorage`); iPhones get Share-menu instructions
   instead, and it never shows when already installed.
 
-## 17. Testing (80 tests / 472 assertions, real MySQL)
+## 17. Testing (81 tests / 479 assertions, real MySQL)
 
 `phpunit.xml` points `DB_DATABASE` at `mrjeff_test`; `RefreshDatabase`
 re-migrates per test because SQLite cannot run the triggers.

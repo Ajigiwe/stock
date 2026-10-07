@@ -55,12 +55,21 @@ class TransactionController extends Controller
         $clean = empty($result['warning']) && empty($result['warnings']);
         $message = $result['ok'] && $clean ? 'Transaction recorded.' : '';
 
-        // The original pushed to the shop page after recording. Attendants
-        // never post a shopId (their own is forced), so fall back to it.
+        // Stay on the POS page with a fresh ticket: the success flash is the
+        // toast (partials/flash floats top-center and auto-dismisses), and a
+        // clean reload resets the Alpine form for the next customer. The
+        // original pushed to the shop page instead. Attendants never post a
+        // shopId (their own is forced), so fall back to it.
         $shopId = is_string($input['shopId'] ?? null) && $input['shopId'] !== ''
             ? $input['shopId']
             : $request->user()->shop_id;
-        $redirectTo = $shopId !== null ? route('shop.show', ['shop' => $shopId]) : null;
+        $type = is_string($input['type'] ?? null) && $input['type'] !== ''
+            ? $input['type']
+            : null;
+        $redirectTo = route('transactions.create', array_filter([
+            'shop' => $shopId,
+            'type' => $type,
+        ]));
 
         return $this->respond($request, $result, $message, $redirectTo);
     }

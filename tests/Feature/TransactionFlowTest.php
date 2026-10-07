@@ -98,8 +98,12 @@ class TransactionFlowTest extends TestCase
             ->from('/transactions/new')
             ->post('/transactions', $this->salePayload());
 
-        // transaction-form.tsx pushed to the shop page after recording.
-        $response->assertRedirect('/shops/'.$this->shopId);
+        // Stays on the POS with a fresh ticket; the flash is the toast.
+        $response->assertRedirect();
+        $this->assertStringContainsString(
+            '/transactions/new',
+            (string) $response->headers->get('Location')
+        );
         $response->assertSessionHas('success', 'Transaction recorded.');
 
         $this->assertSame(1, DB::table('transactions')->count());
@@ -118,7 +122,7 @@ class TransactionFlowTest extends TestCase
         $this->actingAs($this->owner)
             ->from('/transactions/new?type=swap')
             ->post('/transactions', $payload)
-            ->assertRedirect('/shops/'.$this->shopId)
+            ->assertRedirect()
             ->assertSessionHas('success', 'Transaction recorded.');
 
         $this->assertDatabaseHas('swapped_phones', [
