@@ -27,8 +27,13 @@ class StockRequestController extends Controller
     public function approveAll(Request $request, StockRequestService $service): RedirectResponse|JsonResponse
     {
         // The original reported how many requests were approved; the service
-        // keeps that count internal, so count the queue it is about to drain.
-        $pending = (int) DB::table('stock_requests')->where('status', 'pending')->count();
+        // keeps that count internal, so count the queue it is about to drain —
+        // scoped to the holder's shop exactly like the service scopes itself.
+        $pendingQuery = DB::table('stock_requests')->where('status', 'pending');
+        if (! $request->user()->isOwner()) {
+            $pendingQuery->where('shop_id', $request->user()->shop_id);
+        }
+        $pending = (int) $pendingQuery->count();
 
         $result = $service->approveAll($request->user());
 

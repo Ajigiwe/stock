@@ -141,7 +141,7 @@
 
                 <ul class="divide-y divide-paper">
                     @forelse ($staff as $member)
-                        <li class="py-2" x-data="{ resetOpen: false, pw: '' }">
+                        <li class="py-2" x-data="{ resetOpen: false, pw: '', permsOpen: false }">
                             <div class="flex items-center justify-between gap-3">
                                 <div class="min-w-0">
                                     <div class="flex flex-wrap items-center gap-2">
@@ -214,6 +214,38 @@
                                             @click="resetOpen = false; pw = ''">Cancel</button>
                                 </div>
                             </form>
+
+                            @if ($member['role'] !== 'owner')
+                                <div class="mt-3">
+                                    <button type="button" class="text-xs font-medium text-mute underline hover:text-ink"
+                                            @click="permsOpen = !permsOpen">Permissions</button>
+                                </div>
+                                <form method="POST" action="{{ route('settings.staff.permissions', $member['id']) }}"
+                                      x-show="permsOpen" x-cloak
+                                      class="mt-2 grid gap-2 rounded-lg border border-line bg-paper p-4 sm:grid-cols-3">
+                                    @csrf
+                                    <label class="flex items-center gap-2 text-xs text-ink">
+                                        <input type="checkbox" name="perm_approve_requests" value="1"
+                                               @checked($member['perm_approve_requests']) class="h-4 w-4 accent-indigo-700">
+                                        Approve stock requests
+                                    </label>
+                                    <label class="flex items-center gap-2 text-xs text-ink">
+                                        <input type="checkbox" name="perm_adjust_stock" value="1"
+                                               @checked($member['perm_adjust_stock']) class="h-4 w-4 accent-indigo-700">
+                                        Adjust stock directly
+                                    </label>
+                                    <label class="flex items-center gap-2 text-xs text-ink">
+                                        <input type="checkbox" name="perm_reconcile" value="1"
+                                               @checked($member['perm_reconcile']) class="h-4 w-4 accent-indigo-700">
+                                        Locks &amp; stock counts
+                                    </label>
+                                    <div class="flex items-end gap-2 sm:col-span-3">
+                                        <button type="submit" class="btn-primary btn-sm h-8">Save permissions</button>
+                                        <button type="button" class="btn-secondary btn-sm h-8"
+                                                @click="permsOpen = false">Cancel</button>
+                                    </div>
+                                </form>
+                            @endif
                         </li>
                     @empty
                         <li class="empty-state">No staff accounts yet.</li>

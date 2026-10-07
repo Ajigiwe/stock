@@ -170,6 +170,13 @@ RLS had no direct equivalent in Laravel, so the port is layered:
    `shop_id` to the session user's shop and **fails closed** when it is null;
    cross-shop URLs return 403/404, never data. The client-supplied `shopId`
    is always compared against the session profile before use.
+5. **Staff capabilities** (`perm_approve_requests`, `perm_adjust_stock`,
+   `perm_reconcile` on `users`, owner-granted in Settings) lift specific
+   owner-only writes for one shop only: services re-check the flag *and*
+   the row's `shop_id` against the holder's, and the shop page gates the
+   matching controls on `$canApproveRequests` / `$canReconcile` /
+   `$canEditStock`. Settings, staff, backup, wipe, reviews and voids stay
+   owner-only.
 
 ## 9. Authentication and Roles
 
@@ -292,7 +299,7 @@ write path runs after `DB::transaction()` commits.
 - `public/sw.js`: network-first navigations, precached shell/assets, downloads
   (CSV, backup) never cached. `manifest.webmanifest` + icons unchanged.
 
-## 17. Testing (65 tests / 364 assertions, real MySQL)
+## 17. Testing (73 tests / 415 assertions, real MySQL)
 
 `phpunit.xml` points `DB_DATABASE` at `mrjeff_test`; `RefreshDatabase`
 re-migrates per test because SQLite cannot run the triggers.
@@ -306,6 +313,7 @@ re-migrates per test because SQLite cannot run the triggers.
 | `Feature/BackupRoundTripTest` (3) | download (raw shape) → `mrjeff:import-backup` / UI upload restore, incl. verbatim error strings |
 | `Feature/SettingsImportWipeTest` (6) | CSV import (parse → `bulkCreate` reuse, skip/warn, owner/shop guards, template 403) + data wipe (empty tables, accounts kept, typed `WIPE` confirm, role guard) |
 | `Unit/FormatTest`, `Unit/InputTest` | formatting + parsing byte parity |
+| `Feature/StaffPermissionsTest` (8) | owner grants/revokes `perm_*` (never on owners, never by staff); granted attendant approves/rejects/approve-alls within their shop, adjusts directly, locks closes and approves/applies counts; cross-shop reads as missing; original refusals intact |
 | `Feature/ExampleTest` | signed-out `/` redirects to `/login` |
 
 A scripted HTTP smoke (`21 checks`) additionally runs against

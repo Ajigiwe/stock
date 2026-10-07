@@ -126,11 +126,14 @@ class ReconciliationService
         if (! ($me instanceof User)) {
             return $me;
         }
-        if ($me->role !== User::ROLE_OWNER) {
-            return ['ok' => false, 'error' => 'Only the owner can lock a close.'];
-        }
         if (! Input::isUuid($id)) {
             return ['ok' => false, 'error' => 'Invalid daily close.'];
+        }
+
+        $shopId = DB::table('daily_closes')->where('id', $id)->value('shop_id');
+        $denied = $this->denyScoped($me, is_string($shopId) ? $shopId : null, 'Only the owner can lock a close.', 'Open daily close not found');
+        if ($denied !== null) {
+            return ['ok' => false, 'error' => $denied];
         }
 
         try {
@@ -253,11 +256,14 @@ class ReconciliationService
         if (! ($me instanceof User)) {
             return $me;
         }
-        if ($me->role !== User::ROLE_OWNER) {
-            return ['ok' => false, 'error' => 'Only the owner can approve stock counts.'];
-        }
         if (! Input::isUuid($id)) {
             return ['ok' => false, 'error' => 'Invalid stock count.'];
+        }
+
+        $shopId = DB::table('stock_counts')->where('id', $id)->value('shop_id');
+        $denied = $this->denyScoped($me, is_string($shopId) ? $shopId : null, 'Only the owner can approve stock counts.', 'Submitted stock count not found');
+        if ($denied !== null) {
+            return ['ok' => false, 'error' => $denied];
         }
 
         try {
@@ -296,11 +302,14 @@ class ReconciliationService
         if (! ($me instanceof User)) {
             return $me;
         }
-        if ($me->role !== User::ROLE_OWNER) {
-            return ['ok' => false, 'error' => 'Only the owner can apply stock corrections.'];
-        }
         if (! Input::isUuid($id)) {
             return ['ok' => false, 'error' => 'Invalid stock count.'];
+        }
+
+        $shopId = DB::table('stock_counts')->where('id', $id)->value('shop_id');
+        $denied = $this->denyScoped($me, is_string($shopId) ? $shopId : null, 'Only the owner can apply stock corrections.', 'Submitted stock count not found');
+        if ($denied !== null) {
+            return ['ok' => false, 'error' => $denied];
         }
 
         // Contract §5 exposes no reason parameter; like StaffService::resetPassword
@@ -352,6 +361,26 @@ class ReconciliationService
         DataCache::flush();
 
         return ['ok' => true];
+    }
+
+    /**
+     * Owners act everywhere; an attendant holding the reconciliation grant
+     * acts inside their own shop only. Returns the refusal message, or null
+     * when the action may go ahead.
+     */
+    private function denyScoped(User $me, ?string $shopId, string $ownerError, string $absentError): ?string
+    {
+        if ($me->role === User::ROLE_OWNER) {
+            return null;
+        }
+        if (! $me->perm_reconcile) {
+            return $ownerError;
+        }
+        if ($me->shop_id === null || $shopId === null || $shopId !== $me->shop_id) {
+            return $absentError;
+        }
+
+        return null;
     }
 
     /**

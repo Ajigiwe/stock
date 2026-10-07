@@ -79,6 +79,47 @@ class StaffService
     }
 
     /**
+     * Owner-granted capabilities for one attendant (approve requests, direct
+     * stock adjust, reconciliation). Unchecked boxes post nothing, so absence
+     * means off. Owners always hold every capability — there is nothing to
+     * store on them.
+     *
+     * @param  array<string, mixed>  $input
+     * @return array{ok: bool, error?: string}
+     */
+    public function setPermissions(string $id, array $input, User $actor): array
+    {
+        $me = $this->fresh($actor);
+        if (! ($me instanceof User)) {
+            return $me;
+        }
+        if ($me->role !== User::ROLE_OWNER) {
+            return ['ok' => false, 'error' => 'Only the owner can change permissions.'];
+        }
+        if (! Input::isUuid($id)) {
+            return ['ok' => false, 'error' => 'Staff member not found.'];
+        }
+
+        $target = User::query()->whereKey($id)->first();
+        if ($target === null) {
+            return ['ok' => false, 'error' => 'Staff member not found.'];
+        }
+        if ($target->role === User::ROLE_OWNER) {
+            return ['ok' => false, 'error' => 'You cannot change an owner\'s permissions.'];
+        }
+
+        $target->forceFill([
+            'perm_approve_requests' => ! empty($input['perm_approve_requests']),
+            'perm_adjust_stock' => ! empty($input['perm_adjust_stock']),
+            'perm_reconcile' => ! empty($input['perm_reconcile']),
+        ])->save();
+
+        DataCache::flush();
+
+        return ['ok' => true];
+    }
+
+    /**
      * @return array{ok: bool, error?: string}
      */
     public function deactivate(string $id, User $actor): array

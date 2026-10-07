@@ -12,10 +12,10 @@
     $closingSubtitle = $dateLabel.' — units out, split by sale vs swap';
     $txTitle = $isToday ? 'Today\'s transactions' : 'Transactions';
     $txSubtitle = count($transactions).' recorded on '.$dateLabel;
-    $requestsTitle = $isOwner ? 'Pending stock changes' : 'Your pending changes';
+    $requestsTitle = $canApproveRequests ? 'Pending stock changes' : 'Your pending changes';
     $requestsSubtitle = count($pendingRequests) === 0
         ? 'Nothing awaiting action'
-        : ($isOwner ? 'Awaiting your approval' : 'Awaiting owner approval');
+        : ($canApproveRequests ? 'Awaiting your approval' : 'Awaiting owner approval');
     $swappedSubtitle = count($swappedPhones) === 0
         ? 'Trade-ins taken during swaps'
         : count($swappedPhones).' trade-in'.(count($swappedPhones) === 1 ? '' : 's').' received';
@@ -473,13 +473,13 @@
                         @if (! $isLocked)
                             <button type="submit" class="btn btn-primary">Submit counts</button>
                         @endif
-                        @if ($isOwner && $isOpen)
+                        @if ($canReconcile && $isOpen)
                             <button type="submit" form="lock-close" class="btn btn-secondary">Lock close</button>
                         @endif
                     </div>
                 </form>
 
-                @if ($isOwner && $isOpen)
+                @if ($canReconcile && $isOpen)
                     <form id="lock-close" method="POST" class="hidden"
                           action="{{ route('close.lock', ['shop' => $shopId, 'close' => $dailyClose['id']]) }}">
                         @csrf
@@ -493,9 +493,9 @@
         </x-shop-card>
 
         {{-- Physical stock count --}}
-        <x-shop-card title="Physical stock count" subtitle="Evidence first — corrections require owner approval">
+        <x-shop-card title="Physical stock count" subtitle="Evidence first — corrections require approval">
             <div class="space-y-4">
-                <p class="text-xs text-mute">Count what is physically present. Submitting evidence never changes inventory; an owner must review any variance.</p>
+                <p class="text-xs text-mute">Count what is physically present. Submitting evidence never changes inventory; any variance must be reviewed before corrections apply.</p>
 
                 <form method="POST" action="{{ route('counts.submit', ['shop' => $shopId]) }}" class="space-y-4">
                     @csrf
@@ -544,7 +544,7 @@
                             @endif
                         </div>
 
-                        @if ($isOwner && $latestStockCount['status'] === 'submitted')
+                        @if ($canReconcile && $latestStockCount['status'] === 'submitted')
                             <div class="mt-3 flex gap-2">
                                 <form method="POST" action="{{ route('counts.approve', ['count' => $latestStockCount['id']]) }}">
                                     @csrf
@@ -553,7 +553,7 @@
                             </div>
                         @endif
 
-                        @if ($isOwner && $latestStockCount['status'] === 'approved' && count($latestVarianceItems) > 0)
+                        @if ($canReconcile && $latestStockCount['status'] === 'approved' && count($latestVarianceItems) > 0)
                             <form method="POST" action="{{ route('counts.apply', ['count' => $latestStockCount['id']]) }}" class="mt-3 space-y-2">
                                 @csrf
                                 <input type="text" name="reason" class="input"
@@ -570,7 +570,7 @@
         {{-- Pending stock changes --}}
         <x-shop-card :title="$requestsTitle" :subtitle="$requestsSubtitle">
             <div class="space-y-2">
-                @if ($isOwner && count($pendingRequests) > 0)
+                @if ($canApproveRequests && count($pendingRequests) > 0)
                     <div class="flex items-center justify-between gap-3">
                         <span class="text-xs text-mute">{{ count($pendingRequests) }} pending change{{ count($pendingRequests) === 1 ? '' : 's' }}</span>
                         <form method="POST" action="{{ route('requests.approve-all') }}">
@@ -614,7 +614,7 @@
                                     @endif
                                 </div>
 
-                                @if ($isOwner)
+                                @if ($canApproveRequests)
                                     <div class="flex shrink-0 gap-2">
                                         <form method="POST" action="{{ route('requests.approve', ['stockRequest' => $stockRequest['id']]) }}">
                                             @csrf
@@ -626,7 +626,7 @@
                                         </form>
                                     </div>
                                 @else
-                                    <span class="badge-brand shrink-0">awaiting owner</span>
+                                    <span class="badge-brand shrink-0">awaiting approval</span>
                                 @endif
                             </div>
                         </div>

@@ -34,6 +34,9 @@ class User extends Authenticatable
         'active',
         'deactivated_at',
         'deactivated_by',
+        'perm_approve_requests',
+        'perm_adjust_stock',
+        'perm_reconcile',
     ];
 
     /** @var array<string, string> */
@@ -46,6 +49,9 @@ class User extends Authenticatable
     protected $casts = [
         'active' => 'boolean',
         'deactivated_at' => 'datetime',
+        'perm_approve_requests' => 'boolean',
+        'perm_adjust_stock' => 'boolean',
+        'perm_reconcile' => 'boolean',
     ];
 
     public const ROLE_OWNER = 'owner';

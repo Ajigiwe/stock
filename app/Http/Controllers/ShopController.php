@@ -36,8 +36,11 @@ class ShopController extends Controller
     }
 
     /** POST /shops/{shop}/close/{close}/lock — lockDailyClose() */
-    public function lockClose(Request $request, DailyClose $close, ReconciliationService $service): RedirectResponse|JsonResponse
+    public function lockClose(Request $request, Shop $shop, DailyClose $close, ReconciliationService $service): RedirectResponse|JsonResponse
     {
+        // NOTE: $shop must stay in the signature even though only its id
+        // matters downstream — Laravel fills controller arguments
+        // positionally, so dropping it would slide the shop id into $close.
         return $this->respond(
             $request,
             $service->lockClose($close->id, $request->user()),

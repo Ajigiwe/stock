@@ -88,6 +88,7 @@ POST /settings/staff               SettingsController@createStaff
 POST /settings/staff/{user}/deactivate    SettingsController@deactivate
 POST /settings/staff/{user}/reactivate    SettingsController@reactivate
 POST /settings/staff/{user}/reset-password SettingsController@resetPassword
+POST /settings/staff/{user}/permissions SettingsController@updatePermissions   (owner grants staff capabilities)
 POST /settings/models/bulk         SettingsController@bulkCreateModels
 POST /settings/models/import       SettingsController@importModels    (CSV upload; see §5b)
 GET  /settings/models/import/template SettingsController@importTemplate (CSV template download, owner)
@@ -158,6 +159,7 @@ StaffService::create(array $input, User $actor): array
 StaffService::deactivate(string $id, User $actor): array
 StaffService::reactivate(string $id, User $actor): array
 StaffService::resetPassword(string $id, User $actor): array
+StaffService::setPermissions(string $id, array $input, User $actor): array   // owner grants perm_* to an attendant
 
 ReconciliationService::submitClose(array $input, User $actor): array
 ReconciliationService::lockClose(string $id, User $actor): array
@@ -197,6 +199,15 @@ read it produce matching names:
   at `/login` (the form field stays `email`). Duplicates are refused with
   `That email address is already in use.` / `That phone number is already
   in use.`
+- **Staff capabilities.** `POST /settings/staff/{user}/permissions` takes
+  checkbox fields `perm_approve_requests`, `perm_adjust_stock`,
+  `perm_reconcile` (absent means off). Holders act inside their own shop
+  only: the shop page shows them approve/reject, lock/apply and direct
+  adjust controls (`$canApproveRequests`, `$canReconcile`, `$canEditStock`
+  in `ShopQueries::show`). Controllers must declare every route parameter
+  they consume — Laravel fills action arguments positionally, so a missing
+  `Shop $shop` slides the shop id into the next argument
+  (`close.lock` did exactly this).
 - **Route-bound ids are NOT in the form.** `shopId`, `modelId`, `txId`,
   `requestId`… come from the URL; controllers merge them into the input array
   before calling the service (e.g. `$input['modelId'] = $model->id;`).

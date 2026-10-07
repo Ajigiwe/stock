@@ -53,7 +53,9 @@ final class ShopQueries
             'isToday' => $day === $today,
             'dateLabel' => $label,
             'isOwner' => $isOwner,
-            'canEditStock' => $isOwner,
+            'canEditStock' => $isOwner || (bool) $actor->perm_adjust_stock,
+            'canApproveRequests' => $isOwner || (bool) $actor->perm_approve_requests,
+            'canReconcile' => $isOwner || (bool) $actor->perm_reconcile,
         ];
     }
 

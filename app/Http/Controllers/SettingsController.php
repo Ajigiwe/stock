@@ -81,6 +81,14 @@ class SettingsController extends Controller
         return $this->respond($request, $result, "Password reset for {$user->name}.");
     }
 
+    /** POST /settings/staff/{user}/permissions — owner-granted staff capabilities */
+    public function updatePermissions(Request $request, User $user, StaffService $service): RedirectResponse|JsonResponse
+    {
+        $result = $service->setPermissions($user->id, $request->except(['_token', '_method']), $request->user());
+
+        return $this->respond($request, $result, "Permissions updated for {$user->name}.");
+    }
+
     /** POST /settings/models/bulk — bulk-add-models.tsx (same RPC as /devices/models/bulk) */
     public function bulkCreateModels(Request $request, StockService $service): RedirectResponse|JsonResponse
     {

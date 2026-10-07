@@ -228,7 +228,8 @@ class StockService
 
     /**
      * Port of adjustStock(): the owner adjusts stock immediately (through the
-     * stock_adjustments row the trigger applies), an attendant files a request.
+     * stock_adjustments row the trigger applies); an attendant with the
+     * direct-adjust grant does the same, anyone else files a request.
      *
      * @param  array<string, mixed>  $input
      * @return array{ok: bool, error?: string}
@@ -274,7 +275,10 @@ class StockService
 
         $type = $delta > 0 ? 'restock' : 'correction';
 
-        if ($me->role === User::ROLE_OWNER) {
+        // Owners — and attendants holding the direct-adjust grant — move
+        // stock immediately; everyone else files a request. Either way the
+        // shop stays locked to the caller's own on the attendant path.
+        if ($me->role === User::ROLE_OWNER || $me->perm_adjust_stock) {
             try {
                 DB::table('stock_adjustments')->insert([
                     'id' => (string) Str::uuid(),
@@ -385,7 +389,8 @@ class StockService
             return ['ok' => true];
         }
 
-        if ($me->role === User::ROLE_OWNER) {
+        // Same direct path as adjust(): owners plus granted attendants.
+        if ($me->role === User::ROLE_OWNER || $me->perm_adjust_stock) {
             try {
                 $result = DB::transaction(function () use ($shopId, $items, $me, $reason): array {
                     $ids = array_keys($items);

@@ -51,7 +51,10 @@ class StockController extends Controller
         // (§5b), and the service expects it under its TS input key.
         $input['phoneModelId'] = $model->id;
 
-        $message = $request->user()->isOwner()
+        // A granted attendant hears the direct message too — the service, not
+        // the role, decides which path the stock took.
+        $direct = $request->user()->isOwner() || (bool) $request->user()->perm_adjust_stock;
+        $message = $direct
             ? 'Stock updated.'
             : 'Stock change sent — awaiting owner approval.';
 
@@ -69,7 +72,8 @@ class StockController extends Controller
         $items = array_filter((array) ($input['items'] ?? []), 'is_array');
         $changes = count($items);
 
-        $message = $request->user()->isOwner()
+        $direct = $request->user()->isOwner() || (bool) $request->user()->perm_adjust_stock;
+        $message = $direct
             ? "{$changes} stock change(s) applied."
             : "{$changes} change(s) sent — awaiting owner approval.";
 

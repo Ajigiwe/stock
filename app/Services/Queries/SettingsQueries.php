@@ -58,18 +58,23 @@ final class SettingsQueries
     private static function staff(): array
     {
         return DB::table('users')
-            ->select(['id', 'name', 'email', 'phone', 'role', 'shop_id', 'active', 'deactivated_at', 'created_at'])
+            ->select(['id', 'name', 'email', 'phone', 'role', 'shop_id', 'active', 'deactivated_at', 'created_at',
+                'perm_approve_requests', 'perm_adjust_stock', 'perm_reconcile'])
             ->orderBy('name')
             ->get()
             ->map(static fn (object $row): array => [
                 'id' => (string) $row->id,
                 'name' => (string) $row->name,
                 'email' => $row->email === null ? null : (string) $row->email,
+                'phone' => $row->phone === null ? null : (string) $row->phone,
                 'role' => (string) $row->role,
                 'shop_id' => $row->shop_id === null ? null : (string) $row->shop_id,
                 'active' => (bool) $row->active,
                 'deactivated_at' => $row->deactivated_at === null ? null : (string) $row->deactivated_at,
                 'created_at' => $row->created_at === null ? null : (string) $row->created_at,
+                'perm_approve_requests' => (bool) $row->perm_approve_requests,
+                'perm_adjust_stock' => (bool) $row->perm_adjust_stock,
+                'perm_reconcile' => (bool) $row->perm_reconcile,
             ])
             ->all();
     }

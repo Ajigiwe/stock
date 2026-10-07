@@ -26,11 +26,16 @@ class StockRequestService
         if (! ($me instanceof User)) {
             return $me;
         }
-        if ($me->role !== User::ROLE_OWNER) {
-            return ['ok' => false, 'error' => 'Only the owner can approve stock changes.'];
-        }
         if (! Input::isUuid($id)) {
             return ['ok' => false, 'error' => 'Invalid request.'];
+        }
+
+        // Capability check before touching anything: owners decide
+        // everywhere; a permitted attendant only inside their own shop.
+        $shopId = DB::table('stock_requests')->where('id', $id)->value('shop_id');
+        $denied = $this->denyDecide($me, is_string($shopId) ? $shopId : null);
+        if ($denied !== null) {
+            return ['ok' => false, 'error' => $denied];
         }
 
         try {
@@ -54,11 +59,14 @@ class StockRequestService
         if (! ($me instanceof User)) {
             return $me;
         }
-        if ($me->role !== User::ROLE_OWNER) {
-            return ['ok' => false, 'error' => 'Only the owner can reject stock changes.'];
-        }
         if (! Input::isUuid($id)) {
             return ['ok' => false, 'error' => 'Invalid request.'];
+        }
+
+        $shopId = DB::table('stock_requests')->where('id', $id)->value('shop_id');
+        $denied = $this->denyDecide($me, is_string($shopId) ? $shopId : null, 'reject');
+        if ($denied !== null) {
+            return ['ok' => false, 'error' => $denied];
         }
 
         try {
@@ -97,15 +105,18 @@ class StockRequestService
         if (! ($me instanceof User)) {
             return $me;
         }
-        if ($me->role !== User::ROLE_OWNER) {
+        if ($me->role !== User::ROLE_OWNER && ! $me->perm_approve_requests) {
             return ['ok' => false, 'error' => 'Only the owner can approve stock changes.'];
         }
 
         try {
-            $pending = DB::table('stock_requests')
-                ->where('status', 'pending')
-                ->orderBy('created_at')
-                ->get();
+            $query = DB::table('stock_requests')
+                ->where('status', 'pending');
+            if ($me->role !== User::ROLE_OWNER) {
+                // A permitted attendant only ever sees their own shop.
+                $query->where('shop_id', $me->shop_id);
+            }
+            $pending = $query->orderBy('created_at')->get();
         } catch (QueryException|\PDOException $e) {
             return $this->dbError($e);
         }
@@ -219,6 +230,26 @@ class StockRequestService
         ]);
 
         return ['ok' => true];
+    }
+
+    /**
+     * Owners decide everywhere; a permitted attendant only inside their own
+     * shop. Returns the refusal message, or null when the decision may go
+     * ahead.
+     */
+    private function denyDecide(User $me, ?string $shopId, string $verb = 'approve'): ?string
+    {
+        if ($me->role === User::ROLE_OWNER) {
+            return null;
+        }
+        if (! $me->perm_approve_requests) {
+            return 'Only the owner can '.$verb.' stock changes.';
+        }
+        if ($me->shop_id === null || $shopId === null || $shopId !== $me->shop_id) {
+            return 'Pending stock request not found';
+        }
+
+        return null;
     }
 
     /**

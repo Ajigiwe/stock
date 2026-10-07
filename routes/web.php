@@ -83,6 +83,7 @@ Route::middleware(['auth', 'active'])->group(function (): void {
         Route::post('/staff/{user}/deactivate', [SettingsController::class, 'deactivate'])->name('staff.deactivate');
         Route::post('/staff/{user}/reactivate', [SettingsController::class, 'reactivate'])->name('staff.reactivate');
         Route::post('/staff/{user}/reset-password', [SettingsController::class, 'resetPassword'])->name('staff.reset-password');
+        Route::post('/staff/{user}/permissions', [SettingsController::class, 'updatePermissions'])->name('staff.permissions');
         Route::post('/models/bulk', [SettingsController::class, 'bulkCreateModels'])->name('models.bulk');
         Route::post('/models/import', [SettingsController::class, 'importModels'])->name('models.import');
         Route::get('/models/import/template', [SettingsController::class, 'importTemplate'])->name('models.import.template');
