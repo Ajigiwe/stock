@@ -1,4 +1,4 @@
-const CACHE = "mrjeff-stock-v3";
+const CACHE = "mrjeff-stock-v4";
 const PRECACHE = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];
 
 // Only these may be cached read-through. Navigations are handled separately

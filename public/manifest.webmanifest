@@ -1,4 +1,5 @@
 {
+    "id": "/",
     "name": "Mr Jeff Stock",
     "short_name": "Jeff Stock",
     "description": "Multi-shop phone stock & sales management",
@@ -6,8 +7,9 @@
     "scope": "/",
     "display": "standalone",
     "orientation": "portrait",
-    "background_color": "#f4f4f5",
-    "theme_color": "#18181b",
+    "background_color": "#f4f5fa",
+    "theme_color": "#14162b",
+    "categories": ["business", "finance"],
     "icons": [
         {
             "src": "/icon-192.png",
@@ -26,6 +28,22 @@
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "maskable"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "Record sale",
+            "short_name": "Sale",
+            "description": "Open the POS terminal for a new sale",
+            "url": "/transactions/new?type=sale",
+            "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+        },
+        {
+            "name": "Record swap",
+            "short_name": "Swap",
+            "description": "Open the POS terminal for a swap",
+            "url": "/transactions/new?type=swap",
+            "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
         }
     ]
 }

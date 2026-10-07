@@ -297,7 +297,10 @@ write path runs after `DB::transaction()` commits.
 - POSTs sent as JSON get `{ok:false, error}` + 422 when rejected, so the
   queue surfaces the original message instead of silently retrying.
 - `public/sw.js`: network-first navigations, precached shell/assets, downloads
-  (CSV, backup) never cached. `manifest.webmanifest` + icons unchanged.
+  (CSV, backup) never cached. `manifest.webmanifest` carries `id`, categories,
+  `any` + `maskable` icons and Sale/Swap shortcuts; both layouts link it and
+  declare iOS standalone metas. Bump `CACHE` in `sw.js` whenever the precached
+  set changes so installed clients refresh.
 
 ## 17. Testing (73 tests / 415 assertions, real MySQL)
 
