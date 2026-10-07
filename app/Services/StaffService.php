@@ -120,6 +120,55 @@ class StaffService
     }
 
     /**
+     * Move an attendant to another shop (or park them without one — a
+     * shopless attendant fails closed everywhere until reassigned). Their
+     * history follows them: requests and transactions keep staff_id.
+     *
+     * @param  array<string, mixed>  $input
+     * @return array{ok: bool, error?: string, shopName?: string}
+     */
+    public function moveShop(string $id, array $input, User $actor): array
+    {
+        $me = $this->fresh($actor);
+        if (! ($me instanceof User)) {
+            return $me;
+        }
+        if ($me->role !== User::ROLE_OWNER) {
+            return ['ok' => false, 'error' => 'Only the owner can move staff.'];
+        }
+        if (! Input::isUuid($id)) {
+            return ['ok' => false, 'error' => 'Staff member not found.'];
+        }
+
+        $target = User::query()->whereKey($id)->first();
+        if ($target === null) {
+            return ['ok' => false, 'error' => 'Staff member not found.'];
+        }
+        if ($target->role === User::ROLE_OWNER) {
+            return ['ok' => false, 'error' => 'You cannot move an owner.'];
+        }
+
+        $shopId = $input['shopId'] ?? null;
+        if ($shopId !== null && $shopId !== '' && ! Input::isUuid($shopId)) {
+            return ['ok' => false, 'error' => 'Select a valid shop.'];
+        }
+
+        $shop = null;
+        if ($shopId !== null && $shopId !== '') {
+            $shop = DB::table('shops')->where('id', $shopId)->first(['id', 'name']);
+            if ($shop === null) {
+                return ['ok' => false, 'error' => 'Select a valid shop.'];
+            }
+        }
+
+        $target->forceFill(['shop_id' => $shop?->id])->save();
+
+        DataCache::flush();
+
+        return ['ok' => true, 'shopName' => $shop?->name];
+    }
+
+    /**
      * @return array{ok: bool, error?: string}
      */
     public function deactivate(string $id, User $actor): array

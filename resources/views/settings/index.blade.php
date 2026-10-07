@@ -141,7 +141,7 @@
 
                 <ul class="divide-y divide-paper">
                     @forelse ($staff as $member)
-                        <li class="py-2" x-data="{ resetOpen: false, pw: '', permsOpen: false }">
+                        <li class="py-2" x-data="{ resetOpen: false, pw: '', permsOpen: false, shopOpen: false }">
                             <div class="flex items-center justify-between gap-3">
                                 <div class="min-w-0">
                                     <div class="flex flex-wrap items-center gap-2">
@@ -243,6 +243,32 @@
                                         <button type="submit" class="btn-primary btn-sm h-8">Save permissions</button>
                                         <button type="button" class="btn-secondary btn-sm h-8"
                                                 @click="permsOpen = false">Cancel</button>
+                                    </div>
+                                </form>
+                            @endif
+
+                            @if ($member['role'] !== 'owner')
+                                <div class="mt-3">
+                                    <button type="button" class="text-xs font-medium text-mute underline hover:text-ink"
+                                            @click="shopOpen = !shopOpen">Move to another shop</button>
+                                </div>
+                                <form method="POST" action="{{ route('settings.staff.shop', $member['id']) }}"
+                                      x-show="shopOpen" x-cloak
+                                      class="mt-2 grid gap-2 rounded-lg border border-line bg-paper p-4 sm:grid-cols-2">
+                                    @csrf
+                                    <div>
+                                        <label class="label" for="move-{{ $member['id'] }}">Shop for {{ $member['name'] }}</label>
+                                        <select id="move-{{ $member['id'] }}" name="shopId" class="input">
+                                            <option value="">No shop (locked out)</option>
+                                            @foreach ($shops as $shop)
+                                                <option value="{{ $shop['id'] }}" @selected($shop['id'] === $member['shop_id'])>{{ $shop['name'] }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="flex items-end gap-2">
+                                        <button type="submit" class="btn-primary btn-sm h-8">Move</button>
+                                        <button type="button" class="btn-secondary btn-sm h-8"
+                                                @click="shopOpen = false">Cancel</button>
                                     </div>
                                 </form>
                             @endif

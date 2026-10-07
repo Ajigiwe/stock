@@ -315,4 +315,57 @@ class StaffPermissionsTest extends TestCase
             ->assertSessionHasErrors(['action' => 'Only the owner can lock a close.']);
         $this->assertSame('open', DB::table('daily_closes')->where('id', $closeId)->value('status'));
     }
+
+    public function test_owner_moves_attendant_between_shops_and_can_park_them(): void
+    {
+        $this->actingAs($this->owner)
+            ->from('/settings')
+            ->post('/settings/staff/'.$this->kofi->id.'/shop', ['shopId' => $this->shopB])
+            ->assertRedirect('/settings')
+            ->assertSessionHas('success', 'Kofi moved to East Shop.');
+        $this->assertSame($this->shopB, DB::table('users')->where('id', $this->kofi->id)->value('shop_id'));
+
+        // The new shop opens; the old one is now forbidden.
+        $this->kofi->refresh();
+        $this->actingAs($this->kofi)->get('/shops/'.$this->shopB)->assertOk();
+        $this->actingAs($this->kofi)->get('/shops/'.$this->shopA)->assertForbidden();
+
+        // Parking without a shop locks them out everywhere.
+        $this->actingAs($this->owner)
+            ->from('/settings')
+            ->post('/settings/staff/'.$this->kofi->id.'/shop', ['shopId' => ''])
+            ->assertRedirect('/settings')
+            ->assertSessionHas('success', 'Kofi has no shop for now.');
+        $this->assertNull(DB::table('users')->where('id', $this->kofi->id)->value('shop_id'));
+        $this->kofi->refresh();
+        $this->actingAs($this->kofi)->get('/shops/'.$this->shopB)->assertForbidden();
+    }
+
+    public function test_move_refuses_bad_shops_owners_and_staff_callers(): void
+    {
+        $this->actingAs($this->owner)
+            ->from('/settings')
+            ->post('/settings/staff/'.$this->kofi->id.'/shop', ['shopId' => 'nope'])
+            ->assertRedirect('/settings')
+            ->assertSessionHasErrors(['action' => 'Select a valid shop.']);
+
+        $this->actingAs($this->owner)
+            ->from('/settings')
+            ->post('/settings/staff/'.$this->kofi->id.'/shop', ['shopId' => (string) Str::uuid()])
+            ->assertRedirect('/settings')
+            ->assertSessionHasErrors(['action' => 'Select a valid shop.']);
+        $this->assertSame($this->shopA, DB::table('users')->where('id', $this->kofi->id)->value('shop_id'));
+
+        $this->actingAs($this->owner)
+            ->from('/settings')
+            ->post('/settings/staff/'.$this->owner->id.'/shop', ['shopId' => $this->shopB])
+            ->assertRedirect('/settings')
+            ->assertSessionHasErrors(['action' => 'You cannot move an owner.']);
+
+        $this->actingAs($this->kofi)
+            ->from('/settings')
+            ->post('/settings/staff/'.$this->kofi->id.'/shop', ['shopId' => $this->shopB])
+            ->assertRedirect('/settings')
+            ->assertSessionHasErrors(['action' => 'Only the owner can move staff.']);
+    }
 }

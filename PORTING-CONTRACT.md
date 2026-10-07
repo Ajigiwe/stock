@@ -89,6 +89,7 @@ POST /settings/staff/{user}/deactivate    SettingsController@deactivate
 POST /settings/staff/{user}/reactivate    SettingsController@reactivate
 POST /settings/staff/{user}/reset-password SettingsController@resetPassword
 POST /settings/staff/{user}/permissions SettingsController@updatePermissions   (owner grants staff capabilities)
+POST /settings/staff/{user}/shop         SettingsController@moveShop           (owner moves attendant shops)
 POST /settings/models/bulk         SettingsController@bulkCreateModels
 POST /settings/models/import       SettingsController@importModels    (CSV upload; see §5b)
 GET  /settings/models/import/template SettingsController@importTemplate (CSV template download, owner)
@@ -160,6 +161,7 @@ StaffService::deactivate(string $id, User $actor): array
 StaffService::reactivate(string $id, User $actor): array
 StaffService::resetPassword(string $id, User $actor): array
 StaffService::setPermissions(string $id, array $input, User $actor): array   // owner grants perm_* to an attendant
+StaffService::moveShop(string $id, array $input, User $actor): array         // owner moves an attendant (shopId, blank parks)
 
 ReconciliationService::submitClose(array $input, User $actor): array
 ReconciliationService::lockClose(string $id, User $actor): array
