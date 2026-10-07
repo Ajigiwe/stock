@@ -217,4 +217,74 @@ class ModelVariantTest extends TestCase
         $devices->assertSee('eSIM', false);
         $devices->assertSee('Desert Titanium', false);
     }
+
+    public function test_gadgets_live_beside_phones_as_their_own_category(): void
+    {
+        $this->actingAs($this->owner)
+            ->from('/shops/'.$this->shopId)
+            ->post('/shops/'.$this->shopId.'/models', [
+                'modelName' => 'AirPods Pro 2',
+                'condition' => 'new',
+                'category' => 'audio',
+                'salePrice' => '3500',
+                'openingStock' => '6',
+            ])
+            ->assertRedirect('/shops/'.$this->shopId);
+
+        $this->assertDatabaseHas('phone_models', [
+            'model_name' => 'AirPods Pro 2',
+            'category' => 'audio',
+            'sim_type' => '',
+        ]);
+
+        // Same name in another category is a different product.
+        $this->actingAs($this->owner)
+            ->post('/shops/'.$this->shopId.'/models', [
+                'modelName' => 'AirPods Pro 2',
+                'condition' => 'new',
+                'category' => 'accessory',
+            ]);
+        $this->assertSame(2, DB::table('phone_models')->where('model_name', 'AirPods Pro 2')->count());
+
+        // Unknown categories are refused, not silently filed as phones.
+        $this->actingAs($this->owner)
+            ->from('/shops/'.$this->shopId)
+            ->post('/shops/'.$this->shopId.'/models', [
+                'modelName' => 'Mystery Box',
+                'condition' => 'new',
+                'category' => 'spaceship',
+            ])
+            ->assertRedirect('/shops/'.$this->shopId)
+            ->assertSessionHasErrors(['action' => 'Choose a valid category.']);
+        $this->assertDatabaseMissing('phone_models', ['model_name' => 'Mystery Box']);
+
+        // Bulk + CSV carry the column too (colour alias included).
+        $csv = "model_name,condition,category,colour,opening_stock\n"
+            ."MacBook Air M3,new,laptop,Silver,2\n";
+
+        $this->actingAs($this->owner)
+            ->from('/settings')
+            ->post('/settings/models/import', [
+                'shopId' => $this->shopId,
+                'csv' => UploadedFile::fake()->createWithContent('gadgets.csv', $csv),
+            ])
+            ->assertRedirect('/settings')
+            ->assertSessionHas('success', '1 devices imported.');
+
+        $this->assertDatabaseHas('phone_models', [
+            'model_name' => 'MacBook Air M3',
+            'category' => 'laptop',
+            'color' => 'Silver',
+        ]);
+
+        // POS catalog and devices both surface the category.
+        $pos = $this->actingAs($this->owner)->get('/transactions/new');
+        $pos->assertOk();
+        $pos->assertSee('Audio', false);
+
+        $devices = $this->actingAs($this->owner)->get('/devices');
+        $devices->assertOk();
+        $devices->assertSee('Audio', false);
+        $devices->assertSee('Laptop', false);
+    }
 }

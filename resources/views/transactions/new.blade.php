@@ -94,6 +94,17 @@
                                     <span class="badge badge-muted shrink-0" x-text="shopModels().length + ' models'"></span>
                                 </div>
 
+                                <div class="mb-3 flex flex-wrap gap-1.5">
+                                    <button type="button" @click="catFilter = ''"
+                                            :class="catFilter === '' ? 'border-brand bg-brand text-white' : 'border-line bg-white text-mute hover:border-brand/40 hover:text-ink'"
+                                            class="rounded-full border px-2.5 py-1 text-[11px] font-bold transition-all">All</button>
+                                    <template x-for="(label, value) in catLabels" :key="value">
+                                        <button type="button" @click="catFilter = (catFilter === value ? '' : value)" x-text="label"
+                                                :class="catFilter === value ? 'border-brand bg-brand text-white' : 'border-line bg-white text-mute hover:border-brand/40 hover:text-ink'"
+                                                class="rounded-full border px-2.5 py-1 text-[11px] font-bold transition-all"></button>
+                                    </template>
+                                </div>
+
                                 <div class="relative mb-3 hidden sm:block">
                                     <span class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-mute">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
@@ -369,6 +380,7 @@
             const shops = {!! json_encode($shops, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!};
             const stock = {!! json_encode($stock, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!};
             const simLabels = {!! json_encode($simLabels, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!};
+            const catLabels = {!! json_encode($catLabels, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!};
             const EMPTY_MODEL = { id: '', shop_id: '', model_name: '', condition: '', cost_price: null, sale_price: null, available: 0, low_stock_threshold: 0 };
             let nextKey = 1;
             const blankOut = () => ({ key: nextKey++, modelId: '', qty: '1', text: '', open: false, hl: 0 });
@@ -397,6 +409,7 @@
                 swapLines: [blankSwap()],
                 error: '',
                 catalogQuery: '',
+                catFilter: '',
                 saving: false,
                 online: typeof navigator !== 'undefined' ? navigator.onLine : true,
 
@@ -454,6 +467,7 @@
                 variantLabel(m) {
                     if (! m) return '';
                     const parts = [];
+                    if (m.category && m.category !== 'phone' && catLabels[m.category]) parts.push(catLabels[m.category]);
                     if (m.sim_type && simLabels[m.sim_type]) parts.push(simLabels[m.sim_type]);
                     if (m.color) parts.push(m.color);
                     return parts.join(' · ');
@@ -491,7 +505,8 @@
                 catalogList() {
                     const q = (this.catalogQuery || '').trim().toLowerCase();
                     const models = this.shopModels();
-                    const found = q ? models.filter((m) => m.model_name.toLowerCase().includes(q)) : models;
+                    const inCat = this.catFilter === '' ? models : models.filter((m) => (m.category || 'phone') === this.catFilter);
+                    const found = q ? inCat.filter((m) => (m.model_name + ' ' + (m.color || '')).toLowerCase().includes(q)) : inCat;
                     return found
                         .slice()
                         .sort((a, b) => (b.available - a.available) || (a.model_name < b.model_name ? -1 : 1))

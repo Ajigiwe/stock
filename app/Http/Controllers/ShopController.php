@@ -26,6 +26,7 @@ class ShopController extends Controller
 
         return view('shops.show', ShopQueries::show($shop->id, $date, $request->user()) + [
             'simTypes' => StockService::SIM_TYPES,
+            'categories' => StockService::CATEGORIES,
         ]);
     }
 

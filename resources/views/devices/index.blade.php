@@ -56,6 +56,8 @@
             'sim_type' => $row['sim_type'],
             'sim_label' => $row['sim_label'],
             'color' => $row['color'],
+            'category' => $row['category'],
+            'cat_label' => $row['cat_label'],
             'total' => (int) $row['total'],
             'sold' => (int) $row['sold'],
             'low' => (int) $row['low'],
@@ -209,6 +211,9 @@
                                         @if ($row['color'] !== '')
                                             <span class="ml-1 text-xs font-normal text-mute">{{ $row['color'] }}</span>
                                         @endif
+                                        @if ($row['category'] !== 'phone')
+                                            <span class="ml-1 badge badge-brand">{{ $row['cat_label'] }}</span>
+                                        @endif
                                     </td>
                                     <td class="py-2 pr-2">
                                         <span class="{{ $row['condition'] === 'new' ? 'badge badge-brand' : 'badge badge-muted' }}">
@@ -266,6 +271,9 @@
                                 @if ($row['color'] !== '')
                                     <span class="shrink-0 text-xs text-mute">{{ $row['color'] }}</span>
                                 @endif
+                                @if ($row['category'] !== 'phone')
+                                    <span class="badge badge-brand">{{ $row['cat_label'] }}</span>
+                                @endif
                                 <span class="flex-1"></span>
                                 <span class="text-right text-[13px] tnum">
                                     <span class="font-mono font-bold text-ink"
@@ -305,6 +313,9 @@
                             @endif
                             @if ($row['color'] !== '')
                                 <span class="text-sm text-mute">{{ $row['color'] }}</span>
+                            @endif
+                            @if ($row['category'] !== 'phone')
+                                <span class="badge badge-brand">{{ $row['cat_label'] }}</span>
                             @endif
                             <span class="text-sm text-mute">
                                 <span class="font-semibold tnum text-ink" x-text="scopedTotal({{ $keyExpr }})">{{ $row['total'] }}</span>

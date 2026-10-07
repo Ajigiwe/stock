@@ -92,6 +92,7 @@ final class QuerySupport
             'condition' => (string) $row->condition,
             'sim_type' => (string) ($row->sim_type ?? ''),
             'color' => (string) ($row->color ?? ''),
+            'category' => (string) ($row->category ?? 'phone'),
             'cost_price' => $row->cost_price === null ? null : (float) $row->cost_price,
             'sale_price' => $row->sale_price === null ? null : (float) $row->sale_price,
             'opening_stock' => (int) $row->opening_stock,
@@ -169,7 +170,7 @@ final class QuerySupport
         $modelIds = $items->pluck('phone_model_id')->unique()->values()->all();
         $models = [];
         if ($modelIds !== []) {
-            foreach (DB::table('phone_models')->whereIn('id', $modelIds)->get(['id', 'model_name', 'condition', 'sim_type', 'color', 'cost_price']) as $model) {
+            foreach (DB::table('phone_models')->whereIn('id', $modelIds)->get(['id', 'model_name', 'condition', 'sim_type', 'color', 'category', 'cost_price']) as $model) {
                 $models[$model->id] = $model;
             }
         }
@@ -198,6 +199,7 @@ final class QuerySupport
                     'condition' => $model === null ? 'used' : (string) $model->condition,
                     'sim_type' => $model === null ? '' : (string) ($model->sim_type ?? ''),
                     'color' => $model === null ? '' : (string) ($model->color ?? ''),
+                    'category' => $model === null ? 'phone' : (string) ($model->category ?? 'phone'),
                     'cost_price' => $model === null || $model->cost_price === null ? null : (float) $model->cost_price,
                 ];
             }
@@ -290,6 +292,7 @@ final class QuerySupport
             'condition' => $row->condition === null ? null : (string) $row->condition,
             'sim_type' => (string) ($row->sim_type ?? ''),
             'color' => (string) ($row->color ?? ''),
+            'category' => (string) ($row->category ?? 'phone'),
             'cost_price' => $row->cost_price === null ? null : (float) $row->cost_price,
             'sale_price' => $row->sale_price === null ? null : (float) $row->sale_price,
             'low_stock_threshold' => $row->low_stock_threshold === null ? null : (int) $row->low_stock_threshold,
@@ -394,7 +397,7 @@ final class QuerySupport
         $rows = [];
         foreach ($txs as $tx) {
             foreach ($tx['items'] as $item) {
-                $key = $item['model_name'].'|'.$item['condition'].'|'.($item['sim_type'] ?? '').'|'.($item['color'] ?? '');
+                $key = $item['model_name'].'|'.$item['condition'].'|'.($item['sim_type'] ?? '').'|'.($item['color'] ?? '').'|'.($item['category'] ?? 'phone');
                 if (! isset($rows[$key])) {
                     $rows[$key] = [
                         'phone_model_id' => '',
@@ -402,6 +405,7 @@ final class QuerySupport
                         'condition' => $item['condition'],
                         'sim_type' => $item['sim_type'] ?? '',
                         'color' => $item['color'] ?? '',
+                        'category' => $item['category'] ?? 'phone',
                         'sold' => 0,
                         'swapped_out' => 0,
                     ];

@@ -1,4 +1,4 @@
-@props(['model', 'shop' => '', 'canEdit' => false, 'adjustments' => [], 'simTypes' => []])
+@props(['model', 'shop' => '', 'canEdit' => false, 'adjustments' => [], 'simTypes' => [], 'categories' => []])
 
 {{-- Product edit + adjust modal — port of src/components/product-edit-modal.tsx.
      Owner gets the product form and applies adjustments directly; anyone else
@@ -26,6 +26,9 @@
                 @endif
                 @if (($model['color'] ?? '') !== '')
                     <span class="text-sm text-mute">{{ $model['color'] }}</span>
+                @endif
+                @if (($model['category'] ?? 'phone') !== 'phone')
+                    <span class="badge-brand">{{ $categories[$model['category']] ?? $model['category'] }}</span>
                 @endif
             </span>
         </x-slot>
@@ -101,6 +104,14 @@
                             <label class="label">Color</label>
                             <input type="text" name="color" class="input" maxlength="64"
                                    value="{{ old('color', $model['color'] ?? '') }}" placeholder="optional">
+                        </div>
+                        <div>
+                            <label class="label">Category</label>
+                            <select name="category" class="input">
+                                @foreach ($categories as $value => $label)
+                                    <option value="{{ $value }}" @if (old('category', $model['category'] ?? 'phone') === $value) selected @endif>{{ $label }}</option>
+                                @endforeach
+                            </select>
                         </div>
                         <div>
                             <label class="label">Cost price (GHS)</label>

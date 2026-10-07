@@ -790,6 +790,14 @@
                                        value="{{ old('color') }}" placeholder="optional">
                             </div>
                             <div>
+                                <label class="label">Category</label>
+                                <select name="category" class="input">
+                                    @foreach ($categories as $value => $label)
+                                        <option value="{{ $value }}" @if (old('category', 'phone') === $value) selected @endif>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div>
                                 <label class="label">Cost price (GHS)</label>
                                 <input type="number" name="costPrice" class="input"
                                        value="{{ old('costPrice') }}" placeholder="optional">
@@ -925,6 +933,9 @@
                                                 @if (($model['color'] ?? '') !== '')
                                                     <span class="ml-2 text-sm font-normal text-mute">{{ $model['color'] }}</span>
                                                 @endif
+                                                @if (($model['category'] ?? 'phone') !== 'phone')
+                                                    <span class="ml-2"><span class="badge-brand">{{ $categories[$model['category']] ?? $model['category'] }}</span></span>
+                                                @endif
                                             </td>
                                             <td>
                                                 <span class="{{ $model['condition'] === 'new' ? 'badge-brand' : 'badge-muted' }}">{{ $model['condition'] }}</span>
@@ -936,7 +947,7 @@
                                             <td class="text-right font-bold {{ $low ? 'text-lowstock' : 'text-ink' }}">{{ $model['available'] }}</td>
                                             <td>
                                                 <x-shop-product-modal :model="$model" :shop="$shopId"
-                                                                       :can-edit="$canEditStock" :sim-types="$simTypes"
+                                                                       :can-edit="$canEditStock" :sim-types="$simTypes" :categories="$categories"
                                                                        :adjustments="$rowAdjustments" />
                                             </td>
                                         </tr>
@@ -969,12 +980,15 @@
                                                 @if (($model['color'] ?? '') !== '')
                                                     <span>{{ $model['color'] }}</span>
                                                 @endif
+                                                @if (($model['category'] ?? 'phone') !== 'phone')
+                                                    <span class="badge-brand">{{ $categories[$model['category']] ?? $model['category'] }}</span>
+                                                @endif
                                                 <span>Cost {{ $model['cost_price'] !== null ? \App\Support\Format::money($model['cost_price']) : '—' }}</span>
                                                 <span>Sale {{ $model['sale_price'] !== null ? \App\Support\Format::money($model['sale_price']) : '—' }}</span>
                                             </div>
                                         </div>
                                         <x-shop-product-modal :model="$model" :shop="$shopId"
-                                                               :can-edit="$canEditStock" :sim-types="$simTypes"
+                                                               :can-edit="$canEditStock" :sim-types="$simTypes" :categories="$categories"
                                                                :adjustments="$rowAdjustments" />
                                     </div>
                                     <div class="mt-2 grid grid-cols-3 gap-2 text-center">

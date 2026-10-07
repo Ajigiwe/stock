@@ -52,13 +52,15 @@ final class DeviceQueries
         }
 
         $rows = [];
-        $initRow = fn (string $modelName, string $condition, string $sim, string $color): array => [
-            'key' => $modelName.'|'.$condition.'|'.$sim.'|'.$color,
+        $initRow = fn (string $modelName, string $condition, string $sim, string $color, string $category): array => [
+            'key' => $modelName.'|'.$condition.'|'.$sim.'|'.$color.'|'.$category,
             'model_name' => $modelName,
             'condition' => $condition,
             'sim_type' => $sim,
             'sim_label' => StockService::simLabel($sim),
             'color' => $color,
+            'category' => $category,
+            'cat_label' => StockService::catLabel($category),
             'total' => 0,
             'sold' => 0,
             'low' => 0,
@@ -74,9 +76,10 @@ final class DeviceQueries
         foreach ($stock as $model) {
             $sim = (string) ($model->sim_type ?? '');
             $color = (string) ($model->color ?? '');
-            $key = $model->model_name.'|'.$model->condition.'|'.$sim.'|'.$color;
+            $category = (string) ($model->category ?? 'phone');
+            $key = $model->model_name.'|'.$model->condition.'|'.$sim.'|'.$color.'|'.$category;
             if (! isset($rows[$key])) {
-                $rows[$key] = $initRow((string) $model->model_name, (string) $model->condition, $sim, $color);
+                $rows[$key] = $initRow((string) $model->model_name, (string) $model->condition, $sim, $color, $category);
             }
 
             $index = $shopIndex[$model->shop_id] ?? null;
@@ -101,9 +104,9 @@ final class DeviceQueries
                     continue;
                 }
 
-                $key = $item['model_name'].'|'.$item['condition'].'|'.($item['sim_type'] ?? '').'|'.($item['color'] ?? '');
+                $key = $item['model_name'].'|'.$item['condition'].'|'.($item['sim_type'] ?? '').'|'.($item['color'] ?? '').'|'.($item['category'] ?? 'phone');
                 if (! isset($rows[$key])) {
-                    $rows[$key] = $initRow($item['model_name'], $item['condition'], $item['sim_type'] ?? '', $item['color'] ?? '');
+                    $rows[$key] = $initRow($item['model_name'], $item['condition'], $item['sim_type'] ?? '', $item['color'] ?? '', $item['category'] ?? 'phone');
                 }
 
                 $rows[$key]['sold'] += $item['qty'];
@@ -140,6 +143,9 @@ final class DeviceQueries
             }
             if ($cmp === 0) {
                 $cmp = strcasecmp($a['color'], $b['color']);
+            }
+            if ($cmp === 0) {
+                $cmp = strcmp($a['category'], $b['category']);
             }
 
             return $cmp;

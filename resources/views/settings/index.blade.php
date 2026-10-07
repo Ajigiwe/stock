@@ -293,14 +293,14 @@
                   x-data="{
                       shopId: '',
                       error: '',
-                      rows: [{ model_name: '', condition: 'new', sim_type: '', color: '', cost_price: '', sale_price: '', opening_stock: '0', low_stock_threshold: '5' }],
+                      rows: [{ model_name: '', condition: 'new', sim_type: '', color: '', category: 'phone', cost_price: '', sale_price: '', opening_stock: '0', low_stock_threshold: '5' }],
                       addRow() {
-                          this.rows.push({ model_name: '', condition: 'new', sim_type: '', color: '', cost_price: '', sale_price: '', opening_stock: '0', low_stock_threshold: '5' });
+                          this.rows.push({ model_name: '', condition: 'new', sim_type: '', color: '', category: 'phone', cost_price: '', sale_price: '', opening_stock: '0', low_stock_threshold: '5' });
                       },
                       removeRow(i) {
                           this.rows = this.rows.length > 1
                               ? this.rows.filter((_, idx) => idx !== i)
-                              : [{ model_name: '', condition: 'new', sim_type: '', color: '', cost_price: '', sale_price: '', opening_stock: '0', low_stock_threshold: '5' }];
+                              : [{ model_name: '', condition: 'new', sim_type: '', color: '', category: 'phone', cost_price: '', sale_price: '', opening_stock: '0', low_stock_threshold: '5' }];
                       },
                       check(e) {
                           this.error = '';
@@ -325,13 +325,14 @@
                 </div>
 
                 <div class="overflow-x-auto rounded-lg border border-line">
-                    <table class="table-base min-w-[880px]">
+                    <table class="table-base min-w-[1020px]">
                         <thead>
                             <tr>
                                 <th scope="col">Model name</th>
                                 <th scope="col">Condition</th>
                                 <th scope="col">SIM type</th>
                                 <th scope="col">Color</th>
+                                <th scope="col">Category</th>
                                 <th scope="col">Cost price</th>
                                 <th scope="col">Sale price</th>
                                 <th scope="col">Opening stock</th>
@@ -363,6 +364,13 @@
                                     <td>
                                         <input type="text" class="input" autocomplete="off" placeholder="optional" maxlength="64"
                                                x-model="row.color" :name="'rows[' + i + '][color]'">
+                                    </td>
+                                    <td>
+                                        <select class="input" x-model="row.category" :name="'rows[' + i + '][category]'">
+                                            @foreach ($categories as $value => $label)
+                                                <option value="{{ $value }}">{{ $label }}</option>
+                                            @endforeach
+                                        </select>
                                     </td>
                                     <td>
                                         <input type="text" inputmode="decimal" class="input" autocomplete="off" placeholder="optional"
@@ -429,8 +437,8 @@
                 </div>
                 <p class="text-xs text-mute">
                     Columns:
-                    <code class="rounded bg-paper px-1 py-0.5">model_name, condition, sim_type, color, cost_price, sale_price, opening_stock, low_stock_threshold</code>.
-                    SIM type accepts eSIM, eSIM Locked, eSIM Unlocked, Physical SIM, Physical SIM Locked or Physical SIM Unlocked (blank means unspecified).
+                    <code class="rounded bg-paper px-1 py-0.5">model_name, condition, sim_type, color, category, cost_price, sale_price, opening_stock, low_stock_threshold</code>.
+                    SIM type accepts eSIM, eSIM Locked, eSIM Unlocked, Physical SIM, Physical SIM Locked or Physical SIM Unlocked (blank means unspecified). Category accepts phone, tablet, laptop, audio, wearable or accessory.
                     <a href="{{ route('settings.models.import.template') }}" class="font-medium text-brand underline">Download the template</a>.
                     Rows that already exist in the shop are skipped, and skipped or invalid rows are
                     reported after the import. The shop above applies to every row.

@@ -160,7 +160,7 @@ class SettingsImportWipeTest extends TestCase
             'attachment; filename="mr-jeff-stock-import-template.csv"'
         );
         $this->assertStringStartsWith(
-            "model_name,condition,sim_type,color,cost_price,sale_price,opening_stock,low_stock_threshold\n",
+            "model_name,condition,sim_type,color,category,cost_price,sale_price,opening_stock,low_stock_threshold\n",
             $csv->getContent()
         );
 

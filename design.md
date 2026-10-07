@@ -68,7 +68,7 @@ Raw DDL in `database/migrations/0000_00_00_000001_create_mrjeff_tables.php`
 |---|---|
 | `shops` | `name`, `location` |
 | `users` | `role` ENUM, `shop_id` (SET NULL, null ⇒ owner), `active`, `deactivated_at/by`; **no credentials** — auth was passwordless in the original, the port keeps email+bcrypt password (see §9) |
-| `phone_models` | per-shop stock row: `model_name`, `condition`, `sim_type` (eSIM/physical × locked/unlocked, `''` = unspecified), `color` (free text), `cost_price`, `sale_price`, `opening_stock`, `bought_in`, `low_stock_threshold`, **`available` (derived)**; UNIQUE `(shop_id, model_name, condition, sim_type, color)` |
+| `phone_models` | per-shop stock row: `model_name`, `condition`, `sim_type` (eSIM/physical × locked/unlocked, `''` = unspecified), `color` (free text), `category` (phone/tablet/laptop/audio/wearable/accessory), `cost_price`, `sale_price`, `opening_stock`, `bought_in`, `low_stock_threshold`, **`available` (derived)**; UNIQUE `(shop_id, model_name, condition, sim_type, color, category)` |
 | `transactions` | `type`, `payment_method`, `amount`, `customer_name/phone`, `date` (business day, anchored 12:00 UTC), `status`, `idempotency_key` (UNIQUE) |
 | `transaction_items` | `direction` out/in, `qty`, link to model; movements the triggers apply |
 | `stock_adjustments` | owner's direct corrections: `delta` (≠ 0), `reason`, `type` restock/correction |
@@ -312,7 +312,7 @@ write path runs after `DB::transaction()` commits.
   dismisses forever via `localStorage`); iPhones get Share-menu instructions
   instead, and it never shows when already installed.
 
-## 17. Testing (88 tests / 518 assertions, real MySQL)
+## 17. Testing (89 tests / 536 assertions, real MySQL)
 
 `phpunit.xml` points `DB_DATABASE` at `mrjeff_test`; `RefreshDatabase`
 re-migrates per test because SQLite cannot run the triggers.

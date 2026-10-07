@@ -60,6 +60,40 @@ class StockService
     }
 
     /**
+     * Gadget categories ('' normalises to 'phone', which is also what every
+     * pre-category row backfills to). Views render CATEGORIES as the dropdown
+     * and catLabel() for badges.
+     *
+     * @var array<string, string>
+     */
+    public const CATEGORIES = [
+        'phone' => 'Phone',
+        'tablet' => 'Tablet',
+        'laptop' => 'Laptop',
+        'audio' => 'Audio',
+        'wearable' => 'Wearable',
+        'accessory' => 'Accessory',
+    ];
+
+    /** Normalise a category input: blank means 'phone', anything unknown comes back as ''. */
+    public static function category(mixed $raw): string
+    {
+        if (! is_string($raw) || trim($raw) === '') {
+            return 'phone';
+        }
+
+        $value = str_replace([' ', '-'], '_', strtolower(trim($raw)));
+
+        return isset(self::CATEGORIES[$value]) ? $value : '';
+    }
+
+    /** Display label for a stored category. */
+    public static function catLabel(string $category): string
+    {
+        return self::CATEGORIES[$category] ?? self::CATEGORIES['phone'];
+    }
+
+    /**
      * Trimmed color name, at most 64 chars.
      *
      * @return array{0: bool, 1: string}
@@ -118,6 +152,11 @@ class StockService
         if (! $ok) {
             return ['ok' => false, 'error' => $color];
         }
+        $categoryRaw = $input['category'] ?? null;
+        $category = self::category($categoryRaw);
+        if ($category === '') {
+            return ['ok' => false, 'error' => 'Choose a valid category.'];
+        }
 
         [$ok, $opening] = Input::count($input['openingStock'] ?? null, 'Opening stock', 0);
         if (! $ok) {
@@ -139,7 +178,7 @@ class StockService
         if ($me->isAdmin()) {
             // Owner adds models immediately.
             try {
-                $modelId = DB::transaction(function () use ($shopId, $modelName, $condition, $sim, $color, $cost, $sale, $opening, $threshold): string {
+                $modelId = DB::transaction(function () use ($shopId, $modelName, $condition, $sim, $color, $category, $cost, $sale, $opening, $threshold): string {
                     $id = (string) Str::uuid();
                     DB::table('phone_models')->insert([
                         'id' => $id,
@@ -148,6 +187,7 @@ class StockService
                         'condition' => $condition,
                         'sim_type' => $sim,
                         'color' => $color,
+                        'category' => $category,
                         'cost_price' => $cost,
                         'sale_price' => $sale,
                         'opening_stock' => $opening,
@@ -174,6 +214,7 @@ class StockService
             ->where('condition', $condition)
             ->where('sim_type', $sim)
             ->where('color', $color)
+            ->where('category', $category)
             ->exists();
         if ($duplicate) {
             return ['ok' => false, 'error' => 'A model with this name and condition already exists in the shop.'];
@@ -189,6 +230,7 @@ class StockService
                 'condition' => $condition,
                 'sim_type' => $sim,
                 'color' => $color,
+                'category' => $category,
                 'cost_price' => $cost,
                 'sale_price' => $sale,
                 'low_stock_threshold' => $threshold,
@@ -265,6 +307,11 @@ class StockService
         if (! $ok) {
             return ['ok' => false, 'error' => $color];
         }
+        $categoryRaw = $input['category'] ?? null;
+        $category = self::category($categoryRaw);
+        if ($category === '') {
+            return ['ok' => false, 'error' => 'Choose a valid category.'];
+        }
 
         $before = DB::table('phone_models')->where('id', $id)->where('shop_id', $shopId)->first();
         if ($before === null) {
@@ -277,6 +324,7 @@ class StockService
                 'condition' => $condition,
                 'sim_type' => $sim,
                 'color' => $color,
+                'category' => $category,
                 'cost_price' => $cost,
                 'sale_price' => $sale,
                 'low_stock_threshold' => $threshold,
@@ -291,6 +339,7 @@ class StockService
                 'condition' => $before->condition,
                 'sim_type' => $before->sim_type ?? '',
                 'color' => $before->color ?? '',
+                'category' => $before->category ?? 'phone',
                 'cost_price' => $before->cost_price === null ? null : (float) $before->cost_price,
                 'sale_price' => $before->sale_price === null ? null : (float) $before->sale_price,
                 'low_stock_threshold' => (int) $before->low_stock_threshold,
@@ -300,6 +349,7 @@ class StockService
                 'condition' => $condition,
                 'sim_type' => $sim,
                 'color' => $color,
+                'category' => $category,
                 'cost_price' => $cost,
                 'sale_price' => $sale,
                 'low_stock_threshold' => $threshold,
@@ -626,10 +676,10 @@ class StockService
             return ['ok' => false, 'error' => 'Import at most '.self::MAX_BULK_ROWS.' rows at a time.'];
         }
 
-        // Skip models that already exist for this shop (same name + condition + variant).
+        // Skip models that already exist for this shop (same name + condition + variant + category).
         $existingKeys = [];
-        foreach (DB::table('phone_models')->where('shop_id', $shopId)->get(['model_name', 'condition', 'sim_type', 'color']) as $model) {
-            $existingKeys[$model->model_name.'|'.$model->condition.'|'.($model->sim_type ?? '').'|'.($model->color ?? '')] = true;
+        foreach (DB::table('phone_models')->where('shop_id', $shopId)->get(['model_name', 'condition', 'sim_type', 'color', 'category']) as $model) {
+            $existingKeys[$model->model_name.'|'.$model->condition.'|'.($model->sim_type ?? '').'|'.($model->color ?? '').'|'.($model->category ?? 'phone')] = true;
         }
 
         $toInsert = [];
@@ -664,8 +714,15 @@ class StockService
 
                 continue;
             }
+            $categoryRaw = $row['category'] ?? null;
+            $category = self::category($categoryRaw);
+            if ($category === '') {
+                $skipped[] = ['name' => $name, 'reason' => 'Invalid category'];
 
-            $key = $name.'|'.$condition.'|'.$sim.'|'.$color;
+                continue;
+            }
+
+            $key = $name.'|'.$condition.'|'.$sim.'|'.$color.'|'.$category;
             if (isset($existingKeys[$key])) {
                 $skipped[] = ['name' => $name, 'reason' => 'Already exists in this shop'];
 
@@ -717,6 +774,7 @@ class StockService
                 'condition' => $condition,
                 'sim_type' => $sim,
                 'color' => $color,
+                'category' => $category,
                 'cost_price' => $cost,
                 'sale_price' => $sale,
                 'opening_stock' => $opening,

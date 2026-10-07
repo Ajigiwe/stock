@@ -34,6 +34,7 @@
                 $i['condition'] ?? null,
                 \App\Services\StockService::simLabel($i['sim_type'] ?? ''),
                 ($i['color'] ?? '') !== '' ? $i['color'] : null,
+                ($i['category'] ?? 'phone') !== 'phone' ? \App\Services\StockService::catLabel($i['category']) : null,
             ]));
 
             // Trade-ins: prefer the swapped-phones list; fall back to legacy

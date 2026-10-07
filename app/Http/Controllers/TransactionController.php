@@ -40,6 +40,7 @@ class TransactionController extends Controller
             ? $queryType
             : (is_string($oldType) && in_array($oldType, ['sale', 'swap', 'repair'], true) ? $oldType : 'sale');
         $payload['simLabels'] = StockService::SIM_TYPES;
+        $payload['catLabels'] = StockService::CATEGORIES;
 
         return view('transactions.new', $payload);
     }
